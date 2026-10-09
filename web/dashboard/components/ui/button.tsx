@@ -11,7 +11,7 @@ const buttonVariants = cva(
         outline: "border border-border-strong bg-surface hover:bg-accent",
         ghost: "hover:bg-accent",
         subtle: "bg-accent text-primary hover:opacity-80",
-        destructive: "bg-critical text-white hover:opacity-90",
+        destructive: "bg-critical text-page hover:opacity-90",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -22,17 +22,22 @@ const buttonVariants = cva(
       },
     },
     defaultVariants: { variant: "default", size: "default" },
-  }
+  },
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {}
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, ...props }, ref) => (
-    <button ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />
-  )
+    <button
+      ref={ref}
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+    />
+  ),
 );
 Button.displayName = "Button";
 

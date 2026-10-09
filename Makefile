@@ -5,10 +5,12 @@
 GO     ?= go
 MODULE := github.com/trqsh-uz/trqsh
 COMPOSE := docker compose -f deploy/docker-compose.dev.yml
+LOCAL_COMPOSE := docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml
+CLOUDFLARE_COMPOSE := $(LOCAL_COMPOSE) -f deploy/docker-compose.cloudflare.yml
 
 .PHONY: help proto build test lint tidy dev dev-deps dev-web dev-down observability \
         migrate images helm-lint helm-template tf-validate compose-config run-edge run-agent \
-        site site-build site-plans site-openapi openapi-sync
+        site site-build site-plans site-openapi openapi-sync local local-down cloudflare
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -43,6 +45,15 @@ observability: ## Add Prometheus + Grafana + OTel (profile: observability)
 
 dev-down: ## Stop the local stack (all profiles)
 	$(COMPOSE) --profile web --profile observability down
+
+local: ## Start the persistent local stack with site, dashboard, API, and edge
+	$(LOCAL_COMPOSE) --profile web up -d --build --wait
+
+local-down: ## Stop the persistent local stack, keeping database volumes
+	$(LOCAL_COMPOSE) --profile web down
+
+cloudflare: ## Run the local stack with public trqsh.uz dashboard/API URLs
+	$(CLOUDFLARE_COMPOSE) --profile web up -d --build --wait
 
 migrate: ## Apply DB migrations against the compose Postgres
 	$(COMPOSE) run --rm migrate up

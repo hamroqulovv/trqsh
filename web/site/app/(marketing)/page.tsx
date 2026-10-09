@@ -1,244 +1,343 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Gauge,
-  Gift,
-  GitBranch,
-  Info,
-  MonitorSmartphone,
-  Radio,
+  ArrowUpRight,
+  Check,
+  Code2,
   Download,
-  Share2,
+  Globe2,
+  Layers3,
+  Monitor,
+  Radio,
+  ShieldCheck,
+  Terminal,
+  Webhook,
 } from "lucide-react";
+import { TunnelPreview } from "@/components/tunnel-preview";
+import { CodeBlock } from "@/components/code-block";
 import { buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Reveal } from "@/components/reveal";
-import { LatencyChart } from "@/components/latency-chart";
-import ThreeDCarousel, { type ThreeDCarouselItem } from "@/components/ThreeDCarousel";
-import { SmartDownload } from "@/components/smart-download";
-import { Tunnel3D } from "@/components/tunnel-3d";
-import PlasmaGlobe from "@/components/PlasmaGlobe";
-import { HeroHeadline } from "@/components/hero-headline";
-import { signupUrl } from "@/lib/site";
 import { planByCode } from "@/lib/plans";
 import { formatBytes } from "@/lib/format";
+import { signupUrl } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
-const free = planByCode("free");
-
-const HERO_INFO = [
-  "QUIC/HTTP-3 — lower latency than TCP tunnels.",
-  "A generous free tier, plus full UDP support.",
-  "Open-source agent with a real desktop app.",
-];
-
-// The most essential points from both "how it works" and "why trqsh" — kept
-// short deliberately: more cards means tighter angular spacing on the ring,
-// which reads as cluttered and makes the auto-rotation feel busy rather than
-// smooth. Seven is the sweet spot between "too sparse" and "too crowded".
-const ICON_CLASS = "h-5 w-5";
-
-const CAROUSEL_ITEMS: ThreeDCarouselItem[] = [
+const capabilities = [
   {
-    icon: <Download className={ICON_CLASS} />,
-    title: "Install in one line",
-    body: "Grab the desktop app or the open-source CLI. No account required to try it.",
-    code: "brew install trqsh/tap/trqsh",
+    icon: Globe2,
+    title: "Share what you’re building.",
+    description:
+      "Give your local app a public HTTPS URL. Send a preview to a teammate, test on your phone, or demo your work.",
+    href: "/docs/http-tunnels",
+    link: "HTTP tunnels",
   },
   {
-    icon: <Gauge className={ICON_CLASS} />,
-    title: "QUIC-first, so it's fast",
-    body: "Lower latency on lossy and mobile links, with connection migration when you hop Wi-Fi ↔ 5G.",
-    stat: "QUIC / HTTP-3",
+    icon: Webhook,
+    title: "Bring webhooks to your desk.",
+    description:
+      "Receive events on localhost, inspect headers and payloads, and replay requests while you debug.",
+    href: "/docs/inspector",
+    link: "Request inspector",
   },
   {
-    icon: <Gift className={ICON_CLASS} />,
-    title: "A free tier that isn't a trap",
-    body: free
-      ? `${formatBytes(free.max_bandwidth_bytes_mo)} of transfer, free forever — deliberately more generous than ngrok's 2026 tier.`
-      : "Generous limits, free forever — deliberately more generous than ngrok's 2026 tier.",
-    stat: free ? `${formatBytes(free.max_bandwidth_bytes_mo)} free / mo` : "Free forever",
-  },
-  {
-    icon: <MonitorSmartphone className={ICON_CLASS} />,
-    title: "A real desktop app",
-    body: "A polished native app for macOS, Windows, and Linux — one-click tunnels, live inspector, replay.",
-    stat: "macOS · Windows · Linux",
-  },
-  {
-    icon: <Share2 className={ICON_CLASS} />,
-    title: "Share your live URL",
-    body: "Your localhost is on the internet at a real HTTPS address, on any device.",
-    code: "https://tidy-otter.trqsh.uz",
-  },
-  {
-    icon: <Radio className={ICON_CLASS} />,
-    title: "Every protocol, including UDP",
-    body: "HTTP, HTTPS, TLS, raw TCP — and UDP, which ngrok simply doesn't do.",
-    stat: "HTTP · TCP · UDP",
-  },
-  {
-    icon: <GitBranch className={ICON_CLASS} />,
-    title: "Open-source agent",
-    body: "Audit it, script it, self-host it — no black box on your machine.",
-    stat: "Apache-2.0",
+    icon: Radio,
+    title: "Go beyond the browser.",
+    description:
+      "Connect SSH and databases with TCP. Use UDP and TLS tunnels on paid plans for the services your workflow needs.",
+    href: "/docs/tcp-udp-tunnels",
+    link: "TCP, UDP & TLS",
   },
 ];
 
-export default function LandingPage() {
+const steps = [
+  {
+    number: "01",
+    title: "Install your way.",
+    description:
+      "Use the CLI with your package manager, or get the desktop app.",
+    command: "npm install -g @trqsh-uz/trqsh",
+    label: "Install the CLI",
+    href: "/download",
+  },
+  {
+    number: "02",
+    title: "Connect your account.",
+    description:
+      "Sign in through your browser. Your free plan is ready when you are.",
+    command: "trqsh login",
+    label: "Sign in",
+    href: "/docs/authentication",
+  },
+  {
+    number: "03",
+    title: "Make localhost public.",
+    description:
+      "Point trqsh at a running local service and share the URL it gives you.",
+    command: "trqsh http 3000",
+    label: "Start a tunnel",
+    href: "/docs/quickstart",
+  },
+];
+
+export default function HomePage() {
+  const free = planByCode("free")!;
   return (
     <>
-      {/* Hero — immersive 3D tunnel. Background sits at z-0, content at z-10 —
-          positive layering (never negative z-index) so WebKit/iOS can't mis-stack
-          the scrim over the text. */}
-      <section className="relative isolate flex min-h-[78vh] flex-col justify-center overflow-hidden sm:min-h-[88vh]">
-        <div className="absolute inset-0 z-0" aria-hidden>
-          <Tunnel3D className="pointer-events-none absolute inset-0" />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-page/70 via-page/40 to-page sm:bg-gradient-to-r sm:from-page sm:via-page/65 sm:to-transparent" />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-page to-transparent" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-page to-transparent" />
+      <section className="shell grid items-center gap-12 pb-16 pt-16 sm:pb-20 sm:pt-20 lg:grid-cols-[1.02fr_1fr] lg:gap-16 lg:pb-24 lg:pt-24">
+        <div>
+          <p className="eyebrow mb-7 flex items-center gap-2">
+            <span className="h-1.5 w-1.5 bg-foreground" aria-hidden="true" />{" "}
+            Local development, connected
+          </p>
+          <h1 className="text-[clamp(3.1rem,5.2vw,4.5rem)] font-semibold leading-[1.06] tracking-[-0.065em]">
+            Your localhost.
+            <br />
+            <span className="text-muted">Now everywhere.</span>
+          </h1>
+          <p className="mt-7 max-w-md text-base leading-relaxed text-secondary sm:text-lg">
+            Share your work, receive webhooks, and connect your services. One
+            command brings your local environment to the internet.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link href="/download" className={buttonVariants({ size: "xl" })}>
+              <Download className="h-4 w-4" aria-hidden="true" /> Get trqsh
+            </Link>
+            <Link
+              href="/docs/quickstart"
+              className={buttonVariants({ variant: "outline", size: "xl" })}
+            >
+              Read the quickstart{" "}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <p className="mt-5 flex items-center gap-2 text-xs text-muted">
+            <Check className="h-3.5 w-3.5" aria-hidden="true" /> Free to start.
+            No credit card required.
+          </p>
         </div>
+        <TunnelPreview />
+      </section>
 
-        <div className="relative z-10 mx-auto w-full max-w-content px-4 py-16 sm:px-6 sm:py-20">
-          <div className="flex flex-col items-center gap-10 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
-            <div className="max-w-2xl">
-              <HeroHeadline />
-
-              <HeroInfoChip delayMs={420} />
-
-              <p
-                className="animate-fade-up mt-5 max-w-xl text-base leading-relaxed text-secondary sm:text-lg"
-                style={{ animationDelay: "180ms" }}
-              >
-                trqsh exposes a local port to a public HTTPS URL in seconds — over QUIC for lower
-                latency, with UDP support, a desktop app, and a free tier that stays out of your way.
-              </p>
-
-              <div className="animate-fade-up mt-8" style={{ animationDelay: "270ms" }}>
-                <SmartDownload variant="hero" />
+      <div className="border-y border-border">
+        <div className="shell grid gap-6 py-7 sm:grid-cols-3 sm:gap-8">
+          {[
+            {
+              icon: Terminal,
+              title: "CLI or desktop",
+              body: "Work the way you want.",
+            },
+            {
+              icon: Monitor,
+              title: "On your platform",
+              body: "macOS, Windows, and Linux.",
+            },
+            {
+              icon: ShieldCheck,
+              title: "QUIC with TCP fallback",
+              body: "Built for real-world networks.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="flex items-center gap-3.5">
+              <item.icon
+                className="h-5 w-5 shrink-0 text-secondary"
+                strokeWidth={1.5}
+                aria-hidden="true"
+              />
+              <div>
+                <p className="text-sm font-medium">{item.title}</p>
+                <p className="mt-0.5 text-xs text-muted">{item.body}</p>
               </div>
             </div>
-
-            {/* Globe sits beside the copy on wide screens only — see
-                components/PlasmaGlobe.tsx for the lg breakpoint gate (avoids
-                running two WebGL scenes at once on tablets). */}
-            <PlasmaGlobe className="relative hidden h-[380px] w-[380px] shrink-0 lg:block xl:h-[440px] xl:w-[440px]" />
-          </div>
+          ))}
         </div>
-      </section>
+      </div>
 
-      {/* How it works + Why trqsh, combined into one 3D carousel
-          (components/ThreeDCarousel.tsx). Auto-rotates; click a card to bring
-          it forward and enlarge it for reading; drag to spin it manually. */}
-      <section className="border-y border-border bg-surface/40 py-14 sm:py-16">
-        <div className="mx-auto max-w-content px-4 sm:px-6">
-          <Reveal className="mx-auto mb-10 max-w-2xl text-center">
-            <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-brand">Why trqsh</p>
-            <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              From localhost to live, and why it's worth it
-            </h2>
-            <p className="mt-3 text-secondary">
-              Drag to spin it, or tap a card to bring it forward.
-            </p>
-          </Reveal>
-          <ThreeDCarousel items={CAROUSEL_ITEMS} />
-        </div>
-      </section>
-
-      {/* Speed / QUIC */}
-      <section className="relative overflow-hidden border-y border-border bg-surface/40">
-        <div className="mx-auto max-w-content px-4 py-20 sm:px-6">
-          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
-            <Reveal>
-              <Badge variant="default" className="mb-4 border border-brand/20">
-                <Gauge className="h-3.5 w-3.5" /> Speed
-              </Badge>
-              <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                QUIC keeps you fast where TCP falls apart
-              </h2>
-              <p className="mt-4 text-secondary">
-                A dropped packet on a TCP tunnel stalls <em>everything</em> behind it — head-of-line
-                blocking. QUIC carries each stream independently, so one lost packet doesn&apos;t
-                freeze the rest. On flaky café Wi-Fi or a train, that&apos;s the difference between
-                snappy and unusable.
-              </p>
-              <ul className="mt-5 flex flex-col gap-2 text-sm text-secondary">
-                {[
-                  "Independent streams — no head-of-line blocking",
-                  "Connection migration across network changes",
-                  "Automatic TCP + yamux fallback where UDP is blocked",
-                ].map((t) => (
-                  <li key={t} className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand" /> {t}
-                  </li>
-                ))}
-              </ul>
-            </Reveal>
-            <Reveal delay={80}>
-              <LatencyChart />
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing + final CTA, merged */}
-      <section className="relative overflow-hidden">
-        <div className="hero-glow pointer-events-none absolute inset-0 -z-10" aria-hidden />
-        <div className="mx-auto max-w-content px-4 py-24 text-center sm:px-6">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-brand">Start free</p>
-          <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Ship your localhost in 60 seconds
+      <section
+        id="product"
+        className="shell section grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24"
+      >
+        <div>
+          <p className="eyebrow">Made for your workflow</p>
+          <h2 className="section-heading mt-5">
+            Stay in your flow.
+            <br />
+            Open up your work.
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-secondary">
-            Free forever, upgrade only when you outgrow it.
+          <p className="mt-5 max-w-sm text-base leading-relaxed text-secondary">
+            Keep your tools, your code, and your environment. trqsh handles the
+            connection between your machine and everyone else.
           </p>
-
-          <div className="mx-auto mt-8 max-w-3xl text-left">
-            <SmartDownload variant="card" />
+          <Link href="/docs" className="text-link mt-7">
+            Explore the documentation{" "}
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+          <div className="mt-10 inline-flex items-center gap-3 rounded-md border border-border px-4 py-3 text-xs text-secondary">
+            <Code2 className="h-4 w-4" aria-hidden="true" />
+            <span>No deployment needed to share a preview.</span>
           </div>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <a href={signupUrl} className={cn(buttonVariants({ size: "lg" }), "glow-brand")}>
-              Start free
-            </a>
-            <Link href="/pricing" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
-              See all plans <ArrowRight className="h-4 w-4" />
+        </div>
+        <div className="divide-y divide-border">
+          {capabilities.map((feature, index) => (
+            <div
+              key={feature.title}
+              className={cn("flex gap-5 py-7", index === 0 && "pt-0")}
+            >
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2">
+                <feature.icon
+                  className="h-5 w-5"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                />
+              </span>
+              <div>
+                <h3 className="text-lg font-semibold tracking-tight">
+                  {feature.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-secondary">
+                  {feature.description}
+                </p>
+                <Link href={feature.href} className="text-link mt-4 text-xs">
+                  {feature.link}{" "}
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-border bg-surface-2">
+        <div className="shell section">
+          <div className="mb-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+            <div>
+              <p className="eyebrow">From local to live</p>
+              <h2 className="section-heading mt-4">
+                Three steps. You’re connected.
+              </h2>
+            </div>
+            <Link href="/docs/quickstart" className="text-link shrink-0">
+              Follow the guide{" "}
+              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <ol className="grid gap-8 lg:grid-cols-3">
+            {steps.map((step) => (
+              <li key={step.number} className="min-w-0">
+                <span className="font-mono text-xs text-muted">
+                  {step.number} /
+                </span>
+                <h3 className="mt-3 text-lg font-semibold tracking-tight">
+                  {step.title}
+                </h3>
+                <p className="mb-5 mt-2 min-h-[3rem] text-sm leading-relaxed text-secondary">
+                  {step.description}
+                </p>
+                <CodeBlock
+                  code={step.command}
+                  label={step.label}
+                  prompt
+                  className="bg-page"
+                />
+                <Link
+                  href={step.href}
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs text-secondary hover:text-foreground"
+                >
+                  Learn more{" "}
+                  <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="shell section grid items-center gap-10 lg:grid-cols-2 lg:gap-24">
+        <div>
+          <p className="eyebrow">Room to get started</p>
+          <h2 className="section-heading mt-4">
+            Start small.
+            <br />
+            Keep building.
+          </h2>
+          <p className="mt-5 max-w-md text-base leading-relaxed text-secondary">
+            Try your first tunnel or build your next side project. The free plan
+            gives you space to work, with paid plans when you need more.
+          </p>
+          <Link href="/pricing" className="text-link mt-6">
+            Find the right plan{" "}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="rounded-xl border border-border p-7 sm:p-8">
+          <div className="flex items-start justify-between gap-5">
+            <div>
+              <p className="text-sm font-medium">{free.name} plan</p>
+              <p className="mt-2 text-5xl font-semibold tracking-[-0.055em]">
+                $0
+                <span className="ml-2 text-sm font-normal tracking-normal text-muted">
+                  forever
+                </span>
+              </p>
+            </div>
+            <Layers3
+              className="h-6 w-6 text-muted"
+              strokeWidth={1.5}
+              aria-hidden="true"
+            />
+          </div>
+          <ul className="my-6 space-y-3 border-t border-border pt-6 text-sm text-secondary">
+            {[
+              `${free.max_concurrent_tunnels} concurrent tunnels`,
+              `${formatBytes(free.max_bandwidth_bytes_mo)} bandwidth per month`,
+              "HTTP, HTTPS, and TCP",
+              `${free.max_reserved_subdomains} reserved subdomain`,
+            ].map((feature) => (
+              <li key={feature} className="flex items-center gap-2.5">
+                <Check className="h-4 w-4 text-foreground" aria-hidden="true" />
+                {feature}
+              </li>
+            ))}
+          </ul>
+          <a
+            href={signupUrl}
+            className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+          >
+            Create your free account{" "}
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </div>
+      </section>
+
+      <section className="shell pb-16 sm:pb-24">
+        <div className="inverse-surface flex flex-col items-start justify-between gap-8 rounded-xl bg-primary px-7 py-10 text-primary-foreground sm:px-12 sm:py-12 lg:flex-row lg:items-center">
+          <div>
+            <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-white/60">
+              Ready when you are
+            </p>
+            <h2 className="text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-4xl">
+              Your next idea.
+              <br />
+              One command away.
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-5">
+            <Link
+              href="/download"
+              className={cn(
+                buttonVariants({ size: "lg", variant: "outline" }),
+                "border-white bg-white text-primary hover:border-white hover:bg-white/90",
+              )}
+            >
+              Download trqsh <Download className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <Link
+              href="/docs/quickstart"
+              className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-white"
+            >
+              Quickstart <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
         </div>
       </section>
     </>
-  );
-}
-
-// Small hover/focus affordance next to the hero headline — reveals a
-// solid card with a few lines about the site — a plain opaque panel (not
-// glassmorphism) so it stays fully legible over the busy hero content.
-//
-// z-30 on the trigger is load-bearing, not decorative: .animate-fade-up
-// animates opacity/transform, and both this chip and the paragraph below it
-// use that class. An element with an in-flight (or fill-mode: both, so
-// "ever ran") transform/opacity animation gets its own stacking context in
-// modern browsers, so the popover's z-20 was only ever being compared
-// against its aunt <p> *as a whole promoted layer*, ranked by DOM order —
-// the popover lost to the paragraph regardless of its z-index. An explicit
-// z-index here forces a real comparison and wins it.
-function HeroInfoChip({ delayMs }: { delayMs: number }) {
-  return (
-    <div
-      className="group relative z-30 mt-4 inline-flex w-fit animate-fade-up items-center gap-1.5 text-xs font-medium text-muted"
-      style={{ animationDelay: `${delayMs}ms` }}
-      tabIndex={0}
-    >
-      <Info className="h-3.5 w-3.5 text-brand" />
-      <span className="border-b border-dashed border-border-strong">What is trqsh, exactly?</span>
-
-      <div className="pointer-events-none absolute left-0 top-full z-20 mt-3 w-80 max-w-[85vw] -translate-y-1 rounded-xl border border-border-strong bg-surface-2 p-3 text-left text-sm normal-case leading-snug text-secondary opacity-0 shadow-2xl transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus:translate-y-0 group-focus:opacity-100">
-        {HERO_INFO.map((line, i) => (
-          <p key={line} className={i > 0 ? "mt-1" : undefined}>
-            {line}
-          </p>
-        ))}
-      </div>
-    </div>
   );
 }

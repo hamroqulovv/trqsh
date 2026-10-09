@@ -195,6 +195,8 @@ services:
     #       TRQSH_API_URL: https://api.${TRQSH_BASE_DOMAIN:-trqsh.uz}
     #       NEXT_PUBLIC_TRQSH_BASE_DOMAIN: ${TRQSH_BASE_DOMAIN:-trqsh.uz}
     restart: unless-stopped
+    environment:
+      TRQSH_API_INTERNAL_URL: http://${TRQSH_API_TARGET:-api}:8080
     depends_on:
       api:
         condition: service_started

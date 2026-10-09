@@ -11,7 +11,8 @@ const base = `${site.cliGithubUrl}/releases/download/v${v}`;
 // The desktop app (Tauri) versions independently of the CLI; its assets live under
 // the `desktop-v<version>` tag on the main repo. Asset names follow Tauri's
 // bundler convention.
-const dv = process.env.TRQSH_DESKTOP_VERSION || "0.3.1";
+export const desktopVersion = process.env.TRQSH_DESKTOP_VERSION || "0.3.1";
+const dv = desktopVersion;
 const guiBase = `${site.githubUrl}/releases/download/desktop-v${dv}`;
 
 export const releasesUrl = `${site.cliGithubUrl}/releases/latest`;
@@ -47,10 +48,24 @@ export interface OSDownload {
   archives: Asset[];
 }
 
-const npmSnippet: InstallSnippet = { label: "npm", command: "npm install -g @trqsh-uz/trqsh" };
-const pipSnippet: InstallSnippet = { label: "pipx", command: "pipx install trqsh" };
-const scoopSnippet: InstallSnippet = { label: "Scoop", command: "scoop bucket add trqsh https://github.com/uzcreator/scoop-bucket; scoop install trqsh" };
-const scriptSnippet: InstallSnippet = { label: "Install script", command: installShCommand, recommended: true };
+const npmSnippet: InstallSnippet = {
+  label: "npm",
+  command: "npm install -g @trqsh-uz/trqsh",
+};
+const pipSnippet: InstallSnippet = {
+  label: "pipx",
+  command: "pipx install trqsh",
+};
+const scoopSnippet: InstallSnippet = {
+  label: "Scoop",
+  command:
+    "scoop bucket add trqsh https://github.com/uzcreator/scoop-bucket; scoop install trqsh",
+};
+const scriptSnippet: InstallSnippet = {
+  label: "Install script",
+  command: installShCommand,
+  recommended: true,
+};
 
 export const OS_DOWNLOADS: Record<OSId, OSDownload> = {
   macos: {
@@ -58,12 +73,27 @@ export const OS_DOWNLOADS: Record<OSId, OSDownload> = {
     name: "macOS",
     tagline: "Native desktop app · or CLI",
     desktop: [
-      { label: "Apple Silicon", href: `${guiBase}/trqsh_${dv}_aarch64.dmg`, arch: "arm64", kind: "dmg" },
+      {
+        label: "Apple Silicon",
+        href: `${guiBase}/trqsh_${dv}_aarch64.dmg`,
+        arch: "arm64",
+        kind: "dmg",
+      },
     ],
     cli: [scriptSnippet, npmSnippet, pipSnippet],
     archives: [
-      { label: "Apple Silicon", href: `${base}/trqsh_${v}_darwin_arm64.tar.gz`, arch: "arm64", kind: "tar.gz" },
-      { label: "Intel", href: `${base}/trqsh_${v}_darwin_amd64.tar.gz`, arch: "amd64", kind: "tar.gz" },
+      {
+        label: "Apple Silicon",
+        href: `${base}/trqsh_${v}_darwin_arm64.tar.gz`,
+        arch: "arm64",
+        kind: "tar.gz",
+      },
+      {
+        label: "Intel",
+        href: `${base}/trqsh_${v}_darwin_amd64.tar.gz`,
+        arch: "amd64",
+        kind: "tar.gz",
+      },
     ],
   },
   windows: {
@@ -71,13 +101,33 @@ export const OS_DOWNLOADS: Record<OSId, OSDownload> = {
     name: "Windows",
     tagline: "Desktop app · or CLI via npm / Scoop",
     desktop: [
-      { label: "Windows installer", href: `${guiBase}/trqsh_${dv}_x64-setup.exe`, arch: "amd64", kind: "exe" },
-      { label: "MSI package", href: `${guiBase}/trqsh_${dv}_x64_en-US.msi`, arch: "amd64", kind: "msi" },
+      {
+        label: "Windows installer",
+        href: `${guiBase}/trqsh_${dv}_x64-setup.exe`,
+        arch: "amd64",
+        kind: "exe",
+      },
+      {
+        label: "MSI package",
+        href: `${guiBase}/trqsh_${dv}_x64_en-US.msi`,
+        arch: "amd64",
+        kind: "msi",
+      },
     ],
     cli: [{ ...npmSnippet, recommended: true }, scoopSnippet, pipSnippet],
     archives: [
-      { label: "Windows x64", href: `${base}/trqsh_${v}_windows_amd64.zip`, arch: "amd64", kind: "zip" },
-      { label: "Windows ARM64", href: `${base}/trqsh_${v}_windows_arm64.zip`, arch: "arm64", kind: "zip" },
+      {
+        label: "Windows x64",
+        href: `${base}/trqsh_${v}_windows_amd64.zip`,
+        arch: "amd64",
+        kind: "zip",
+      },
+      {
+        label: "Windows ARM64",
+        href: `${base}/trqsh_${v}_windows_arm64.zip`,
+        arch: "arm64",
+        kind: "zip",
+      },
     ],
   },
   linux: {
@@ -85,16 +135,51 @@ export const OS_DOWNLOADS: Record<OSId, OSDownload> = {
     name: "Linux",
     tagline: "Desktop app (AppImage / deb / rpm) · or CLI",
     desktop: [
-      { label: "AppImage", href: `${guiBase}/trqsh_${dv}_amd64.AppImage`, arch: "amd64", kind: "AppImage" },
-      { label: "Debian / Ubuntu", href: `${guiBase}/trqsh_${dv}_amd64.deb`, arch: "amd64", kind: "deb" },
-      { label: "Fedora / RHEL", href: `${guiBase}/trqsh-${dv}-1.x86_64.rpm`, arch: "amd64", kind: "rpm" },
+      {
+        label: "AppImage",
+        href: `${guiBase}/trqsh_${dv}_amd64.AppImage`,
+        arch: "amd64",
+        kind: "AppImage",
+      },
+      {
+        label: "Debian / Ubuntu",
+        href: `${guiBase}/trqsh_${dv}_amd64.deb`,
+        arch: "amd64",
+        kind: "deb",
+      },
+      {
+        label: "Fedora / RHEL",
+        href: `${guiBase}/trqsh-${dv}-1.x86_64.rpm`,
+        arch: "amd64",
+        kind: "rpm",
+      },
     ],
     cli: [scriptSnippet, npmSnippet, pipSnippet],
     archives: [
-      { label: "Linux x64", href: `${base}/trqsh_${v}_linux_amd64.tar.gz`, arch: "amd64", kind: "tar.gz" },
-      { label: "Linux ARM64", href: `${base}/trqsh_${v}_linux_arm64.tar.gz`, arch: "arm64", kind: "tar.gz" },
-      { label: "Debian x64", href: `${base}/trqsh_${v}_linux_amd64.deb`, arch: "amd64", kind: "deb" },
-      { label: "RPM x64", href: `${base}/trqsh_${v}_linux_amd64.rpm`, arch: "amd64", kind: "rpm" },
+      {
+        label: "Linux x64",
+        href: `${base}/trqsh_${v}_linux_amd64.tar.gz`,
+        arch: "amd64",
+        kind: "tar.gz",
+      },
+      {
+        label: "Linux ARM64",
+        href: `${base}/trqsh_${v}_linux_arm64.tar.gz`,
+        arch: "arm64",
+        kind: "tar.gz",
+      },
+      {
+        label: "Debian x64",
+        href: `${base}/trqsh_${v}_linux_amd64.deb`,
+        arch: "amd64",
+        kind: "deb",
+      },
+      {
+        label: "RPM x64",
+        href: `${base}/trqsh_${v}_linux_amd64.rpm`,
+        arch: "amd64",
+        kind: "rpm",
+      },
     ],
   },
 };
@@ -125,7 +210,10 @@ export function archiveFor(os: OSId, arch: Arch | null): Asset {
 /** The headline download for an OS: the desktop app if it ships there, else the CLI archive. */
 export function primaryDownload(os: OSId, arch: Arch | null): Asset {
   const desk = OS_DOWNLOADS[os].desktop;
-  if (desk.length > 0) return desk[0];
+  const compatible = desk.find(
+    (asset) => !arch || asset.arch === arch || asset.arch === "universal",
+  );
+  if (compatible) return compatible;
   return archiveFor(os, arch);
 }
 

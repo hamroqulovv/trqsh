@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { safeDashboardNextPath } from "./lib/paths";
 
 // Route protection: without a session cookie, everything except /login redirects
 // to /login; with one, /login redirects into the app. JWT validity is enforced
@@ -47,7 +48,9 @@ export function middleware(req: NextRequest) {
   }
   if (hasSession && isPublic) {
     const url = req.nextUrl.clone();
-    url.pathname = "/";
+    const next = new URL(safeDashboardNextPath(req.nextUrl.searchParams.get("next") || "/"), req.nextUrl.origin);
+    url.pathname = next.pathname;
+    url.search = next.search;
     return NextResponse.redirect(url);
   }
   return NextResponse.next();

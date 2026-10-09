@@ -9,8 +9,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
 )
+
+// JSON requests keep their deadline; remote-control SSE connections stay alive
+// until the client disconnects or the pairing session ends.
+func publicRequestTimeout(next http.Handler) http.Handler {
+	bounded := middleware.Timeout(30 * time.Second)(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if suffix, ok := strings.CutPrefix(r.URL.Path, "/v1/remote/sessions/"); ok && r.Method == http.MethodGet {
+			parts := strings.Split(suffix, "/")
+			if len(parts) == 2 && parts[0] != "" && (parts[1] == "agent" || parts[1] == "viewer") {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+		bounded.ServeHTTP(w, r)
+	})
+}
 
 // securityHeaders sets conservative security response headers on every response.
 // It intentionally avoids a strict CSP so the self-hosted Swagger UI (/docs,

@@ -32,8 +32,7 @@ interface Particle {
   trail: Array<{ x: number; y: number; alpha: number }>;
 }
 
-// components/cursor-orbit.tsx drives this as a full-screen custom-cursor
-// replacement (desktop/pointer:fine only). Ported from lightswind
+// Canvas particle orbit effect, ported from lightswind
 // (registry/particle-orbit-effect.tsx) — canvas + rAF, no deps.
 const ParticleOrbitEffect: React.FC<ParticleOrbitEffectProps> = ({
   className,

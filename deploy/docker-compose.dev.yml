@@ -103,7 +103,7 @@ services:
       TRQSH_API_URL: http://api:8080
       TRQSH_INTERNAL_TOKEN: *internal_token
       TRQSH_ACME_STAGING: "1"
-      TRQSH_ACME_EMAIL: dev@localhost
+      # Leave TRQSH_ACME_EMAIL unset to use self-signed certificates locally.
       TRQSH_METRICS_ADDR: ":9090"
     ports:
       - "80:80"        # HTTP ingress
@@ -130,8 +130,13 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/Dockerfile.dashboard
+      args:
+        TRQSH_API_URL: http://localhost:8080
+        NEXT_PUBLIC_TRQSH_BASE_DOMAIN: lvh.me
     environment:
-      TRQSH_API_URL: http://api:8080
+      # Server-side requests use Docker DNS; browser OAuth links keep the
+      # public TRQSH_API_URL baked into the dashboard image.
+      TRQSH_API_INTERNAL_URL: http://api:8080
       NODE_ENV: production
     ports:
       - "3000:3000"

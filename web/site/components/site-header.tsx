@@ -3,150 +3,157 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Github, Menu, X } from "lucide-react";
-import { Logo } from "./logo";
-import { ScrollProgress } from "./scroll-progress";
-import { buttonVariants } from "./ui/button";
-import { primaryNav, signupUrl, site } from "@/lib/site";
+import { ArrowUpRight, Menu, X } from "lucide-react";
+import { loginUrl, primaryNav, signupUrl, site } from "@/lib/site";
 import { cn } from "@/lib/utils";
+import { Logo } from "./logo";
+import { buttonVariants } from "./ui/button";
+import { ThemeToggle } from "./theme-toggle";
+
+const navigation = [{ label: "Product", href: "/#product" }, ...primaryNav];
 
 export function SiteHeader() {
-  const [open, setOpen] = React.useState(false);
-  const [scrolled, setScrolled] = React.useState(false);
   const pathname = usePathname();
+  const [open, setOpen] = React.useState(false);
+  const headerRef = React.useRef<HTMLElement>(null);
+  const menuRef = React.useRef<HTMLButtonElement>(null);
 
-  // Sliding highlight pill that tracks the hovered nav item.
-  const [hl, setHl] = React.useState({ left: 0, width: 0, opacity: 0 });
-  const onEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    const t = e.currentTarget;
-    setHl({ left: t.offsetLeft, width: t.offsetWidth, opacity: 1 });
-  };
-
+  React.useEffect(() => setOpen(false), [pathname]);
   React.useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        menuRef.current?.focus();
+      }
+    };
+    const onPointer = (event: PointerEvent) => {
+      if (!headerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const query = window.matchMedia("(min-width: 768px)");
+    const onResize = () => {
+      if (query.matches) setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    query.addEventListener("change", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+      query.removeEventListener("change", onResize);
+    };
+  }, [open]);
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const active = (href: string) =>
+    !href.includes("#") &&
+    (pathname === href || pathname.startsWith(`${href}/`));
 
   return (
-    <header className="sticky top-0 z-40 animate-slide-down">
-      <div
-        className={cn(
-          "flex items-center justify-between gap-4 transition-all duration-500 ease-out",
-          scrolled
-            ? "mx-3 mt-3 h-14 max-w-3xl rounded-full border border-border-strong bg-surface/90 px-4 shadow-[0_10px_40px_-12px_rgb(0_0_0/0.7)] backdrop-blur-xl supports-[backdrop-filter]:bg-surface/75 sm:mx-auto sm:px-5"
-            : "mx-auto mt-0 h-16 max-w-content rounded-none border border-transparent bg-transparent px-4 shadow-none sm:px-6"
-        )}
-      >
-        <div className="flex items-center gap-6">
-          <Link href="/" aria-label="trqsh home" className="shrink-0">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-50 border-b border-border bg-page/95 backdrop-blur-md"
+    >
+      <div className="shell flex h-[72px] items-center justify-between gap-4">
+        <div className="flex items-center gap-12">
+          <Link
+            href="/"
+            aria-label="trqsh home"
+            className="rounded-sm text-foreground"
+            onClick={() => setOpen(false)}
+          >
             <Logo />
           </Link>
           <nav
-            className="relative hidden items-center md:flex"
-            onMouseLeave={() => setHl((h) => ({ ...h, opacity: 0 }))}
+            aria-label="Main navigation"
+            className="hidden items-center gap-7 md:flex"
           >
-            <span
-              className="nav-highlight pointer-events-none absolute top-1/2 -z-0 h-8 -translate-y-1/2 rounded-md bg-accent"
-              style={{ left: hl.left, width: hl.width, opacity: hl.opacity }}
-              aria-hidden
-            />
-            {primaryNav.map((item) => (
+            {navigation.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                onMouseEnter={onEnter}
+                aria-current={active(item.href) ? "page" : undefined}
                 className={cn(
-                  "relative z-10 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  isActive(item.href) ? "text-foreground" : "text-secondary hover:text-foreground"
+                  "relative py-6 text-sm transition-colors hover:text-foreground",
+                  active(item.href)
+                    ? "font-medium text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:bg-foreground"
+                    : "text-secondary",
                 )}
               >
                 {item.label}
-                <span
-                  className={cn(
-                    "absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-brand transition-transform duration-300",
-                    isActive(item.href) ? "scale-x-100" : "scale-x-0"
-                  )}
-                  aria-hidden
-                />
               </Link>
             ))}
           </nav>
         </div>
-
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="flex items-center gap-2 sm:gap-5">
           <a
-            href={site.githubUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="trqsh on GitHub"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border-strong bg-surface/60 text-secondary transition-colors hover:border-brand/50 hover:bg-accent hover:text-foreground"
+            href={loginUrl}
+            className="hidden text-sm font-medium text-secondary hover:text-foreground md:inline-flex"
           >
-            <Github className="h-4 w-4" />
+            Sign in
           </a>
+          <ThemeToggle />
           <a
             href={signupUrl}
             className={cn(
               buttonVariants({ size: "sm" }),
-              "btn-shine glow-brand duration-200 hover:-translate-y-0.5 active:translate-y-0"
+              "hidden min-[360px]:inline-flex",
             )}
           >
-            Start free
+            Start free{" "}
+            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </a>
-        </div>
-
-        <div className="flex items-center gap-2 md:hidden">
           <button
+            ref={menuRef}
             type="button"
-            aria-label="Toggle menu"
+            aria-label={open ? "Close navigation" : "Open navigation"}
             aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border-strong bg-surface/60 text-secondary"
+            aria-controls="mobile-navigation"
+            onClick={() => setOpen((value) => !value)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-accent md:hidden"
           >
-            {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
-
-      <ScrollProgress />
-
-      <div
-        className={cn(
-          "overflow-hidden border-border bg-page/95 backdrop-blur-xl transition-[max-height,opacity] duration-300 md:hidden",
-          open ? "max-h-96 border-t opacity-100" : "max-h-0 opacity-0"
-        )}
-      >
-        <nav className="mx-auto flex max-w-content flex-col gap-1 px-4 py-3">
-          {primaryNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-foreground",
-                isActive(item.href) ? "bg-accent text-brand" : "text-secondary"
-              )}
+      {open && (
+        <nav
+          id="mobile-navigation"
+          aria-label="Mobile navigation"
+          className="absolute inset-x-0 top-full border-b border-border bg-page px-5 py-5 shadow-[0_10px_20px_-15px_rgb(0_0_0/0.2)] md:hidden"
+        >
+          <div className="flex flex-col gap-1">
+            {navigation.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                aria-current={active(item.href) ? "page" : undefined}
+                className={cn(
+                  "rounded-md px-3 py-3 text-sm hover:bg-accent",
+                  active(item.href) && "bg-accent font-medium",
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-border px-3 pt-5 text-sm">
+            <a href={signupUrl} className={buttonVariants({ size: "sm" })}>
+              Start free{" "}
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+            <a href={loginUrl}>Sign in</a>
+            <a
+              href={site.githubUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-secondary"
             >
-              {item.label}
-            </Link>
-          ))}
-          <div className="my-2 h-px bg-border" />
-          <a
-            href={signupUrl}
-            onClick={() => setOpen(false)}
-            className={cn(
-              buttonVariants(),
-              "btn-shine glow-brand w-full duration-200 hover:-translate-y-0.5 active:translate-y-0"
-            )}
-          >
-            Start free
-          </a>
+              GitHub <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          </div>
         </nav>
-      </div>
+      )}
     </header>
   );
 }

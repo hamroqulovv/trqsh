@@ -35,6 +35,9 @@ func connectSSE(t *testing.T, url, bearer string) *sseClient {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("connect SSE %s: status %d", url, resp.StatusCode)
 	}
+	if !strings.Contains(resp.Header.Get("Cache-Control"), "no-transform") {
+		t.Fatal("SSE must opt out of proxy compression so events flush immediately")
+	}
 	c := &sseClient{t: t, resp: resp, sc: bufio.NewScanner(resp.Body)}
 	t.Cleanup(func() { _ = resp.Body.Close() })
 	return c
@@ -68,6 +71,23 @@ func (c *sseClient) next(timeout time.Duration) map[string]any {
 	}
 }
 
+// The agent flushes headers before registering with the hub, so the viewer
+// may first receive disconnected presence. Wait for registration to complete
+// before sending commands or asserting transcript delivery.
+func (c *sseClient) waitConnected(timeout time.Duration) {
+	c.t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		ev := c.next(time.Until(deadline))
+		if ev["type"] != "presence" {
+			c.t.Fatalf("expected startup presence, got %#v", ev)
+		}
+		if ev["connected"] == true {
+			return
+		}
+	}
+}
+
 func TestRemotePairingRoundTrip(t *testing.T) {
 	ts := testServer(t)
 	_, apiKey := signupAndKey(t, ts, "remote-a@example.com")
@@ -88,13 +108,7 @@ func TestRemotePairingRoundTrip(t *testing.T) {
 	agent := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/agent", apiKey)
 	viewer := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/viewer", "")
 
-	// The viewer immediately sees agent presence (attachAgent broadcasts before
-	// the create call's caller can race ahead — connectSSE already waited for
-	// headers, so by the time we ask the viewer for its next event both legs
-	// are live).
-	if ev := viewer.next(3 * time.Second); ev["type"] != "presence" || ev["connected"] != true {
-		t.Fatalf("expected connected presence, got %#v", ev)
-	}
+	viewer.waitConnected(3 * time.Second)
 
 	// Agent (daemon) publishes transcript lines; the viewer (phone) sees them.
 	pub := postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/publish", apiKey,
@@ -143,6 +157,36 @@ func TestRemotePairingRoundTrip(t *testing.T) {
 		t.Fatalf("expected 404 for an ended session, got %d", r2.StatusCode)
 	}
 	_ = r2.Body.Close()
+}
+
+func TestRemoteStreamSurvivesRESTTimeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("checks a connection beyond the 30-second REST deadline")
+	}
+	ts := testServer(t)
+	_, apiKey := signupAndKey(t, ts, "remote-long-lived@example.com")
+	var created struct{ Code string }
+	postJSON(t, ts.URL+"/v1/remote/sessions", apiKey, nil, &created)
+	agent := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/agent", apiKey)
+	viewer := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/viewer", "")
+	viewer.waitConnected(3 * time.Second)
+
+	time.Sleep(31 * time.Second)
+	resp := postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/command", "",
+		map[string]string{"text": "/status"}, nil)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("command after REST timeout: status %d", resp.StatusCode)
+	}
+	if event := agent.next(3 * time.Second); event["command"] != "/status" {
+		t.Fatalf("long-lived agent lost command: %#v", event)
+	}
+	postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/publish", apiKey,
+		map[string]any{"type": "lines", "lines": []string{"still connected"}}, nil)
+	event := viewer.next(3 * time.Second)
+	lines, _ := event["lines"].([]any)
+	if event["type"] != "lines" || len(lines) != 1 || lines[0] != "still connected" {
+		t.Fatalf("long-lived viewer lost transcript: %#v", event)
+	}
 }
 
 func TestRemoteSessionIsolationAndUnknownCode(t *testing.T) {

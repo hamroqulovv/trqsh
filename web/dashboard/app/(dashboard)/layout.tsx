@@ -1,31 +1,42 @@
 import { redirect } from "next/navigation";
-import { Waypoints } from "lucide-react";
+import { dashboardRedirectURL } from "@/lib/paths";
+import Link from "next/link";
+import { Logo } from "@/components/logo";
 import { api, type Account } from "@/lib/api";
 import { Nav } from "@/components/nav";
 import { Topbar } from "@/components/topbar";
 import { PageTransition } from "@/components/page-transition";
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   let account: Account;
   try {
     account = await api.account();
   } catch {
-    redirect("/login");
+    redirect(dashboardRedirectURL("/login"));
   }
 
-  const org =
-    account.orgs.find((o) => o.id === account.active_org) ??
-    account.orgs[0] ?? { id: "", name: "Your org", plan: "free", created_at: "" };
+  const org = account.orgs.find((o) => o.id === account.active_org) ??
+    account.orgs[0] ?? {
+      id: "",
+      name: "Your org",
+      plan: "free",
+      created_at: "",
+    };
 
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
-        <div className="flex h-14 items-center gap-2 px-5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Waypoints className="h-4 w-4" />
-          </div>
-          <span className="font-semibold tracking-tight">trqsh</span>
-        </div>
+        <Link
+          href="/"
+          aria-label="trqsh overview"
+          className="flex h-14 items-center px-5"
+        >
+          <Logo />
+        </Link>
         <div className="py-2">
           <Nav />
         </div>

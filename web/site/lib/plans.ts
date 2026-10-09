@@ -35,26 +35,42 @@ const SUPPORT: Record<string, string> = {
 
 /** Builds the comparison matrix straight from the generated catalog. */
 export function buildMatrix(list: CatalogPlan[] = CATALOG): MatrixRow[] {
-  const tunnels = (p: CatalogPlan) => (p.max_concurrent_tunnels ? String(p.max_concurrent_tunnels) : "Metered");
-  const bandwidth = (p: CatalogPlan) => (p.max_bandwidth_bytes_mo ? formatBytes(p.max_bandwidth_bytes_mo) : "Metered");
-  const rate = (p: CatalogPlan) => (p.rate_limit_rps ? `${p.rate_limit_rps} req/s` : "Unbounded");
+  const tunnels = (p: CatalogPlan) =>
+    p.max_concurrent_tunnels ? String(p.max_concurrent_tunnels) : "Metered";
+  const bandwidth = (p: CatalogPlan) =>
+    p.max_bandwidth_bytes_mo
+      ? formatBytes(p.max_bandwidth_bytes_mo)
+      : "Metered";
+  const rate = (p: CatalogPlan) =>
+    p.rate_limit_rps ? `${p.rate_limit_rps} req/s` : "Unbounded";
   const seats = (p: CatalogPlan) => p.code === "team" || p.code === "payg";
 
   return [
     { label: "Concurrent tunnels", cells: list.map(tunnels) },
     { label: "Bandwidth / month", cells: list.map(bandwidth) },
-    { label: "Reserved subdomains", cells: list.map((p) => String(p.max_reserved_subdomains)) },
+    {
+      label: "Reserved subdomains",
+      cells: list.map((p) => String(p.max_reserved_subdomains)),
+    },
     {
       label: "Custom domains",
-      cells: list.map((p) => (p.allow_custom_domains ? String(p.max_custom_domains) : false)),
+      cells: list.map((p) =>
+        p.allow_custom_domains ? String(p.max_custom_domains) : false,
+      ),
     },
     { label: "HTTP / HTTPS", cells: list.map(() => true) },
     { label: "TCP tunnels", cells: list.map((p) => p.allow_tcp) },
     { label: "TLS tunnels", cells: list.map((p) => p.allow_tls) },
-    { label: "UDP tunnels", cells: list.map((p) => p.allow_udp), hint: "ngrok has none" },
+    { label: "UDP tunnels", cells: list.map((p) => p.allow_udp) },
     { label: "Request rate limit", cells: list.map(rate) },
-    { label: "Inspector history", cells: list.map((p) => formatRetention(p.inspector_history)) },
+    {
+      label: "Inspector history",
+      cells: list.map((p) => formatRetention(p.inspector_history)),
+    },
     { label: "Team seats & SSO/SAML", cells: list.map(seats) },
-    { label: "Support", cells: list.map((p) => SUPPORT[p.code] ?? "Community") },
+    {
+      label: "Support",
+      cells: list.map((p) => SUPPORT[p.code] ?? "Community"),
+    },
   ];
 }

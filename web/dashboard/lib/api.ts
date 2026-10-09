@@ -1,6 +1,6 @@
 import { getTokens, setTokens, type Tokens } from "./session";
 
-const BASE = process.env.TRQSH_API_URL || "http://localhost:8080";
+const BASE = process.env.TRQSH_API_INTERNAL_URL || process.env.TRQSH_API_URL || "https://api.trqsh.uz";
 
 // ---- Domain types (mirror Part 05 responses; see docs/openapi.yaml) ----
 
@@ -197,6 +197,19 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 }
 
 // ---- Unauthenticated auth calls ----
+
+export async function getOAuthProviders(): Promise<string[]> {
+  try {
+    const response = await fetch(`${BASE}/status`, { cache: "no-store" });
+    if (!response.ok) return [];
+    const status = await response.json();
+    return Array.isArray(status.oauth_providers)
+      ? status.oauth_providers.filter((provider: string) => provider === "github" || provider === "google")
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function login(email: string, password?: string): Promise<{ user: User; org: Org; tokens: Tokens }> {
   const res = await fetch(`${BASE}/v1/auth/login`, {

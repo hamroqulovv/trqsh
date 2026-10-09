@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { dashboardPath } from "@/lib/paths";
 
 // Mirrors internal/api/remote.go's remoteEvent/remoteState/remoteTunnel wire
 // shapes — this is the one place in the dashboard that talks SSE instead of
@@ -47,7 +48,7 @@ export function RemoteViewer({ code }: { code: string }) {
     let closedByServer = false;
     let everConnected = false;
     let errorCount = 0;
-    const es = new EventSource(`/api/remote/${encodeURIComponent(code)}/viewer`);
+    const es = new EventSource(dashboardPath(`/api/remote/${encodeURIComponent(code)}/viewer`));
 
     es.onopen = () => {
       everConnected = true;
@@ -103,7 +104,7 @@ export function RemoteViewer({ code }: { code: string }) {
     if (!trimmed || sending) return;
     setSending(true);
     try {
-      await fetch(`/api/remote/${encodeURIComponent(code)}/command`, {
+      await fetch(dashboardPath(`/api/remote/${encodeURIComponent(code)}/command`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: trimmed }),

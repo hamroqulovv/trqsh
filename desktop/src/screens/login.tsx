@@ -44,7 +44,7 @@ export function Login({ onConnected }: { onConnected: () => void }) {
   useEffect(() => {
     host.env().then(setEnv).catch(() => {});
   }, []);
-  const keysURL = env?.keys_url ?? "https://app.trqsh.uz/keys";
+  const keysURL = env?.keys_url ?? "https://trqsh.uz/dashboard/keys";
 
   // Stop polling if the component unmounts (e.g. sign-in succeeds elsewhere).
   useEffect(

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { login, signup } from "@/lib/api";
 import { setTokens } from "@/lib/session";
+import { dashboardRedirectURL, safeDashboardNextPath } from "@/lib/paths";
 
 export interface LoginState {
   error?: string;
@@ -26,5 +27,5 @@ export async function authenticate(_prev: LoginState, formData: FormData): Promi
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Could not sign in." };
   }
-  redirect("/");
+  redirect(dashboardRedirectURL(safeDashboardNextPath(String(formData.get("next") || "/"))));
 }

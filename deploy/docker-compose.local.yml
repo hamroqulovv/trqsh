@@ -1,0 +1,86 @@
+# Persistent local stack. Layer over the shared dev services:
+#   docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web up -d --build --wait
+
+services:
+  postgres:
+    restart: unless-stopped
+    ports: !reset []
+
+  redis:
+    restart: unless-stopped
+    ports: !reset []
+    command: ["redis-server", "--appendonly", "yes"]
+
+  migrate:
+    image: trqsh-local-migrate
+
+  api:
+    image: trqsh-local-api
+    restart: unless-stopped
+    environment:
+      TRQSH_ENV: development
+      TRQSH_API_PUBLIC_URL: http://localhost:8081
+      TRQSH_APP_URL: http://localhost:3000
+      TRQSH_QR_URL: http://localhost:3000/remote
+    ports: !override
+      - "127.0.0.1:8081:8080"
+
+  edge:
+    image: trqsh-local-edge
+    restart: unless-stopped
+    environment:
+      TRQSH_SITE_UPSTREAM: http://site:3000
+      TRQSH_APP_UPSTREAM: http://dashboard:3000
+      TRQSH_API_UPSTREAM: http://api:8080
+    ports: !override
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
+      - "127.0.0.1:4443:4443/tcp"
+      - "127.0.0.1:4443:4443/udp"
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      api:
+        condition: service_healthy
+      site:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+
+  dashboard:
+    image: trqsh-local-dashboard
+    restart: unless-stopped
+    build:
+      args:
+        TRQSH_API_URL: http://localhost:8081
+        NEXT_PUBLIC_TRQSH_BASE_DOMAIN: lvh.me
+    environment:
+      TRQSH_ENV: development
+    ports: !override
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  site:
+    image: trqsh-local-site
+    restart: unless-stopped
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.site
+      args:
+        TRQSH_DASHBOARD_URL: http://localhost:3000
+        TRQSH_API_URL: http://localhost:8081
+        TRQSH_SITE_URL: http://localhost:3002
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+
+  mailhog:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"

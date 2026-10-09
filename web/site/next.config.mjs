@@ -4,8 +4,7 @@ const nextConfig = {
   // Self-contained server build for Docker (.next/standalone/server.js).
   output: "standalone",
   // Public deploy-time configuration. These are inlined at build so both Server
-  // and Client Components can read them. All have localhost-friendly defaults so
-  // the site runs against a local stack out of the box.
+  // and Client Components can read them. Local Compose passes explicit overrides.
   env: {
     // Where "Sign up" / "Dashboard" / "Log in" CTAs point (Part 06).
     TRQSH_DASHBOARD_URL: process.env.TRQSH_DASHBOARD_URL || "https://app.trqsh.uz",
@@ -23,6 +22,31 @@ const nextConfig = {
     // Telegram username (no @) users contact to buy/upgrade a plan — shown on the
     // /upgrade page (there is no self-serve checkout).
     TRQSH_TELEGRAM: process.env.TRQSH_TELEGRAM || "hamroqulovv",
+  },
+  // A single Cloudflare hostname can serve the site, dashboard and public API.
+  // Only documented public API routes are forwarded; internal RPC/metrics stay
+  // on the Docker network. The dashboard is built with basePath=/dashboard.
+  async rewrites() {
+    const dashboard = process.env.TRQSH_DASHBOARD_INTERNAL_URL?.replace(/\/$/, "");
+    const api = process.env.TRQSH_API_INTERNAL_URL?.replace(/\/$/, "");
+    return {
+      beforeFiles: [
+        ...(dashboard
+          ? [
+              { source: "/dashboard", destination: `${dashboard}/dashboard` },
+              { source: "/dashboard/:path*", destination: `${dashboard}/dashboard/:path*` },
+            ]
+          : []),
+        ...(api
+          ? [
+              { source: "/v1/:path*", destination: `${api}/v1/:path*` },
+              { source: "/healthz", destination: `${api}/healthz` },
+              { source: "/status", destination: `${api}/status` },
+              { source: "/api-docs", destination: `${api}/docs` },
+            ]
+          : []),
+      ],
+    };
   },
 };
 

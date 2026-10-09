@@ -153,7 +153,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 	r.Use(s.metrics.middleware)
-	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(publicRequestTimeout)
 	r.Use(s.securityHeaders)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })

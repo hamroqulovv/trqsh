@@ -24,18 +24,22 @@ COPY web/dashboard/ ./
 RUN rm -f pnpm-workspace.yaml
 # Inlined at build (next.config env): the API base the browser hits for OAuth,
 # and the public base domain shown in the UI.
-ARG TRQSH_API_URL=http://localhost:8080
-ARG NEXT_PUBLIC_TRQSH_BASE_DOMAIN=lvh.me
+ARG TRQSH_API_URL=https://api.trqsh.uz
+ARG NEXT_PUBLIC_TRQSH_BASE_DOMAIN=trqsh.uz
+ARG NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH=
 ENV NEXT_TELEMETRY_DISABLED=1 \
     TRQSH_API_URL=$TRQSH_API_URL \
-    NEXT_PUBLIC_TRQSH_BASE_DOMAIN=$NEXT_PUBLIC_TRQSH_BASE_DOMAIN
+    NEXT_PUBLIC_TRQSH_BASE_DOMAIN=$NEXT_PUBLIC_TRQSH_BASE_DOMAIN \
+    NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH=$NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH
 RUN pnpm build
 
 # --- runtime ---
 FROM node:24-alpine AS runtime
 RUN npm install -g pnpm@9 && addgroup -S nodejs && adduser -S nextjs -G nodejs
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
+ARG NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH=
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 \
+    NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH=$NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH
 COPY --from=build /app/package.json /app/pnpm-lock.yaml ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
@@ -44,5 +48,5 @@ COPY --from=build /app/next.config.mjs ./next.config.mjs
 USER nextjs
 EXPOSE 3000/tcp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -q --spider http://localhost:3000/login || exit 1
+    CMD wget -q --spider "http://localhost:3000${NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH}/login" || exit 1
 CMD ["pnpm", "start"]

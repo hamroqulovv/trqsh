@@ -8,8 +8,12 @@ const REFRESH = "trqsh_refresh";
 // domain — otherwise the `.trqsh.uz` cookie survives and the old account stays
 // signed in.
 const BASE = process.env.NEXT_PUBLIC_TRQSH_BASE_DOMAIN || "";
-const DOMAIN = BASE && BASE !== "localhost" ? "." + BASE : undefined;
-const SECURE = process.env.NODE_ENV === "production";
+// Local development uses host-only cookies. A Cloudflare-hosted development
+// stack still serves HTTPS publicly and must issue Secure cookies.
+const LOCAL = process.env.TRQSH_ENV === "development";
+const DOMAIN = !LOCAL && BASE && BASE !== "localhost" ? "." + BASE : undefined;
+const SECURE = (process.env.TRQSH_API_URL || "https://api.trqsh.uz").startsWith("https://") ||
+  (process.env.NODE_ENV === "production" && !LOCAL);
 
 export interface Tokens {
   access_token: string;
