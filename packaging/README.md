@@ -4,12 +4,12 @@ Distribution wrappers so people can install the **trqsh** CLI through whatever
 package manager they already use. Every channel ultimately downloads the same
 signed release artifact built by GoReleaser (see [`../.goreleaser.yaml`](../.goreleaser.yaml))
 from the CLI's own dedicated release repo — source stays in this monorepo
-(`uzcreator/trqsh`), but only CLI release artifacts publish to
-`uzcreator/trqshcli`, so the release list there is CLI-only (no desktop GUI or
+(`algorithco/trqsh`), but only CLI release artifacts publish to
+`algorithco/trqshcli`, so the release list there is CLI-only (no desktop GUI or
 other release types mixed in):
 
 ```
-https://github.com/uzcreator/trqshcli/releases/download/v<version>/trqsh_<version>_<os>_<arch>.<ext>
+https://github.com/algorithco/trqshcli/releases/download/v<version>/trqsh_<version>_<os>_<arch>.<ext>
 ```
 
 `<os>` ∈ `darwin|linux|windows`, `<arch>` ∈ `amd64|arm64`, `<ext>` = `zip` on
@@ -41,21 +41,21 @@ not just that a binary matches whatever checksums.txt says):
 ```bash
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp 'https://github.com/uzcreator/trqsh/.*' \
+  --certificate-identity-regexp '^https://github[.]com/(uzcreator|algorithco)/trqsh/[.]github/workflows/release[.]yml@refs/tags/v[^/]+$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 ```
 
 ## Releasing (per version)
 
-**Prerequisite (one-time):** the release workflow runs in `uzcreator/trqsh` but
-publishes to `uzcreator/trqshcli`, so it needs a classic PAT with `repo` scope
+**Prerequisite (one-time):** the release workflow runs in `algorithco/trqsh` but
+publishes to `algorithco/trqshcli`, so it needs a classic PAT with `repo` scope
 on `trqshcli`, set as the `RELEASE_REPO_TOKEN` secret on the `trqsh` repo
 (Settings → Secrets and variables → Actions). Without it, the release job fails
 creating the GitHub release (everything else — npm/PyPI — is unaffected).
 
 1. Tag `vX.Y.Z`; CI runs `goreleaser release` → publishes archives + `checksums.txt`
-   + the Homebrew tap + `.deb`/`.rpm` to `uzcreator/trqshcli`.
+   + the Homebrew tap + `.deb`/`.rpm` to `algorithco/trqshcli`.
 2. **npm:** bump `version` in `npm/package.json`, then `cd npm && npm publish`.
 3. **PyPI:** bump `version` in `pypi/pyproject.toml` + `src/trqsh/__init__.py`,
    then `cd pypi && python -m build && twine upload dist/*`.

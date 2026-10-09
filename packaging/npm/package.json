@@ -1,6 +1,6 @@
 {
   "name": "@trqsh-uz/trqsh",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Expose localhost to the internet — fast QUIC tunnels with a desktop app. This package installs the trqsh CLI binary for your platform.",
   "keywords": [
     "trqsh",
@@ -13,10 +13,10 @@
     "webhook"
   ],
   "homepage": "https://trqsh.uz",
-  "bugs": "https://github.com/uzcreator/trqsh/issues",
+  "bugs": "https://github.com/algorithco/trqsh/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/uzcreator/trqsh.git",
+    "url": "https://github.com/algorithco/trqsh.git",
     "directory": "packaging/npm"
   },
   "license": "Apache-2.0",

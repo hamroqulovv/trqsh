@@ -35,12 +35,12 @@ import (
 )
 
 const (
-	// CLI releases publish to their own repo (source stays in uzcreator/trqsh;
+	// CLI releases publish to their own repo (source stays in algorithco/trqsh;
 	// see .goreleaser.yaml). Desktop GUI releases (desktop-v* tags) live in the
 	// source repo instead, so unlike before, this repo's releases are always
 	// CLI-only — the desktop-v* skip in latestCLIVersion is now just a
 	// defensive no-op, not load-bearing.
-	updateRepo     = "uzcreator/trqshcli"
+	updateRepo     = "algorithco/trqshcli"
 	updateMaxBytes = 200 << 20 // generous cap; real archives are a few tens of MB
 )
 
