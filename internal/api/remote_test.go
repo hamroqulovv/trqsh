@@ -71,20 +71,13 @@ func (c *sseClient) next(timeout time.Duration) map[string]any {
 	}
 }
 
-// The agent flushes headers before registering with the hub, so the viewer
-// may first receive disconnected presence. Wait for registration to complete
-// before sending commands or asserting transcript delivery.
-func (c *sseClient) waitConnected(timeout time.Duration) {
+// Receiving the agent response headers guarantees it is registered, so a
+// viewer connecting afterward must see connected presence immediately.
+func (c *sseClient) requireConnected(timeout time.Duration) {
 	c.t.Helper()
-	deadline := time.Now().Add(timeout)
-	for {
-		ev := c.next(time.Until(deadline))
-		if ev["type"] != "presence" {
-			c.t.Fatalf("expected startup presence, got %#v", ev)
-		}
-		if ev["connected"] == true {
-			return
-		}
+	ev := c.next(timeout)
+	if ev["type"] != "presence" || ev["connected"] != true {
+		c.t.Fatalf("expected connected startup presence, got %#v", ev)
 	}
 }
 
@@ -108,7 +101,7 @@ func TestRemotePairingRoundTrip(t *testing.T) {
 	agent := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/agent", apiKey)
 	viewer := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/viewer", "")
 
-	viewer.waitConnected(3 * time.Second)
+	viewer.requireConnected(3 * time.Second)
 
 	// Agent (daemon) publishes transcript lines; the viewer (phone) sees them.
 	pub := postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/publish", apiKey,
@@ -169,7 +162,7 @@ func TestRemoteStreamSurvivesRESTTimeout(t *testing.T) {
 	postJSON(t, ts.URL+"/v1/remote/sessions", apiKey, nil, &created)
 	agent := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/agent", apiKey)
 	viewer := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/viewer", "")
-	viewer.waitConnected(3 * time.Second)
+	viewer.requireConnected(3 * time.Second)
 
 	time.Sleep(31 * time.Second)
 	resp := postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/command", "",
