@@ -40,7 +40,7 @@ async function check(path, expected) {
     if (path === "/status" && response.ok) {
       const status = JSON.parse(body);
       if (status.base_domain !== new URL(origin).hostname) errors.push(`wrong base domain: ${status.base_domain}`);
-      console.log(`API: store=${status.store}, OAuth=${status.oauth_providers.join(",") || "unconfigured"}`);
+      console.log(`API: store=${status.store}`);
     }
     if (errors.length) { failures++; console.error(`FAIL ${path}: ${errors.join("; ")}`); }
     else console.log(`PASS ${path} (${response.status})`);

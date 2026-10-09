@@ -16,6 +16,7 @@ jobs:
     name: gosec (SAST)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       security-events: write
     steps:
@@ -53,6 +54,7 @@ jobs:
     name: Trivy (deps + config + secrets)
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       security-events: write
     steps:
