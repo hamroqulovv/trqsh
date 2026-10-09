@@ -2,8 +2,8 @@
 # The desktop app (Tauri) is built separately in desktop-build.yml; goreleaser
 # only packages the Go binaries here. Run locally: `goreleaser release --clean --snapshot`.
 #
-# Source lives in uzcreator/trqsh, but the release itself publishes to the
-# dedicated uzcreator/trqshcli repo (see release.github below) — needs a
+# Source lives in algorithco/trqsh, but the release itself publishes to the
+# dedicated algorithco/trqshcli repo (see release.github below) — needs a
 # cross-repo token (RELEASE_REPO_TOKEN) in the workflow since the default
 # GITHUB_TOKEN is scoped to the repo the workflow runs in.
 version: 2
@@ -39,14 +39,14 @@ builds:
 archives:
   # CLI (trqsh) — what users download. Built for every platform.
   - id: cli
-    builds: [trqsh]
+    ids: [trqsh]
     name_template: "trqsh_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
   # Edge server (trqshd) — Linux/macOS only; for self-hosting.
   - id: edge
-    builds: [trqshd]
+    ids: [trqshd]
     name_template: "trqshd_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
@@ -57,7 +57,7 @@ checksum:
 # checksum file is enough to cover every archive/package transitively, since
 # each one's hash is listed in it. Verify a download with:
 #   cosign verify-blob --bundle checksums.txt.sigstore.json \
-#     --certificate-identity-regexp 'https://github.com/uzcreator/trqsh/.*' \
+#     --certificate-identity-regexp '^https://github[.]com/(uzcreator|algorithco)/trqsh/[.]github/workflows/release[.]yml@refs/tags/v[^/]+$' \
 #     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
 #     checksums.txt
 signs:
@@ -104,7 +104,7 @@ changelog:
 nfpms:
   - id: packages
     package_name: trqsh
-    builds: [trqsh, trqshd]
+    ids: [trqsh, trqshd]
     homepage: "https://trqsh.uz"
     description: "trqsh tunneling client (trqsh) and edge server (trqshd)."
     maintainer: "trqsh <ops@trqsh.uz>"
@@ -113,14 +113,14 @@ nfpms:
     bindir: /usr/bin
 
 release:
-  # Binaries ship as GitHub Releases on the dedicated uzcreator/trqshcli repo
+  # Binaries ship as GitHub Releases on the dedicated algorithco/trqshcli repo
   # (source stays in this monorepo — only the release/download surface moved,
   # so CLI users get a clean, download-only release list with no desktop-v*/
   # backend releases mixed in). The package managers (npm/pypi/scoop) and the
   # website point their downloads there too. The desktop GUI keeps releasing
-  # to this repo (uzcreator/trqsh) under desktop-v* tags, unchanged.
+  # to this repo (algorithco/trqsh) under desktop-v* tags, unchanged.
   github:
-    owner: uzcreator
+    owner: algorithco
     name: trqshcli
   name_template: "trqsh CLI v{{ .Version }}"
   draft: false

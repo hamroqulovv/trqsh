@@ -1,11 +1,11 @@
 <div align="center">
 
-<img src="https://cdn.jsdelivr.net/gh/uzcreator/trqsh@main/packaging/assets/banner.svg" alt="trqsh — QUIC-first tunnels to localhost" width="100%" />
+<img src="https://cdn.jsdelivr.net/gh/algorithco/trqsh@main/packaging/assets/banner.svg" alt="trqsh — QUIC-first tunnels to localhost" width="100%" />
 
 [![npm](https://img.shields.io/npm/v/@trqsh-uz/trqsh?color=2dd4bf&label=npm)](https://www.npmjs.com/package/@trqsh-uz/trqsh)
 [![downloads](https://img.shields.io/npm/dm/@trqsh-uz/trqsh?color=2dd4bf)](https://www.npmjs.com/package/@trqsh-uz/trqsh)
-[![release](https://img.shields.io/github/v/release/uzcreator/trqshcli?color=2dd4bf&label=release)](https://github.com/uzcreator/trqshcli/releases)
-[![license](https://img.shields.io/badge/license-Apache--2.0-2dd4bf)](https://github.com/uzcreator/trqsh/blob/main/LICENSE)
+[![release](https://img.shields.io/github/v/release/algorithco/trqshcli?color=2dd4bf&label=release)](https://github.com/algorithco/trqshcli/releases)
+[![license](https://img.shields.io/badge/license-Apache--2.0-2dd4bf)](https://github.com/algorithco/trqsh/blob/main/LICENSE)
 
 </div>
 
@@ -21,7 +21,7 @@ npm install -g @trqsh-uz/trqsh
 npx @trqsh-uz/trqsh http 3000
 ```
 
-<img src="https://cdn.jsdelivr.net/gh/uzcreator/trqsh@main/packaging/assets/terminal-demo.svg" alt="trqsh http 3000 opening a live tunnel" width="100%" />
+<img src="https://cdn.jsdelivr.net/gh/algorithco/trqsh@main/packaging/assets/terminal-demo.svg" alt="trqsh http 3000 opening a live tunnel" width="100%" />
 
 ## Why trqsh
 
@@ -50,7 +50,7 @@ Bare `trqsh` (or `trqsh http 3000`) opens an interactive, slash-command
 console — type `/` to browse everything it can do, pin live panels above the
 prompt, and keep an eye on traffic without leaving the terminal:
 
-<img src="https://cdn.jsdelivr.net/gh/uzcreator/trqsh@main/packaging/assets/console-demo.svg" alt="the trqsh console: welcome banner, an active tunnel, and pinned traffic + status panels" width="100%" />
+<img src="https://cdn.jsdelivr.net/gh/algorithco/trqsh@main/packaging/assets/console-demo.svg" alt="the trqsh console: welcome banner, an active tunnel, and pinned traffic + status panels" width="100%" />
 
 ## Commands
 
@@ -82,7 +82,7 @@ token — no key to leak, no key to trust blindly:
 ```bash
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp 'https://github.com/uzcreator/trqsh/.*' \
+  --certificate-identity-regexp '^https://github[.]com/(uzcreator|algorithco)/trqsh/[.]github/workflows/release[.]yml@refs/tags/v[^/]+$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 ```
@@ -92,7 +92,7 @@ cosign verify-blob \
 - `postinstall` runs `lib/install.js`, which detects your platform (`darwin`,
   `linux`, `win32`) and CPU (`x64`, `arm64`), downloads
   `trqsh_<version>_<os>_<arch>.<ext>` from
-  `https://github.com/uzcreator/trqshcli/releases`, verifies its SHA-256 against
+  `https://github.com/algorithco/trqshcli/releases`, verifies its SHA-256 against
   `checksums.txt`, and unpacks the binary into `vendor/`.
 - `bin/trqsh.js` execs that binary, forwarding arguments, stdio, and the exit
   code. If install scripts were skipped, it downloads on first run.
@@ -123,9 +123,9 @@ so `npm rm` removes that automatically.) Add `-y` to skip the confirmation.
 
 ## Links
 
-[Website](https://trqsh.uz) · [Source](https://github.com/uzcreator/trqsh) ·
-[CLI releases](https://github.com/uzcreator/trqshcli) ·
-[Issues](https://github.com/uzcreator/trqsh/issues)
+[Website](https://trqsh.uz) · [Source](https://github.com/algorithco/trqsh) ·
+[CLI releases](https://github.com/algorithco/trqshcli) ·
+[Issues](https://github.com/algorithco/trqsh/issues)
 
 ## Author
 

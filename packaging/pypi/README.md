@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="https://cdn.jsdelivr.net/gh/uzcreator/trqsh@main/packaging/assets/banner.svg" alt="trqsh — QUIC-first tunnels to localhost" width="100%" />
+<img src="https://cdn.jsdelivr.net/gh/algorithco/trqsh@main/packaging/assets/banner.svg" alt="trqsh — QUIC-first tunnels to localhost" width="100%" />
 
 [![PyPI](https://img.shields.io/pypi/v/trqsh?color=2dd4bf)](https://pypi.org/project/trqsh/)
 [![Downloads](https://img.shields.io/pypi/dm/trqsh?color=2dd4bf)](https://pypi.org/project/trqsh/)
 [![Python](https://img.shields.io/pypi/pyversions/trqsh?color=2dd4bf)](https://pypi.org/project/trqsh/)
-[![release](https://img.shields.io/github/v/release/uzcreator/trqshcli?color=2dd4bf&label=release)](https://github.com/uzcreator/trqshcli/releases)
-[![License](https://img.shields.io/badge/license-Apache--2.0-2dd4bf)](https://github.com/uzcreator/trqsh/blob/main/LICENSE)
+[![release](https://img.shields.io/github/v/release/algorithco/trqshcli?color=2dd4bf&label=release)](https://github.com/algorithco/trqshcli/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-2dd4bf)](https://github.com/algorithco/trqsh/blob/main/LICENSE)
 
 </div>
 
@@ -27,7 +27,7 @@ trqsh login        # sign in through your browser
 trqsh http 3000    # → a public HTTPS URL for localhost:3000
 ```
 
-<img src="https://cdn.jsdelivr.net/gh/uzcreator/trqsh@main/packaging/assets/terminal-demo.svg" alt="trqsh http 3000 opening a live tunnel" width="100%" />
+<img src="https://cdn.jsdelivr.net/gh/algorithco/trqsh@main/packaging/assets/terminal-demo.svg" alt="trqsh http 3000 opening a live tunnel" width="100%" />
 
 ## Why trqsh
 
@@ -56,7 +56,7 @@ Bare `trqsh` (or `trqsh http 3000`) opens an interactive, slash-command
 console — type `/` to browse everything it can do, pin live panels above the
 prompt, and keep an eye on traffic without leaving the terminal:
 
-<img src="https://cdn.jsdelivr.net/gh/uzcreator/trqsh@main/packaging/assets/console-demo.svg" alt="the trqsh console: welcome banner, an active tunnel, and pinned traffic + status panels" width="100%" />
+<img src="https://cdn.jsdelivr.net/gh/algorithco/trqsh@main/packaging/assets/console-demo.svg" alt="the trqsh console: welcome banner, an active tunnel, and pinned traffic + status panels" width="100%" />
 
 ## Commands
 
@@ -88,7 +88,7 @@ token — no key to leak, no key to trust blindly:
 ```bash
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp 'https://github.com/uzcreator/trqsh/.*' \
+  --certificate-identity-regexp '^https://github[.]com/(uzcreator|algorithco)/trqsh/[.]github/workflows/release[.]yml@refs/tags/v[^/]+$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 ```
@@ -98,7 +98,7 @@ cosign verify-blob \
 The console script `trqsh` calls `trqsh.ensure_binary()`, which detects your OS
 (`darwin`/`linux`/`windows`) and CPU (`amd64`/`arm64`), downloads
 `trqsh_<version>_<os>_<arch>.<ext>` from
-`https://github.com/uzcreator/trqshcli/releases`, verifies its SHA-256 against
+`https://github.com/algorithco/trqshcli/releases`, verifies its SHA-256 against
 `checksums.txt`, caches the binary under `~/.cache/trqsh/<version>/`, and execs
 it. Pure standard library — no runtime dependencies.
 
@@ -139,9 +139,9 @@ confirmation.
 
 ## Links
 
-[Website](https://trqsh.uz) · [Source](https://github.com/uzcreator/trqsh) ·
-[CLI releases](https://github.com/uzcreator/trqshcli) ·
-[Issues](https://github.com/uzcreator/trqsh/issues)
+[Website](https://trqsh.uz) · [Source](https://github.com/algorithco/trqsh) ·
+[CLI releases](https://github.com/algorithco/trqshcli) ·
+[Issues](https://github.com/algorithco/trqsh/issues)
 
 ## Author
 

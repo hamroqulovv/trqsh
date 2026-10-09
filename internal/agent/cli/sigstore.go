@@ -18,12 +18,13 @@ import (
 // releaseCertIdentityRegexp and releaseCertOIDCIssuer must match the values
 // documented in packaging/npm/README.md and packaging/pypi/README.md's
 // manual `cosign verify-blob` instructions: the signature was minted by the
-// uzcreator/trqsh repo's own GitHub Actions OIDC token (release.yml), not by
-// uzcreator/trqshcli, which only hosts the published artifacts.
+// source repo's own GitHub Actions OIDC token (release.yml), not by
+// algorithco/trqshcli, which only hosts the published artifacts. Keep the
+// previous uzcreator owner valid for releases signed before the repo moved.
 //
 // releaseCertIdentityRegexp is a var (not const) so a test can swap in a
 // mismatched identity to prove verifySigstoreBundle actually enforces it.
-var releaseCertIdentityRegexp = "https://github.com/uzcreator/trqsh/.*"
+var releaseCertIdentityRegexp = "^https://github[.]com/(uzcreator|algorithco)/trqsh/[.]github/workflows/release[.]yml@refs/tags/v[^/]+$"
 
 const releaseCertOIDCIssuer = "https://token.actions.githubusercontent.com"
 
