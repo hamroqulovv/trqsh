@@ -71,6 +71,23 @@ func (c *sseClient) next(timeout time.Duration) map[string]any {
 	}
 }
 
+// The agent flushes headers before registering with the hub, so the viewer
+// may first receive disconnected presence. Wait for registration to complete
+// before sending commands or asserting transcript delivery.
+func (c *sseClient) waitConnected(timeout time.Duration) {
+	c.t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		ev := c.next(time.Until(deadline))
+		if ev["type"] != "presence" {
+			c.t.Fatalf("expected startup presence, got %#v", ev)
+		}
+		if ev["connected"] == true {
+			return
+		}
+	}
+}
+
 func TestRemotePairingRoundTrip(t *testing.T) {
 	ts := testServer(t)
 	_, apiKey := signupAndKey(t, ts, "remote-a@example.com")
@@ -91,13 +108,7 @@ func TestRemotePairingRoundTrip(t *testing.T) {
 	agent := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/agent", apiKey)
 	viewer := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/viewer", "")
 
-	// The viewer immediately sees agent presence (attachAgent broadcasts before
-	// the create call's caller can race ahead — connectSSE already waited for
-	// headers, so by the time we ask the viewer for its next event both legs
-	// are live).
-	if ev := viewer.next(3 * time.Second); ev["type"] != "presence" || ev["connected"] != true {
-		t.Fatalf("expected connected presence, got %#v", ev)
-	}
+	viewer.waitConnected(3 * time.Second)
 
 	// Agent (daemon) publishes transcript lines; the viewer (phone) sees them.
 	pub := postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/publish", apiKey,
@@ -158,7 +169,7 @@ func TestRemoteStreamSurvivesRESTTimeout(t *testing.T) {
 	postJSON(t, ts.URL+"/v1/remote/sessions", apiKey, nil, &created)
 	agent := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/agent", apiKey)
 	viewer := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/viewer", "")
-	viewer.next(3 * time.Second)
+	viewer.waitConnected(3 * time.Second)
 
 	time.Sleep(31 * time.Second)
 	resp := postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/command", "",
@@ -171,7 +182,9 @@ func TestRemoteStreamSurvivesRESTTimeout(t *testing.T) {
 	}
 	postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/publish", apiKey,
 		map[string]any{"type": "lines", "lines": []string{"still connected"}}, nil)
-	if event := viewer.next(3 * time.Second); event["type"] != "lines" {
+	event := viewer.next(3 * time.Second)
+	lines, _ := event["lines"].([]any)
+	if event["type"] != "lines" || len(lines) != 1 || lines[0] != "still connected" {
 		t.Fatalf("long-lived viewer lost transcript: %#v", event)
 	}
 }
