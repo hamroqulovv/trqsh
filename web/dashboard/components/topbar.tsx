@@ -1,6 +1,7 @@
 import { LogOut } from "lucide-react";
 import { PlanBadge } from "@/components/plan-badge";
 import { MobileNav } from "@/components/mobile-nav";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { logout } from "@/app/actions";
 import type { Org, User } from "@/lib/api";
 
@@ -13,7 +14,10 @@ export function Topbar({ org, user }: { org: Org; user: User }) {
         <PlanBadge plan={org.plan} />
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
-        <span className="hidden max-w-[32vw] truncate text-sm text-secondary md:block">{user.email}</span>
+        <ThemeToggle />
+        <span className="hidden max-w-[32vw] truncate text-sm text-secondary md:block">
+          {user.email}
+        </span>
         {user.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

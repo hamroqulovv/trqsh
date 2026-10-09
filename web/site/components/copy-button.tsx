@@ -13,27 +13,51 @@ export function CopyButton({
   className?: string;
   label?: string;
 }) {
-  const [copied, setCopied] = React.useState(false);
+  const [status, setStatus] = React.useState<"idle" | "copied" | "error">(
+    "idle",
+  );
+  const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  React.useEffect(() => () => clearTimeout(timer.current), []);
+
   return (
     <button
       type="button"
-      aria-label="Copy to clipboard"
+      aria-label={
+        status === "copied"
+          ? "Copied to clipboard"
+          : label
+            ? `Copy ${label}`
+            : "Copy to clipboard"
+      }
       onClick={async () => {
+        clearTimeout(timer.current);
         try {
           await navigator.clipboard.writeText(value);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
+          setStatus("copied");
         } catch {
-          /* clipboard unavailable */
+          setStatus("error");
         }
+        timer.current = setTimeout(() => setStatus("idle"), 2500);
       }}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-surface px-2 py-1 text-xs text-secondary transition-colors hover:bg-accent",
-        className
+        "inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-2.5 text-xs text-secondary transition-colors hover:bg-accent hover:text-foreground",
+        className,
       )}
     >
-      {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />}
-      {label ?? (copied ? "Copied" : "Copy")}
+      {status === "copied" ? (
+        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+      )}
+      <span aria-live="polite">
+        {status === "copied"
+          ? "Copied"
+          : status === "error"
+            ? "Copy failed"
+            : (label ?? "Copy")}
+      </span>
     </button>
   );
 }

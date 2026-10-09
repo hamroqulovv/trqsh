@@ -136,3 +136,62 @@ Nothing in the build plan — **all 11 steps are complete**. trqsh is a launch-r
 (3 OSes), edge, control plane, billing, dashboard, and now the marketing site + docs. Go-live is
 operational: point DNS at the edge, set the deploy-time env (`TRQSH_SITE_URL`, `TRQSH_DASHBOARD_URL`,
 `TRQSH_LATEST_VERSION`, …), flip Stripe to live mode, and ship the first tagged release.
+
+## 2026-10-09 — Monochrome website redesign
+
+The marketing site and documentation now use a fixed white theme, graphite text,
+black actions, a static terminal wordmark, and a shared typography/spacing system.
+The landing page replaces the animated scenes with a labeled, interactive
+HTTP/TCP/UDP command example, practical use cases, three onboarding steps, and a
+free-plan summary derived from the existing catalog.
+
+- Rebuilt pricing cards, monthly/yearly controls, comparison table, and FAQ.
+  Paid actions use the existing manual Telegram upgrade flow. Amounts and limits
+  still come from `catalog.generated.ts`.
+- Rebuilt downloads with explicit OS/architecture selection. Unsupported desktop
+  architectures get a matching CLI archive; desktop and CLI versions are shown
+  separately. Async platform detection ignores stale responses.
+- Added searchable docs navigation, mobile disclosures, active-page indicators,
+  a skip link, visible copy controls with feedback, and keyboard-focusable code
+  examples. Mobile menus close on navigation and Escape.
+- Removed the previous animated logo and heavy hero scenes from rendered pages.
+  The earlier cursor animation removal remains in place.
+- Fixed a Docker documentation defect found during browser verification:
+  `.dockerignore` excluded Markdown, and the site image did not copy it. The
+  image now includes `docs/content` at `/app/content` during build and runtime,
+  selected by `TRQSH_DOCS_CONTENT_DIR`. All 13 Markdown pages render actual
+  documentation instead of prerendered 404 pages.
+
+Validation: TypeScript checking and the production Docker build pass (28 generated
+pages; landing first-load JS 116 kB). The persistent `trqsh-local` site was rebuilt
+and recreated on `http://localhost:3002`; its healthcheck passes. The dashboard,
+API, edge, Postgres, and Redis stay running. All 13 Markdown guides return 200,
+and the edge serves the site over HTTPS.
+
+Chrome/Playwright verification against the production container passes: protocol
+selection and clipboard contents, monthly/yearly prices and upgrade navigation,
+OS/architecture download targets, docs filtering and empty state, mobile menus,
+Escape handling, and keyboard scrolling of Markdown code. Ten routes were checked
+at 320, 390, 768, 1024, and 1440 px with no page overflow. Eighteen axe WCAG
+2 A/AA and 2.1 AA scans report zero violations; no browser runtime errors were
+observed. Desktop and mobile screenshots were reviewed. The temporary development
+preview was stopped; the production Compose stack remains running.
+
+## 2026-10-09 — White and black themes
+
+The monochrome design now supports separate white and black palettes. The header
+control is keyboard accessible and available on narrow screens. A saved
+`localStorage.theme` preference wins over the system setting, synchronizes across
+tabs, and persists through reloads and navigation. Without a saved preference,
+the palette follows live system changes. Storage failures still allow toggling.
+A document-head script applies the theme before paint and owns the browser
+theme-color metadata. The terminal example keeps readable selection colors in
+both palettes; inverse panels retain readable action buttons.
+
+Validation against the production Docker image: 100 responsive checks across ten
+routes at 320, 390, 768, 1024 and 1440 px pass without page overflow. Forty axe
+WCAG 2 A/AA and 2.1 AA scans report zero violations. Keyboard activation, reload,
+navigation, cross-tab synchronization, live system changes, unavailable storage,
+and stored dark preference before application JavaScript loads all pass. No
+browser runtime errors were observed; desktop and mobile screenshots were
+reviewed. The persistent site container remains healthy.

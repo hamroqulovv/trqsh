@@ -1,9 +1,6 @@
 import type { Config } from "tailwindcss";
 
-// Brand tokens are CSS variables (RGB channels) in app/globals.css, the *shared
-// source of truth* with Part 04 (GUI) and Part 06 (dashboard) — kept identical so
-// all three surfaces look like one product. Palette follows the dataviz skill's
-// validated reference instance.
+// Marketing and documentation share a monochrome palette in app/globals.css.
 const rgb = (v: string) => `rgb(var(${v}) / <alpha-value>)`;
 
 const config: Config = {
@@ -57,11 +54,23 @@ const config: Config = {
         sm: "0.3rem",
       },
       fontFamily: {
-        sans: ["system-ui", "-apple-system", '"Segoe UI"', "Roboto", "sans-serif"],
-        mono: ['"SFMono-Regular"', "Consolas", '"Liberation Mono"', "Menlo", "monospace"],
+        sans: [
+          "system-ui",
+          "-apple-system",
+          '"Segoe UI"',
+          "Roboto",
+          "sans-serif",
+        ],
+        mono: [
+          '"SFMono-Regular"',
+          "Consolas",
+          '"Liberation Mono"',
+          "Menlo",
+          "monospace",
+        ],
       },
       maxWidth: {
-        content: "72rem",
+        content: "75rem",
       },
       keyframes: {
         "fade-up": {

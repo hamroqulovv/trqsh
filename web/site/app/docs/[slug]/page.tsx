@@ -22,7 +22,11 @@ export async function generateMetadata({
   return { title: entry.title, description: entry.description };
 }
 
-export default async function DocPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function DocPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await params;
   const entry = docEntry(slug);
   if (!entry || entry.type !== "md") notFound();
@@ -33,12 +37,25 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
   // Prev/next within the flat Markdown order.
   const idx = mdSlugs.indexOf(slug);
   const prev = idx > 0 ? docEntry(mdSlugs[idx - 1]) : undefined;
-  const next = idx < mdSlugs.length - 1 ? docEntry(mdSlugs[idx + 1]) : undefined;
+  const next =
+    idx < mdSlugs.length - 1 ? docEntry(mdSlugs[idx + 1]) : undefined;
 
   return (
-    <div className="grid grid-cols-1 gap-10 py-10 xl:grid-cols-[minmax(0,1fr)_13rem]">
+    <div className="grid grid-cols-1 gap-10 py-10 sm:py-12 xl:grid-cols-[minmax(0,1fr)_11rem]">
       <div className="min-w-0">
-        <article className="prose" dangerouslySetInnerHTML={{ __html: doc.html }} />
+        <p className="mb-6 text-xs text-muted">
+          <Link href="/docs" className="hover:text-foreground">
+            Documentation
+          </Link>
+          <span className="mx-2" aria-hidden="true">
+            /
+          </span>
+          {entry.title}
+        </p>
+        <article
+          className="prose"
+          dangerouslySetInnerHTML={{ __html: doc.html }}
+        />
 
         <nav className="mt-12 flex items-stretch justify-between gap-4 border-t border-border pt-6">
           {prev ? (
@@ -49,7 +66,9 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
               <span className="flex items-center gap-1 text-xs text-muted">
                 <ArrowLeft className="h-3.5 w-3.5" /> Previous
               </span>
-              <span className="mt-1 text-sm font-medium text-foreground">{prev.title}</span>
+              <span className="mt-1 text-sm font-medium text-foreground">
+                {prev.title}
+              </span>
             </Link>
           ) : (
             <span className="flex-1" />
@@ -62,7 +81,9 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
               <span className="flex items-center gap-1 text-xs text-muted">
                 Next <ArrowRight className="h-3.5 w-3.5" />
               </span>
-              <span className="mt-1 text-sm font-medium text-foreground">{next.title}</span>
+              <span className="mt-1 text-sm font-medium text-foreground">
+                {next.title}
+              </span>
             </Link>
           ) : (
             <span className="flex-1" />

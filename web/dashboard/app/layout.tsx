@@ -1,15 +1,25 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { themeBootScript } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "trqsh Dashboard",
-  description: "Manage your trqsh tunnels, domains, API keys, usage, and billing.",
+  description:
+    "Manage your trqsh tunnels, domains, API keys, usage, and billing.",
 };
 
-// The dashboard commits to the trqsh dark theme (matches the marketing site).
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export const viewport: Viewport = { colorScheme: "light dark" };
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body className="min-h-screen">{children}</body>
     </html>
   );

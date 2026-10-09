@@ -1,4 +1,4 @@
-const API = process.env.TRQSH_API_URL || "http://localhost:8080";
+const API = process.env.TRQSH_API_INTERNAL_URL || process.env.TRQSH_API_URL || "https://api.trqsh.uz";
 
 // Proxies the /qr pairing viewer's SSE stream so the browser only ever talks
 // to this same origin, never api.<base> directly — the same "never call the

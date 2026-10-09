@@ -117,3 +117,80 @@ Every env var and port comes straight from the binaries' own config, verified ag
 One step remains: **Qadam 11 — Part 09 (Marketing site + docs)** — landing/pricing/download/quickstart +
 docs from the OpenAPI, sharing the Parts 04/06 design tokens and consuming this release/update-feed +
 install paths. After that: the full launch-ready SaaS.
+
+## Docker verification — 2026-10-09
+
+Built all five Linux container images on Docker Desktop: `trqsh-local-api`,
+`trqsh-local-edge`, `trqsh-local-migrate`, `trqsh-local-dashboard`, and
+`trqsh-local-site`.
+
+Runtime checks exposed and fixed three deployment issues:
+
+- Dashboard server requests used the public API URL inlined by Next.js, so the
+  dev image tried to reach `localhost:8080` inside its own container. The API
+  client and both remote-viewer proxies now prefer the runtime
+  `TRQSH_API_INTERNAL_URL`; dev and production Compose set that internal target.
+  Public OAuth links retain the build-time `TRQSH_API_URL`.
+- The standalone site binds IPv4, while Alpine's `wget` selected IPv6 for
+  `localhost`, marking a working site unhealthy. Its healthcheck now uses
+  `127.0.0.1`.
+- Dev Compose set an ACME email, selecting real Let's Encrypt staging issuance
+  for loopback `lvh.me` hosts. Leaving the email unset selects the existing
+  self-signed local certificate manager.
+
+The documented OpenAPI contract was missing the implemented remote-pairing
+endpoints present in the API's embedded spec. Synced `docs/openapi.yaml` and
+regenerated the site's OpenAPI copy against the local control API; all three
+copies are identical.
+
+Verification completed:
+
+- All five final Docker images built successfully; both Next.js builds passed
+  their type checks.
+- `go build ./...`, `go test ./... -race -count=1`, and `go vet ./...` passed in
+  the Go build container with GCC/musl installed for the race detector. No Go
+  source changes were required.
+- Dev Compose and production Compose with the `apilb`/`observability` profiles
+  validated. Production validation used example/placeholder environment values
+  and did not deploy any production services.
+- An isolated Compose stack applied all four Postgres migrations successfully;
+  Postgres, Redis, API, edge, dashboard, and site all reported `healthy`.
+- HTTP checks passed for API/edge health, the site's home/API docs, dashboard
+  login, both remote proxies preserving upstream `404`, the email sign-in Server
+  Action (`303` with session cookies), and an authenticated dashboard page
+  (`200`). A local HTTPS request confirmed a self-signed edge certificate and
+  the expected unknown-tunnel `404`.
+
+Host ports `8080`, `5432`, and `6379` were occupied by other projects, so runtime
+checks used a separate Compose project, dedicated test volumes, and randomly
+assigned loopback ports. Test containers/volumes were removed after verification;
+the five application images remain available locally. External OAuth, Stripe,
+real ACME issuance, and the native desktop app were outside this Docker check.
+
+## Persistent local stack and native cursor — 2026-10-09
+
+Removed the site's global `CursorOrbit` component, its root-layout mount, and
+the CSS that hid the native cursor. The optimized site image now uses the normal
+browser cursor.
+
+Added `deploy/docker-compose.local.yml` as an override of the shared dev stack,
+with `make local` / `make local-down` entry points. It runs site, dashboard, API,
+edge, Postgres, Redis, and MailHog under the `trqsh-local` project. All seven
+long-running services use `restart: unless-stopped`. Postgres uses a persistent
+named volume, and Redis uses a named volume with append-only persistence enabled.
+The migration job applied schema version 4 and exited successfully.
+
+Public local URLs are site `http://localhost:3002`, dashboard
+`http://localhost:3000`, API docs `http://localhost:8081/docs`, and mail UI
+`http://localhost:8025`. Build arguments keep site/dashboard links on these local
+origins. Explicit dashboard `TRQSH_ENV=development` uses host-only HTTP session
+cookies on localhost; production retains secure domain-scoped cookies.
+
+Rebuilt both frontends with type checks and started the persistent stack. HTTP
+checks returned `200` for every public service; API status confirmed the
+Postgres-backed store. Site CSS no longer contains `cursor-orbit-active`.
+Reserved edge hosts redirect HTTP to HTTPS and serve site/dashboard/API
+successfully over local self-signed HTTPS. Browser visual automation could not
+initialize (`helper_unknown_error`), so visual inspection was unavailable.
+
+The seven service containers and their data volumes remain running/available.

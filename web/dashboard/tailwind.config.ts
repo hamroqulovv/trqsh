@@ -1,8 +1,6 @@
 import type { Config } from "tailwindcss";
 
-// Brand tokens are CSS variables (RGB channels) in app/globals.css — kept
-// identical to the marketing site (web/site) so both surfaces look like one
-// product (trqsh dark green/blue brand).
+// Neutral light/dark RGB tokens match the marketing site (web/site).
 const rgb = (v: string) => `rgb(var(${v}) / <alpha-value>)`;
 
 const config: Config = {
@@ -55,8 +53,20 @@ const config: Config = {
         sm: "0.3rem",
       },
       fontFamily: {
-        sans: ["system-ui", "-apple-system", '"Segoe UI"', "Roboto", "sans-serif"],
-        mono: ['"SFMono-Regular"', "Consolas", '"Liberation Mono"', "Menlo", "monospace"],
+        sans: [
+          "system-ui",
+          "-apple-system",
+          '"Segoe UI"',
+          "Roboto",
+          "sans-serif",
+        ],
+        mono: [
+          '"SFMono-Regular"',
+          "Consolas",
+          '"Liberation Mono"',
+          "Menlo",
+          "monospace",
+        ],
       },
       maxWidth: {
         content: "72rem",

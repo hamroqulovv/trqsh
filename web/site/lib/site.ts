@@ -1,5 +1,5 @@
 // Central site configuration: brand strings, deploy-time URLs, and navigation.
-// All external destinations resolve from next.config.mjs `env` (localhost defaults),
+// All external destinations resolve from next.config.mjs `env` (public defaults),
 // so the same build points at dev or prod by setting env vars — never hardcode.
 
 const dashboardUrl = process.env.TRQSH_DASHBOARD_URL || "https://app.trqsh.uz";
@@ -14,13 +14,16 @@ const siteUrl = process.env.TRQSH_SITE_URL || "https://trqsh.uz";
 const version = process.env.TRQSH_LATEST_VERSION || "0.1.2";
 // Telegram handle (without @) users message to buy/upgrade a plan. There is no
 // self-serve checkout; the /upgrade page routes people here.
-const telegram = (process.env.TRQSH_TELEGRAM || "hamroqulovv").replace(/^@/, "");
+const telegram = (process.env.TRQSH_TELEGRAM || "hamroqulovv").replace(
+  /^@/,
+  "",
+);
 
 export const site = {
   name: "trqsh",
   tagline: "Your localhost, live on the internet.",
   description:
-    "trqsh is a developer tunneling service that exposes localhost to the public internet over QUIC — lower latency on lossy networks, a genuinely generous free tier, UDP support, and a first-class desktop app.",
+    "Bring your localhost to the internet with trqsh. Share development servers, receive webhooks, and connect TCP or UDP services with a CLI or desktop app.",
   version,
   siteUrl,
   dashboardUrl,
@@ -42,7 +45,8 @@ export const site = {
 export const signupUrl = `${dashboardUrl}/login`;
 export const loginUrl = `${dashboardUrl}/login`;
 /** OAuth deep-links straight into the control API (Part 05). */
-export const oauthUrl = (provider: "github" | "google") => `${apiUrl}/v1/auth/oauth/${provider}`;
+export const oauthUrl = (provider: "github" | "google") =>
+  `${apiUrl}/v1/auth/oauth/${provider}`;
 
 export const primaryNav = [
   { label: "Pricing", href: "/pricing" },
@@ -50,14 +54,21 @@ export const primaryNav = [
   { label: "Docs", href: "/docs" },
 ] as const;
 
-export const footerNav: { title: string; links: { label: string; href: string; external?: boolean }[] }[] = [
+export const footerNav: {
+  title: string;
+  links: { label: string; href: string; external?: boolean }[];
+}[] = [
   {
     title: "Product",
     links: [
       { label: "Pricing", href: "/pricing" },
       { label: "Download", href: "/download" },
       { label: "Quickstart", href: "/docs/quickstart" },
-      { label: "Changelog", href: `${site.cliGithubUrl}/releases`, external: true },
+      {
+        label: "Changelog",
+        href: `${site.cliGithubUrl}/releases`,
+        external: true,
+      },
     ],
   },
   {

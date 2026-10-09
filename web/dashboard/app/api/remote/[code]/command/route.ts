@@ -1,4 +1,4 @@
-const API = process.env.TRQSH_API_URL || "http://localhost:8080";
+const API = process.env.TRQSH_API_INTERNAL_URL || process.env.TRQSH_API_URL || "https://api.trqsh.uz";
 
 // Proxies a command typed/tapped in the /qr viewer to the control plane —
 // same-origin boundary as the viewer SSE route (see its sibling route.ts).

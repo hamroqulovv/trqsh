@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Lock, Unlock } from "lucide-react";
 import { loadOpenApi, type ApiOperation } from "@/lib/openapi";
 import { cn } from "@/lib/utils";
+import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "API reference",
@@ -40,11 +41,9 @@ export default function ApiReferencePage() {
 
         <div className="mt-5 rounded-lg border border-border bg-surface p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted">Base URL</div>
-          {spec.servers.map((s) => (
-            <div key={s} className="mt-1 font-mono text-sm text-foreground">
-              {s}
-            </div>
-          ))}
+          <div className="mt-1 break-all font-mono text-sm text-foreground">
+            {site.apiUrl.replace(/\/$/, "")}/v1
+          </div>
           <p className="mt-3 text-sm text-secondary">
             Authenticate with a <span className="font-medium text-foreground">Bearer JWT</span>{" "}
             (dashboard) or an <span className="font-medium text-foreground">API key</span>{" "}
@@ -101,7 +100,7 @@ function Operation({ op }: { op: ApiOperation }) {
         >
           {op.method}
         </span>
-        <span className="font-mono text-sm text-foreground">{op.path}</span>
+        <span className="min-w-0 break-all font-mono text-sm text-foreground">{op.path}</span>
         <span className="ml-auto text-muted" title={op.auth ? "Requires authentication" : "Public"}>
           {op.auth ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
         </span>

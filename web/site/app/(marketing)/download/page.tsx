@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ShieldCheck, TerminalSquare } from "lucide-react";
+import { ArrowRight, Check, Terminal } from "lucide-react";
 import { DownloadSection } from "@/components/download-section";
 import { SmartDownload } from "@/components/smart-download";
 import { CodeBlock } from "@/components/code-block";
@@ -9,61 +9,71 @@ import { site } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Download",
   description:
-    "Install the trqsh CLI on macOS, Windows, and Linux — a one-line script, npm, pip, .deb/.rpm, or a static binary. The site auto-detects your platform.",
+    "Get the trqsh CLI or desktop app for macOS, Windows, and Linux. Choose your platform, architecture, and preferred installation method.",
 };
 
 export default function DownloadPage() {
   return (
-    <div className="relative overflow-hidden">
-      <div className="aurora opacity-30" aria-hidden />
-      <div className="relative mx-auto max-w-content px-4 py-16 sm:px-6">
-        <header className="mx-auto mb-10 max-w-2xl text-center">
-          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-            Download <span className="gradient-text">trqsh</span>
-          </h1>
-          <p className="mt-4 text-lg text-secondary">
-            The open-source CLI on every OS — a one-line script, npm, pip, or a static binary.
-            We&apos;ve already picked the right build for your machine.
+    <div className="shell pb-20 pt-16 sm:pb-24 sm:pt-20">
+      <header className="mb-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div>
+          <p className="eyebrow">Your tools. Your platform.</p>
+          <h1 className="page-heading mt-5">Get trqsh.</h1>
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-secondary sm:text-lg">
+            A command line when you want precision.
+            <br className="hidden sm:block" /> A desktop app when you want a
+            workspace.
           </p>
-        </header>
-
-        {/* Auto-detected pick */}
-        <div className="mx-auto mb-14 max-w-3xl">
-          <SmartDownload variant="card" />
         </div>
-
-        <h2 className="mb-6 text-center text-sm font-semibold uppercase tracking-widest text-muted">
-          All platforms &amp; package managers
-        </h2>
+        <span className="inline-flex w-fit items-center gap-2 rounded-md border border-border px-3 py-2 font-mono text-xs text-secondary">
+          <Terminal className="h-3.5 w-3.5" aria-hidden="true" /> CLI v
+          {site.version}
+        </span>
+      </header>
+      <SmartDownload />
+      <section id="all-platforms" className="mt-16 sm:mt-24">
+        <div className="mb-8">
+          <p className="eyebrow">The complete toolkit</p>
+          <h2 className="section-heading mt-4">
+            Every platform. Every option.
+          </h2>
+          <p className="mt-3 text-sm text-secondary">
+            Desktop installers, package managers, and direct CLI downloads.
+          </p>
+        </div>
         <DownloadSection />
-
-        <section className="mx-auto mt-16 grid max-w-4xl grid-cols-1 gap-5 sm:grid-cols-2">
-          <div className="border-gradient rounded-2xl border border-border bg-surface p-6 shadow-sm">
-            <TerminalSquare className="mb-3 h-6 w-6 text-brand" />
-            <h2 className="text-base font-semibold text-foreground">One-line install (macOS / Linux)</h2>
-            <p className="mb-3 mt-1 text-sm text-secondary">
-              The fastest path — detects your OS and architecture, then installs the <code>trqsh</code> CLI.
-            </p>
-            <CodeBlock code={`curl -fsSL ${site.installShUrl} | sh`} prompt />
+      </section>
+      <section className="mt-16 grid gap-8 border-t border-border pt-12 lg:grid-cols-2 lg:gap-16">
+        <div>
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Check className="h-4 w-4" aria-hidden="true" /> Make sure you’re
+            ready.
           </div>
-          <div className="border-gradient rounded-2xl border border-border bg-surface p-6 shadow-sm">
-            <ShieldCheck className="mb-3 h-6 w-6 text-good" />
-            <h2 className="text-base font-semibold text-foreground">Verify your download</h2>
-            <p className="mb-3 mt-1 text-sm text-secondary">
-              Every release ships a <code>checksums.txt</code>. Confirm the archive before you run it:
-            </p>
-            <CodeBlock code={`shasum -a 256 -c checksums.txt --ignore-missing`} prompt />
-          </div>
-        </section>
-
-        <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-muted">
-          After installing, head to the{" "}
-          <Link href="/docs/quickstart" className="text-brand hover:underline">
-            quickstart
-          </Link>{" "}
-          — you&apos;ll have a live public URL in under a minute.
-        </p>
-      </div>
+          <p className="mb-5 text-sm leading-relaxed text-secondary">
+            After installing the CLI, check your version. Then sign in and open
+            your first tunnel.
+          </p>
+          <CodeBlock
+            code="trqsh version"
+            label="Check your installation"
+            prompt
+          />
+        </div>
+        <div className="flex flex-col justify-center">
+          <p className="eyebrow">What comes next</p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight">
+            Your first public URL.
+          </h2>
+          <p className="mt-3 text-sm leading-relaxed text-secondary">
+            The quickstart takes you through signing in, starting a tunnel, and
+            inspecting the requests reaching your local app.
+          </p>
+          <Link href="/docs/quickstart" className="text-link mt-5">
+            Open the quickstart{" "}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

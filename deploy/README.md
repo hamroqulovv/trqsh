@@ -33,6 +33,58 @@ CI/CD lives in [`../.github/workflows/`](../.github/workflows/) and
 
 ## Local (M1 in one command)
 
+For a persistent local stack with both frontends, fixed loopback ports, automatic
+container restarts, and Postgres/Redis volumes:
+
+```bash
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web up -d --build --wait
+# or: make local
+```
+
+Open the site at `http://localhost:3002`, the dashboard at
+`http://localhost:3000`, and API docs at `http://localhost:8081/docs`. The site
+links to this local dashboard/API. The dashboard sets host-only HTTP cookies in
+explicit development mode so email sign-in works on localhost. The edge accepts
+agents on `localhost:4443` and serves local `*.lvh.me` tunnels on ports 80/443.
+Postgres and Redis are reachable within Docker; they do not consume host ports.
+
+Stop the stack with `make local-down`, or the same Compose command ending in
+`down`. Database volumes remain until explicitly removed.
+
+## Local host published through Cloudflare (trqsh.uz)
+
+Keep the existing Cloudflare Tunnel HTTP origin at `http://localhost:3002`.
+Run the same persistent stack with the public URL overlay:
+
+```bash
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml -f deploy/docker-compose.cloudflare.yml --profile web up -d --build --wait
+# or: make cloudflare
+node deploy/verify-public.mjs
+```
+
+The public site is `https://trqsh.uz`, the dashboard is
+`https://trqsh.uz/dashboard`, and the API is `https://trqsh.uz/v1`.
+API Swagger is at `/api-docs`, health at `/healthz`, and the deployed OpenAPI
+contract at `/openapi.yaml`. Device approval and QR links use
+`/dashboard/device` and `/dashboard/remote/<code>`. Public navigation,
+canonical metadata, robots and sitemap use HTTPS on trqsh.uz. Only the
+origin connection and Docker service-to-service traffic use local addresses.
+
+The overlay uses distinct `trqsh-cloudflare-site`, `trqsh-cloudflare-dashboard`
+and `trqsh-cloudflare-api`
+images so a separate local build cannot replace the public build's URLs.
+Restart with `make cloudflare`; `make local` deliberately switches back to
+localhost URLs. PostgreSQL volumes are shared and retained.
+
+This HTTP Cloudflare Tunnel does not publish the agent's custom QUIC/TCP
+transport on port 4443 or wildcard tunnel ingress. Those need separate public
+edge connectivity and wildcard DNS/routing before `trqsh http` works remotely.
+The inherited development authentication is still enabled; OAuth requires
+provider credentials before this can be a production authentication setup.
+
+See [PUBLIC-URL-AUDIT.md](PUBLIC-URL-AUDIT.md) for the verified public routes,
+authentication/QR checks and remaining deployment limitations.
+
 ```bash
 make dev            # pg + redis + migrate + api + edge + mailhog  (builds images)
 # in another shell — a public URL to your local server:

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { site } from "@/lib/site";
 import { SiteHeader } from "@/components/site-header";
-import { CursorOrbit } from "@/components/cursor-orbit";
+import { themeBootScript } from "@/lib/theme";
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.siteUrl),
@@ -40,17 +40,23 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: "#060908",
-  colorScheme: "dark",
+  colorScheme: "light dark",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // trqsh renders as a committed dark experience (black + dark-green + dark-blue),
-  // so the theme is fixed at the root — no toggle, no flash, fully static.
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body className="min-h-screen antialiased">
-        <CursorOrbit />
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
         <SiteHeader />
         {children}
       </body>

@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { dashboardBasePath } from "@/lib/paths";
 
 const items = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -28,7 +29,10 @@ const items = [
 ];
 
 export function Nav() {
-  const pathname = usePathname();
+  const currentPath = usePathname();
+  const pathname = dashboardBasePath && currentPath.startsWith(`${dashboardBasePath}/`)
+    ? currentPath.slice(dashboardBasePath.length)
+    : currentPath === dashboardBasePath ? "/" : currentPath;
   return (
     <nav className="flex flex-col gap-0.5 px-3">
       {items.map(({ href, label, icon: Icon }) => {

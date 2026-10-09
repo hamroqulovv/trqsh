@@ -1,71 +1,102 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { PricingTable } from "@/components/pricing-table";
+import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Simple, predictable pricing for trqsh — a generous free tier, Pro, and Team plans. The prices shown are the exact limits our edge enforces.",
+    "Start free with trqsh. Compare Free, Pro, Team, and metered plans for your tunnels, bandwidth, and domains.",
 };
 
-const FAQ = [
+const questions = [
   {
-    q: "Is the free tier really free?",
-    a: "Yes — free forever, no credit card. It's deliberately more generous than ngrok's 2026 tier, and the limits you see are the ones the edge actually enforces.",
+    question: "Can I start without a credit card?",
+    answer:
+      "Yes. Create an account and use the Free plan without entering payment details. You can move to a paid plan when you need more tunnels, bandwidth, or protocols.",
   },
   {
-    q: "What counts as bandwidth?",
-    a: "Total bytes proxied through your tunnels in a calendar month, in and out. Usage resets on the first of each month; you can watch it live in the dashboard.",
+    question: "What counts toward my bandwidth?",
+    answer:
+      "Traffic passing through your tunnels counts toward your monthly allowance, including requests and responses. Check your current usage in the dashboard.",
   },
   {
-    q: "Can I change plans anytime?",
-    a: "Yes. Upgrades take effect immediately via Stripe Checkout; downgrades and cancellations are handled in the Stripe Customer Portal and apply at the end of the period.",
+    question: "How do paid upgrades work?",
+    answer:
+      "Choose Pro or Team to see your plan and billing period, then contact us on Telegram with your account email. We handle activation directly and confirm the details with you.",
   },
   {
-    q: "What happens when I hit a limit?",
-    a: "New binds that would exceed a quota are declined with a clear error (and the plan that lifts it), so nothing breaks silently. Existing tunnels keep serving.",
+    question: "Which protocols can I use?",
+    answer:
+      "HTTP, HTTPS, and TCP are available on every plan. Pro and Team also include UDP and TLS tunnels.",
   },
   {
-    q: "Do you offer Pay-as-you-go?",
-    a: "Yes — a metered plan bills only for what you use, ideal for spiky or automated workloads. Reach out and we'll set you up.",
+    question: "What happens when I reach a limit?",
+    answer:
+      "trqsh reports a clear error when an operation exceeds your plan’s limits. You can check usage in the dashboard, reduce your usage, or choose a plan with more capacity.",
+  },
+  {
+    question: "Can I use my own domain?",
+    answer:
+      "Custom domains are included with Pro and Team. The documentation walks you through DNS setup and verification.",
   },
 ];
 
 export default function PricingPage() {
   return (
-    <div className="mx-auto max-w-content px-4 py-16 sm:px-6">
-      <header className="mx-auto mb-12 max-w-2xl text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-foreground">
-          Pricing that scales with you
-        </h1>
-        <p className="mt-4 text-lg text-secondary">
-          Start free, upgrade when you outgrow it. Every number below is pulled straight from our
-          billing catalog — the same limits the edge enforces, so nothing here can drift.
+    <div className="shell pb-20 pt-16 sm:pb-24 sm:pt-20">
+      <header className="mx-auto mb-10 max-w-2xl text-center">
+        <p className="eyebrow">Simple plans. Space to grow.</p>
+        <h1 className="page-heading mt-5">Build at your pace.</h1>
+        <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-secondary sm:text-lg">
+          Start with the essentials, free. Add more tunnels, bandwidth, and
+          control as your work grows.
         </p>
       </header>
-
       <PricingTable />
-
-      <section className="mx-auto mt-20 max-w-3xl">
-        <h2 className="mb-6 text-center text-2xl font-semibold tracking-tight text-foreground">
-          Frequently asked questions
-        </h2>
-        <div className="flex flex-col gap-3">
-          {FAQ.map((item) => (
-            <details
-              key={item.q}
-              className="group rounded-lg border border-border bg-surface p-5 shadow-sm"
-            >
-              <summary className="cursor-pointer list-none font-medium text-foreground marker:content-none">
-                <span className="flex items-center justify-between gap-4">
-                  {item.q}
-                  <span className="text-muted transition-transform group-open:rotate-45">+</span>
-                </span>
+      <section className="mt-20 grid gap-9 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24 sm:mt-24">
+        <div>
+          <p className="eyebrow">Good to know</p>
+          <h2 className="section-heading mt-4">A few answers.</h2>
+          <p className="mt-4 text-sm leading-relaxed text-secondary">
+            Need a hand choosing a plan?
+          </p>
+          <a
+            href={site.telegramUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-link mt-3"
+          >
+            Talk to us <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </div>
+        <div className="divide-y divide-border border-y border-border">
+          {questions.map((item) => (
+            <details key={item.question} className="group py-5">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-sm font-medium">
+                <span>{item.question}</span>
+                <Plus
+                  className="h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-45"
+                  aria-hidden="true"
+                />
               </summary>
-              <p className="mt-3 text-sm text-secondary">{item.a}</p>
+              <p className="mt-3 pr-8 text-sm leading-relaxed text-secondary">
+                {item.answer}
+              </p>
             </details>
           ))}
         </div>
       </section>
+      <p className="mt-12 text-center text-xs text-muted">
+        New to tunneling?{" "}
+        <Link
+          href="/docs/quickstart"
+          className="text-foreground underline underline-offset-4"
+        >
+          Start with the quickstart.
+        </Link>
+      </p>
     </div>
   );
 }

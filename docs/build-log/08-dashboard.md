@@ -102,3 +102,31 @@ Server Components authenticated to the control API and rendered real account/usa
 Two M2 tracks remain: **Part 04 — Desktop GUI** (Wails v3, embeds the Part 03 agent core; shares these
 design tokens) and **Part 08 — Infra/Deploy**. Per `EXECUTION-ORDER.md` the next step is **Qadam 9 — Part 04
 (GUI)**; Part 08 (infra) and Part 09 (site) can run in parallel and also consume this token set + OpenAPI.
+
+## 2026-10-09 — Monochrome login and shared themes
+
+Rebuilt the login page with the website's static terminal wordmark, responsive
+product panel, focused email form, documentation links and legal navigation.
+Account creation is a separate presentation state that reveals the optional name
+field and preserves the return path. Configured OAuth providers use single link
+controls. Native email validation, autocomplete, accessible error feedback and a
+pending indicator support the existing authentication Server Action.
+
+Replaced the forced green dark palette with the marketing site's neutral light
+and dark tokens, removed the previous gradient page background, and added theme
+controls to login and the dashboard topbar. The document-head bootstrap and
+toggle use the same preference key, system fallback and cross-tab behavior as
+the site. Updated the dashboard wordmark and favicon to the terminal mark.
+Destructive buttons keep readable text in both palettes.
+
+Validation: the production Docker build, including TypeScript checking, passes
+(login first-load JavaScript 115 kB). Twenty sign-in/account-creation checks across
+both palettes and five viewport widths pass with no page overflow. Eight axe
+WCAG 2 A/AA and 2.1 AA scans report zero violations. Verified website-to-login
+preference persistence, reloads, cross-tab synchronization, keyboard toggling,
+system fallback, unavailable storage, pre-hydration dark preference, native email
+validation, and preserved return paths. No accounts were created during these UI
+checks. No browser runtime or static asset errors were observed. Reviewed desktop
+and mobile screenshots in both themes and confirmed the new login at
+`https://trqsh.uz/dashboard/login`. The persistent dashboard container remains
+healthy.

@@ -2,42 +2,46 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-// Shared with web/dashboard so buttons look identical across surfaces. Exported
-// `buttonVariants` lets Next <Link> render as a button (CTAs) without a wrapper.
+// The same variants work for buttons and navigation links.
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-page disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[inset_0_1px_0_0_rgb(255_255_255/0.18)] transition-[filter,transform] hover:brightness-110 active:scale-[0.98]",
+          "border border-primary bg-primary text-primary-foreground hover:bg-primary/85",
         outline:
-          "border border-border-strong bg-surface/50 backdrop-blur-sm hover:border-brand/50 hover:bg-accent",
+          "border border-border-strong bg-surface text-foreground hover:border-foreground/40 hover:bg-accent",
         ghost: "hover:bg-accent hover:text-foreground",
-        subtle: "bg-accent text-brand hover:opacity-80",
+        subtle: "bg-accent text-foreground hover:bg-border",
         destructive: "bg-critical text-white hover:opacity-90",
         link: "text-brand underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4",
-        sm: "h-8 px-3 text-xs",
-        lg: "h-10 px-6",
-        xl: "h-12 px-7 text-base",
-        icon: "h-9 w-9",
+        default: "h-11 px-5",
+        sm: "h-9 px-3.5 text-xs",
+        lg: "h-12 px-6",
+        xl: "h-[52px] px-7 text-sm",
+        icon: "h-11 w-11",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
-  }
+  },
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {}
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, ...props }, ref) => (
-    <button ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />
-  )
+    <button
+      ref={ref}
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+    />
+  ),
 );
 Button.displayName = "Button";
 

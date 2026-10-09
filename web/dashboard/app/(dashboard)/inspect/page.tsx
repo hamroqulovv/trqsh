@@ -43,12 +43,12 @@ export default async function InspectPage() {
               retained for {retention} on your plan.
             </p>
             <a
-              href="http://127.0.0.1:4040"
+              href="https://trqsh.uz/docs/inspector"
               target="_blank"
               rel="noreferrer"
               className="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
             >
-              Open the local inspector (:4040) <ExternalLink className="h-3.5 w-3.5" />
+              Inspector setup guide <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </CardContent>
         </Card>

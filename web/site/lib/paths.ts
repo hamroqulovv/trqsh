@@ -15,5 +15,7 @@ import path from "node:path";
 const repoRoot = path.join(process.cwd(), "..", "..");
 
 export const docsDir = path.join(repoRoot, "docs");
-export const docsContentDir = path.join(docsDir, "content");
+// Standalone Docker builds carry Markdown inside the site image. Local commands
+// keep reading the monorepo content without requiring an environment variable.
+export const docsContentDir = process.env.TRQSH_DOCS_CONTENT_DIR || path.join(docsDir, "content");
 export const openapiPath = path.join(process.cwd(), "lib", "openapi.generated.yaml");

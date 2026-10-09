@@ -33,9 +33,16 @@ Bring the API up with `make dev` from the repo root.
 - **Billing** — the billing screen embeds Stripe: plan cards open **Checkout** and
   "Manage billing" opens the **Customer Portal** (both via Server Actions). Plan changes
   land through the webhook, so the UI reflects them on the next load.
-- **Design** — tokens in `app/globals.css` + `tailwind.config.ts` follow the dataviz
-  reference palette (light/dark, RGB-channel tokens so opacity utilities work), shared with
-  the site and desktop app.
+- **Design** — neutral white/black palettes in `app/globals.css` + `tailwind.config.ts`
+  match the marketing site. The login and dashboard theme controls share the site's
+  `localStorage.theme` preference on the same origin, synchronize across tabs, and
+  follow the system setting until a preference is saved. A head script applies the
+  palette before the first paint, including when application JavaScript is delayed.
+- **Login** — a responsive product panel and focused sign-in form replace the old
+  centered card. "Create an account" reveals the optional name field; both modes
+  use the existing email Server Action. Only configured OAuth providers appear.
+  Public navigation defaults to `https://trqsh.uz`; an optional build-time
+  `NEXT_PUBLIC_TRQSH_SITE_URL` changes the home, docs and legal links.
 
 ## Structure
 
@@ -56,3 +63,20 @@ published to `ghcr.io/uzcreator/dashboard` by
 [`.github/workflows/images.yml`](../../.github/workflows/images.yml). `TRQSH_API_URL` and
 `NEXT_PUBLIC_TRQSH_BASE_DOMAIN` are inlined at **build** time, so the published image bakes
 the production values; see [`deploy/PRODUCTION.md`](../../deploy/PRODUCTION.md).
+
+Set `TRQSH_API_INTERNAL_URL` at runtime to route server-side data, authentication,
+and remote-viewer proxy requests over the Docker network (for example,
+`http://api:8080`). Both Compose stacks set this automatically. Browser OAuth
+links still use the public `TRQSH_API_URL` baked into the image. When the internal
+URL is unset, server-side requests fall back to that public URL.
+
+The persistent local Compose stack (`make local`) runs the optimized image at
+`http://localhost:3000` with `TRQSH_ENV=development`. This explicit local mode
+sets host-only cookies over HTTP. Production keeps secure cookies scoped to the
+base domain.
+
+`make cloudflare` mounts the same app at `https://trqsh.uz/dashboard` by
+building with `NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH=/dashboard` and the public
+API origin `https://trqsh.uz`. Next navigation, action redirects, static assets
+and remote-viewer fetch/SSE paths include the mount path. Session cookies are
+Secure on the public HTTPS origin even while the local API uses dev auth.

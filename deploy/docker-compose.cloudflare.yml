@@ -1,0 +1,35 @@
+# Publish the persistent local stack through the existing trqsh.uz Cloudflare
+# Tunnel, whose HTTP origin remains http://localhost:3002.
+# Layer after docker-compose.dev.yml and docker-compose.local.yml.
+services:
+  api:
+    image: trqsh-cloudflare-api
+    environment:
+      TRQSH_BASE_DOMAIN: trqsh.uz
+      TRQSH_API_PUBLIC_URL: https://trqsh.uz
+      TRQSH_APP_URL: https://trqsh.uz/dashboard
+      TRQSH_QR_URL: https://trqsh.uz/dashboard/remote
+
+  edge:
+    environment:
+      TRQSH_BASE_DOMAIN: trqsh.uz
+
+  dashboard:
+    image: trqsh-cloudflare-dashboard
+    build:
+      args:
+        TRQSH_API_URL: https://trqsh.uz
+        NEXT_PUBLIC_TRQSH_BASE_DOMAIN: trqsh.uz
+        NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH: /dashboard
+
+  site:
+    image: trqsh-cloudflare-site
+    build:
+      args:
+        TRQSH_DASHBOARD_URL: https://trqsh.uz/dashboard
+        TRQSH_API_URL: https://trqsh.uz
+        TRQSH_SITE_URL: https://trqsh.uz
+        TRQSH_DASHBOARD_INTERNAL_URL: http://dashboard:3000
+        TRQSH_API_INTERNAL_URL: http://api:8080
+    environment:
+      TRQSH_API_INTERNAL_URL: http://api:8080

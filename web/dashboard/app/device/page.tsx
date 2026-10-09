@@ -1,9 +1,11 @@
 import { Github, Waypoints } from "lucide-react";
+import Link from "next/link";
+import { getOAuthProviders } from "@/lib/api";
 import { getTokens } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { DeviceApprove } from "./device-approve";
 
-const API = process.env.TRQSH_API_URL || "http://localhost:8080";
+const API = process.env.TRQSH_API_URL || "https://api.trqsh.uz";
 
 // Device-authorization approval page (RFC 8628 style) used by the desktop app's
 // "Sign in with browser" flow. It is reachable signed-in or signed-out: a
@@ -15,7 +17,7 @@ export default async function DevicePage({
   searchParams: Promise<{ code?: string }>;
 }) {
   const { code = "" } = await searchParams;
-  const { access } = await getTokens();
+  const [{ access }, providers] = await Promise.all([getTokens(), getOAuthProviders()]);
   const signedIn = !!access;
   const next = `/device${code ? `?code=${encodeURIComponent(code)}` : ""}`;
   const oauth = (provider: string) => `${API}/v1/auth/oauth/${provider}?next=${encodeURIComponent(next)}`;
@@ -37,17 +39,20 @@ export default async function DevicePage({
           ) : (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-secondary">Sign in to approve this device.</p>
-              <a href={oauth("github")}>
+              <Link href={`/login?next=${encodeURIComponent(next)}`}>
+                <Button className="w-full" type="button">Continue with email</Button>
+              </Link>
+              {providers.includes("github") && <a href={oauth("github")}>
                 <Button variant="outline" className="w-full" type="button">
                   <Github className="h-4 w-4" />
                   Continue with GitHub
                 </Button>
-              </a>
-              <a href={oauth("google")}>
+              </a>}
+              {providers.includes("google") && <a href={oauth("google")}>
                 <Button variant="outline" className="w-full" type="button">
                   Continue with Google
                 </Button>
-              </a>
+              </a>}
             </div>
           )}
         </div>

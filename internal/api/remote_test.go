@@ -35,6 +35,9 @@ func connectSSE(t *testing.T, url, bearer string) *sseClient {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("connect SSE %s: status %d", url, resp.StatusCode)
 	}
+	if !strings.Contains(resp.Header.Get("Cache-Control"), "no-transform") {
+		t.Fatal("SSE must opt out of proxy compression so events flush immediately")
+	}
 	c := &sseClient{t: t, resp: resp, sc: bufio.NewScanner(resp.Body)}
 	t.Cleanup(func() { _ = resp.Body.Close() })
 	return c
@@ -143,6 +146,34 @@ func TestRemotePairingRoundTrip(t *testing.T) {
 		t.Fatalf("expected 404 for an ended session, got %d", r2.StatusCode)
 	}
 	_ = r2.Body.Close()
+}
+
+func TestRemoteStreamSurvivesRESTTimeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("checks a connection beyond the 30-second REST deadline")
+	}
+	ts := testServer(t)
+	_, apiKey := signupAndKey(t, ts, "remote-long-lived@example.com")
+	var created struct{ Code string }
+	postJSON(t, ts.URL+"/v1/remote/sessions", apiKey, nil, &created)
+	agent := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/agent", apiKey)
+	viewer := connectSSE(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/viewer", "")
+	viewer.next(3 * time.Second)
+
+	time.Sleep(31 * time.Second)
+	resp := postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/command", "",
+		map[string]string{"text": "/status"}, nil)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("command after REST timeout: status %d", resp.StatusCode)
+	}
+	if event := agent.next(3 * time.Second); event["command"] != "/status" {
+		t.Fatalf("long-lived agent lost command: %#v", event)
+	}
+	postJSON(t, ts.URL+"/v1/remote/sessions/"+created.Code+"/publish", apiKey,
+		map[string]any{"type": "lines", "lines": []string{"still connected"}}, nil)
+	if event := viewer.next(3 * time.Second); event["type"] != "lines" {
+		t.Fatalf("long-lived viewer lost transcript: %#v", event)
+	}
 }
 
 func TestRemoteSessionIsolationAndUnknownCode(t *testing.T) {

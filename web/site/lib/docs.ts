@@ -44,15 +44,35 @@ function makeSlugger() {
 
 /** Render Markdown to HTML, adding stable ids + anchor links to h2/h3 and a TOC. */
 export function renderMarkdown(md: string): RenderedDoc {
-  const raw = marked.parse(md, { async: false, gfm: true }) as string;
+  // Code examples must be keyboard-focusable when they scroll on small screens.
+  const raw = (marked.parse(md, { async: false, gfm: true }) as string).replace(
+    /<pre>/g,
+    '<pre tabindex="0">',
+  ).replace(
+    /<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g,
+    (anchor, href: string, text: string) => {
+      // Local service/inspector examples stay readable without navigating to
+      // the reader's own loopback address from the public documentation.
+      try {
+        const { hostname } = new URL(href);
+        return /^(?:localhost|0\.0\.0\.0|\[::1\])$|^127\.|(?:^|\.)lvh\.me$/i.test(hostname)
+          ? text : anchor;
+      } catch {
+        return anchor;
+      }
+    },
+  );
   const slug = makeSlugger();
   const toc: TocItem[] = [];
-  const html = raw.replace(/<(h[23])>([\s\S]*?)<\/\1>/g, (_m, tag: string, inner: string) => {
-    const text = stripTags(inner).trim();
-    const id = slug(text);
-    toc.push({ level: tag === "h2" ? 2 : 3, text, id });
-    return `<${tag} id="${id}">${inner}<a class="anchor" href="#${id}" aria-hidden="true">#</a></${tag}>`;
-  });
+  const html = raw.replace(
+    /<(h[23])>([\s\S]*?)<\/\1>/g,
+    (_m, tag: string, inner: string) => {
+      const text = stripTags(inner).trim();
+      const id = slug(text);
+      toc.push({ level: tag === "h2" ? 2 : 3, text, id });
+      return `<${tag} id="${id}">${inner}<a class="anchor" href="#${id}" aria-label="Link to this section">#</a></${tag}>`;
+    },
+  );
   return { html, toc };
 }
 

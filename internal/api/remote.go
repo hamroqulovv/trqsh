@@ -39,6 +39,13 @@ const remoteSessionTTL = 30 * time.Minute
 // instead of a blank screen, without the backlog growing unbounded.
 const remoteBacklogLimit = 200
 
+// Extend the HTTP server's write deadline as the stream sends events or its
+// 25-second heartbeat. This keeps active SSE alive beyond WriteTimeout while
+// still bounding writes to a client that stops reading.
+func resetRemoteWriteDeadline(w http.ResponseWriter) {
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(35 * time.Second))
+}
+
 // remoteEvent is the single envelope shape both legs exchange: the agent
 // stream carries "command"/"presence"/"ended"; the viewer stream carries
 // "lines"/"state"/"presence"/"ended". One reused type rather than two, the
@@ -336,10 +343,11 @@ func (s *Server) handleRemoteAgentStream(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
+	resetRemoteWriteDeadline(w)
 	_, _ = io.WriteString(w, ": connected\n\n")
 	flusher.Flush()
 
@@ -355,12 +363,14 @@ func (s *Server) handleRemoteAgentStream(w http.ResponseWriter, r *http.Request)
 		case <-r.Context().Done():
 			return
 		case <-keepalive.C:
+			resetRemoteWriteDeadline(w)
 			_, _ = io.WriteString(w, ": keepalive\n\n")
 			flusher.Flush()
 		case ev, ok := <-ch:
 			if !ok {
 				return
 			}
+			resetRemoteWriteDeadline(w)
 			_, _ = w.Write([]byte("data: "))
 			_ = enc.Encode(ev)
 			_, _ = w.Write([]byte("\n"))
@@ -412,10 +422,11 @@ func (s *Server) handleRemoteViewerStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
+	resetRemoteWriteDeadline(w)
 	_, _ = io.WriteString(w, ": connected\n\n")
 	flusher.Flush()
 
@@ -431,12 +442,14 @@ func (s *Server) handleRemoteViewerStream(w http.ResponseWriter, r *http.Request
 		case <-r.Context().Done():
 			return
 		case <-keepalive.C:
+			resetRemoteWriteDeadline(w)
 			_, _ = io.WriteString(w, ": keepalive\n\n")
 			flusher.Flush()
 		case ev, ok := <-ch:
 			if !ok {
 				return
 			}
+			resetRemoteWriteDeadline(w)
 			_, _ = w.Write([]byte("data: "))
 			_ = enc.Encode(ev)
 			_, _ = w.Write([]byte("\n"))

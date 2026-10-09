@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { dashboardRedirectURL } from "@/lib/paths";
 import { api } from "@/lib/api";
 
 export async function checkoutAction(fd: FormData): Promise<void> {
@@ -11,9 +12,9 @@ export async function checkoutAction(fd: FormData): Promise<void> {
     const r = await api.checkout(plan, cadence);
     url = r.url;
   } catch {
-    redirect("/billing?error=checkout");
+    redirect(dashboardRedirectURL("/billing?error=checkout"));
   }
-  redirect(url || "/billing?error=checkout");
+  redirect(url || dashboardRedirectURL("/billing?error=checkout"));
 }
 
 export async function portalAction(): Promise<void> {
@@ -22,7 +23,7 @@ export async function portalAction(): Promise<void> {
     const r = await api.portal();
     url = r.url;
   } catch {
-    redirect("/billing?error=portal");
+    redirect(dashboardRedirectURL("/billing?error=portal"));
   }
-  redirect(url || "/billing?error=portal");
+  redirect(url || dashboardRedirectURL("/billing?error=portal"));
 }

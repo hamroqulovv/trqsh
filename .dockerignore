@@ -1,7 +1,9 @@
 # Keep Docker build contexts small and reproducible.
 .git
 .github
-docs
+docs/*
+!docs/content
+!docs/content/**
 plan
 deploy/terraform
 deploy/helm
