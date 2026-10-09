@@ -93,6 +93,16 @@ func TestRemotePairingRealEndToEnd(t *testing.T) {
 	l := agent.NewLocalAPI(nil)
 	daemon := httptest.NewServer(l.Handler())
 	t.Cleanup(daemon.Close)
+	// A failed assertion must stop the pairing before the servers close;
+	// otherwise its long-lived agent stream keeps the control plane open.
+	t.Cleanup(func() {
+		resp, err := http.Post(daemon.URL+"/remote/stop", "application/json", nil)
+		if err != nil {
+			t.Errorf("cleanup remote pairing: %v", err)
+			return
+		}
+		_ = resp.Body.Close()
+	})
 
 	eventsReq, _ := http.NewRequest(http.MethodGet, daemon.URL+"/events", nil)
 	eventsResp, err := http.DefaultClient.Do(eventsReq)

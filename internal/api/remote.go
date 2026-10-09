@@ -342,6 +342,11 @@ func (s *Server) handleRemoteAgentStream(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
+	// The daemon treats the response headers as its readiness signal. Attach
+	// before flushing them so a viewer connecting immediately sees it online.
+	ch := sess.attachAgent()
+	defer sess.detachAgent(ch)
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache, no-transform")
 	w.Header().Set("Connection", "keep-alive")
@@ -350,9 +355,6 @@ func (s *Server) handleRemoteAgentStream(w http.ResponseWriter, r *http.Request)
 	resetRemoteWriteDeadline(w)
 	_, _ = io.WriteString(w, ": connected\n\n")
 	flusher.Flush()
-
-	ch := sess.attachAgent()
-	defer sess.detachAgent(ch)
 
 	keepalive := time.NewTicker(25 * time.Second)
 	defer keepalive.Stop()
@@ -421,6 +423,9 @@ func (s *Server) handleRemoteViewerStream(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
+	id, ch := sess.addViewer()
+	defer sess.removeViewer(id)
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache, no-transform")
 	w.Header().Set("Connection", "keep-alive")
@@ -429,9 +434,6 @@ func (s *Server) handleRemoteViewerStream(w http.ResponseWriter, r *http.Request
 	resetRemoteWriteDeadline(w)
 	_, _ = io.WriteString(w, ": connected\n\n")
 	flusher.Flush()
-
-	id, ch := sess.addViewer()
-	defer sess.removeViewer(id)
 
 	keepalive := time.NewTicker(25 * time.Second)
 	defer keepalive.Stop()
