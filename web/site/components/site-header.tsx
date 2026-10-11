@@ -9,16 +9,24 @@ import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
 import { buttonVariants } from "./ui/button";
 import { ThemeToggle } from "./theme-toggle";
+import { ScrollProgress } from "./scroll-progress";
 
 const navigation = [{ label: "Product", href: "/#product" }, ...primaryNav];
 
 export function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+  const [scrolled, setScrolled] = React.useState(false);
   const headerRef = React.useRef<HTMLElement>(null);
   const menuRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => setOpen(false), [pathname]);
+  React.useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 24);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
   React.useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -51,14 +59,17 @@ export function SiteHeader() {
   return (
     <header
       ref={headerRef}
-      className="sticky top-0 z-50 border-b border-border bg-page/95 backdrop-blur-md"
+      className={cn(
+        "site-header sticky top-0 z-50 border-b border-border bg-page/90 backdrop-blur-xl",
+        scrolled && "header-scrolled",
+      )}
     >
-      <div className="shell flex h-[72px] items-center justify-between gap-4">
+      <div className={cn("header-inner flex h-[72px] items-center justify-between gap-4", pathname === "/docs" || pathname.startsWith("/docs/") ? "docs-shell" : "shell")}>
         <div className="flex items-center gap-12">
           <Link
             href="/"
             aria-label="trqsh home"
-            className="rounded-sm text-foreground"
+            className="site-brand rounded-sm text-foreground"
             onClick={() => setOpen(false)}
           >
             <Logo />
@@ -73,9 +84,9 @@ export function SiteHeader() {
                 href={item.href}
                 aria-current={active(item.href) ? "page" : undefined}
                 className={cn(
-                  "relative py-6 text-sm transition-colors hover:text-foreground",
+                  "nav-link relative py-6 text-sm transition-colors hover:text-foreground",
                   active(item.href)
-                    ? "font-medium text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:bg-foreground"
+                    ? "font-medium text-foreground"
                     : "text-secondary",
                 )}
               >
@@ -119,7 +130,7 @@ export function SiteHeader() {
         <nav
           id="mobile-navigation"
           aria-label="Mobile navigation"
-          className="absolute inset-x-0 top-full border-b border-border bg-page px-5 py-5 shadow-[0_10px_20px_-15px_rgb(0_0_0/0.2)] md:hidden"
+          className="mobile-menu absolute inset-x-0 top-full border-b border-border bg-page px-5 py-5 shadow-[0_10px_20px_-15px_rgb(0_0_0/0.2)] md:hidden"
         >
           <div className="flex flex-col gap-1">
             {navigation.map((item) => (
@@ -154,6 +165,7 @@ export function SiteHeader() {
           </div>
         </nav>
       )}
+      <ScrollProgress />
     </header>
   );
 }

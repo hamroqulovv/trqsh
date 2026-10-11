@@ -48,7 +48,7 @@ export function renderMarkdown(md: string): RenderedDoc {
   const raw = (marked.parse(md, { async: false, gfm: true }) as string).replace(
     /<pre>/g,
     '<pre tabindex="0">',
-  ).replace(
+  ).replace(/<table>/g, '<table tabindex="0" aria-label="Scrollable reference table">').replace(
     /<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g,
     (anchor, href: string, text: string) => {
       // Local service/inspector examples stay readable without navigating to
@@ -70,7 +70,8 @@ export function renderMarkdown(md: string): RenderedDoc {
       const text = stripTags(inner).trim();
       const id = slug(text);
       toc.push({ level: tag === "h2" ? 2 : 3, text, id });
-      return `<${tag} id="${id}">${inner}<a class="anchor" href="#${id}" aria-label="Link to this section">#</a></${tag}>`;
+      const heading = tag === "h2" ? inner.replace(/^(\d+)\.\s+/, '<span class="docs-step">$1</span> ') : inner;
+      return `<${tag} id="${id}">${heading}<a class="anchor" href="#${id}" aria-label="Link to this section">#</a></${tag}>`;
     },
   );
   return { html, toc };

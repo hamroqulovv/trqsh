@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { BookOpen, Search, X, ArrowUpRight, Layers, Terminal, Compass, Braces, Rocket } from "lucide-react";
 import { docsNav } from "@/lib/docs-nav";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,19 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const [query, setQuery] = React.useState("");
   const searchId = React.useId();
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey ||
+        target.closest("input, textarea, select, [contenteditable='true']") ||
+        !searchRef.current?.getClientRects().length) return;
+      event.preventDefault();
+      searchRef.current.focus();
+    };
+    document.addEventListener("keydown", focusSearch);
+    return () => document.removeEventListener("keydown", focusSearch);
+  }, []);
   const filter = query.trim().toLowerCase();
   const groups = docsNav
     .map((group) => ({
@@ -23,7 +36,11 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
     }))
     .filter((group) => group.items.length);
   return (
-    <nav aria-label="Documentation navigation">
+    <nav aria-label="Documentation navigation" className="docs-navigation">
+      <Link href="/docs" onClick={onNavigate} className="docs-home-link" aria-current={pathname === "/docs" ? "page" : undefined}>
+        <BookOpen size={17} aria-hidden="true" /> Documentation
+        <span className="docs-home-badge">Docs</span>
+      </Link>
       <div className="relative mb-7">
         <label htmlFor={searchId} className="sr-only">
           Filter documentation
@@ -33,13 +50,15 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
           aria-hidden="true"
         />
         <input
+          ref={searchRef}
           id={searchId}
           type="search"
           placeholder="Find a guide…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-10 w-full rounded-md border border-border bg-page pl-9 pr-9 text-xs placeholder:text-muted"
+          className="docs-search h-10 w-full rounded-lg border border-border bg-surface pl-9 pr-9 text-[13px] placeholder:text-muted"
         />
+        {!query && <kbd className="docs-search-key" aria-hidden="true">/</kbd>}
         {query && (
           <button
             type="button"
@@ -57,9 +76,12 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
         </p>
       )}
       <div className="space-y-6">
-        {groups.map((group) => (
+        {groups.map((group) => {
+          const Icon = ({ "Getting started": Rocket, Tunnels: Layers, Tools: Terminal, Guides: Compass, Reference: Braces })[group.title] ?? BookOpen;
+          return (
           <div key={group.title}>
-            <h2 className="mb-2 px-3 text-[11px] font-semibold text-foreground">
+            <h2 className="docs-nav-group">
+              <Icon size={14} aria-hidden="true" />
               {group.title}
             </h2>
             <ul className="space-y-0.5">
@@ -73,10 +95,10 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
                       onClick={onNavigate}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "block rounded-md px-3 py-2 text-xs leading-5 transition-colors",
+                        "docs-nav-link",
                         active
-                          ? "bg-accent font-medium text-foreground"
-                          : "text-secondary hover:bg-accent hover:text-foreground",
+                          ? "is-active"
+                          : "",
                       )}
                     >
                       {item.title}
@@ -86,8 +108,12 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
               })}
             </ul>
           </div>
-        ))}
+        ); })}
       </div>
+      <Link href="/docs/troubleshooting" onClick={onNavigate} className="docs-nav-help">
+        <span>Need a hand?<small>Find a fix in troubleshooting</small></span>
+        <ArrowUpRight size={15} aria-hidden="true" />
+      </Link>
     </nav>
   );
 }

@@ -3,9 +3,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-// Reveal animates its children in when they scroll into view. It adds the
-// `.reveal-in` class (see globals.css) once the element intersects the viewport,
-// then unobserves — a one-shot entrance. `delay` staggers siblings.
+// Content is visible on the server and without JavaScript. Only offscreen
+// content is put into a pending state, then revealed once as it enters view.
 export function Reveal({
   children,
   className,
@@ -18,29 +17,54 @@ export function Reveal({
   as?: React.ElementType;
 }) {
   const ref = React.useRef<HTMLElement | null>(null);
-  const [shown, setShown] = React.useState(false);
+  const [phase, setPhase] = React.useState<"initial" | "pending" | "shown">("initial");
 
   React.useEffect(() => {
     const el = ref.current;
-    if (!el || shown) return;
+    if (!el) return;
+
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (motion.matches || !("IntersectionObserver" in window)) {
+      setPhase("shown");
+      return;
+    }
+
+    if (el.getBoundingClientRect().top < window.innerHeight - 48) {
+      setPhase("shown");
+      return;
+    }
+
+    setPhase("pending");
     const io = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
-          setShown(true);
+          setPhase("shown");
           io.disconnect();
         }
       },
-      { rootMargin: "0px 0px -10% 0px", threshold: 0.15 }
+      { rootMargin: "0px 0px -48px 0px", threshold: 0.08 }
     );
+    const onMotionChange = () => {
+      if (motion.matches) {
+        setPhase("shown");
+        io.disconnect();
+      }
+    };
+
     io.observe(el);
-    return () => io.disconnect();
-  }, [shown]);
+    motion.addEventListener("change", onMotionChange);
+    return () => {
+      io.disconnect();
+      motion.removeEventListener("change", onMotionChange);
+    };
+  }, []);
 
   return (
     <Tag
       ref={ref as React.Ref<HTMLElement>}
-      className={cn("reveal", shown && "reveal-in", className)}
-      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+      className={cn("reveal", phase === "pending" && "reveal-pending", phase === "shown" && "reveal-in", className)}
+      style={{ "--reveal-delay": `${delay}ms` } as React.CSSProperties}
+      onFocusCapture={() => setPhase("shown")}
     >
       {children}
     </Tag>

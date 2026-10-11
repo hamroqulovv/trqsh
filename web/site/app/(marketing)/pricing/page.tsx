@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, Plus } from "lucide-react";
 import { PricingTable } from "@/components/pricing-table";
+import { AnimatedText } from "@/components/animated-text";
+import { Reveal } from "@/components/reveal";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -48,14 +50,19 @@ export default function PricingPage() {
     <div className="shell pb-20 pt-16 sm:pb-24 sm:pt-20">
       <header className="mx-auto mb-10 max-w-2xl text-center">
         <p className="eyebrow">Simple plans. Space to grow.</p>
-        <h1 className="page-heading mt-5">Build at your pace.</h1>
+        <h1 className="page-heading mt-5">
+          <AnimatedText text="Build at your pace." delay={100} />
+        </h1>
         <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-secondary sm:text-lg">
           Start with the essentials, free. Add more tunnels, bandwidth, and
           control as your work grows.
         </p>
       </header>
       <PricingTable />
-      <section className="mt-20 grid gap-9 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24 sm:mt-24">
+      <Reveal
+        as="section"
+        className="mt-20 grid gap-9 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24 sm:mt-24"
+      >
         <div>
           <p className="eyebrow">Good to know</p>
           <h2 className="section-heading mt-4">A few answers.</h2>
@@ -87,7 +94,7 @@ export default function PricingPage() {
             </details>
           ))}
         </div>
-      </section>
+      </Reveal>
       <p className="mt-12 text-center text-xs text-muted">
         New to tunneling?{" "}
         <Link

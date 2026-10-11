@@ -13,6 +13,7 @@ import { formatBytes, formatPrice, formatRetention } from "@/lib/format";
 import { signupUrl, site } from "@/lib/site";
 import { buttonVariants } from "./ui/button";
 import { cn } from "@/lib/utils";
+import { Reveal } from "./reveal";
 
 type Cadence = "monthly" | "annual";
 
@@ -49,8 +50,13 @@ export function PricingTable() {
       </div>
 
       <div className="grid gap-5 md:grid-cols-3">
-        {cardPlans.map((plan) => (
-          <PlanCard key={plan.code} plan={plan} cadence={cadence} />
+        {cardPlans.map((plan, index) => (
+          <PlanCard
+            key={plan.code}
+            plan={plan}
+            cadence={cadence}
+            delay={index * 100}
+          />
         ))}
       </div>
 
@@ -79,7 +85,15 @@ export function PricingTable() {
   );
 }
 
-function PlanCard({ plan, cadence }: { plan: CatalogPlan; cadence: Cadence }) {
+function PlanCard({
+  plan,
+  cadence,
+  delay,
+}: {
+  plan: CatalogPlan;
+  cadence: Cadence;
+  delay: number;
+}) {
   const popular = plan.code === "pro";
   const isFree = plan.code === "free";
   const cents =
@@ -106,9 +120,11 @@ function PlanCard({ plan, cadence }: { plan: CatalogPlan; cadence: Cadence }) {
   ];
 
   return (
-    <article
+    <Reveal
+      as="article"
+      delay={delay}
       className={cn(
-        "flex flex-col rounded-xl border p-7",
+        "card-hover flex flex-col rounded-xl border p-7",
         popular
           ? "product-terminal border-foreground/25"
           : "border-border bg-page",
@@ -166,7 +182,7 @@ function PlanCard({ plan, cadence }: { plan: CatalogPlan; cadence: Cadence }) {
           </li>
         ))}
       </ul>
-    </article>
+    </Reveal>
   );
 }
 

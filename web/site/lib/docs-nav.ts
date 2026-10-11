@@ -23,16 +23,17 @@ export const docsNav: DocCategory[] = [
   {
     title: "Getting started",
     items: [
-      { slug: "quickstart", title: "Quickstart", description: "A live public URL in under a minute.", type: "md" },
-      { slug: "installation", title: "Installation", description: "Install the CLI and desktop app on any OS.", type: "md" },
-      { slug: "authentication", title: "Authentication", description: "Log in and manage API keys.", type: "md" },
+      { slug: "quickstart", title: "Quickstart", description: "Start an app, sign in, create a URL and verify it.", type: "md" },
+      { slug: "installation", title: "Installation", description: "npm, Python, shell installer and platform downloads.", type: "md" },
+      { slug: "authentication", title: "Authentication", description: "Device approval, API keys, storage and revocation.", type: "md" },
+      { slug: "dashboard", title: "Dashboard", description: "Account resources, tunnel history, usage and plans.", type: "md" },
     ],
   },
   {
     title: "Tunnels",
     items: [
       { slug: "http-tunnels", title: "HTTP tunnels", description: "Expose web apps and APIs.", type: "md" },
-      { slug: "tcp-udp-tunnels", title: "TCP & UDP tunnels", description: "SSH, databases, game servers, DNS.", type: "md" },
+      { slug: "tcp-udp-tunnels", title: "TCP & UDP tunnels", description: "Raw services, assigned ports and protocol limitations.", type: "md" },
       { slug: "reserved-subdomains", title: "Reserved subdomains", description: "Keep the same URL every time.", type: "md" },
       { slug: "custom-domains", title: "Custom domains", description: "Bring your own domain with DNS setup.", type: "md" },
     ],
@@ -40,24 +41,28 @@ export const docsNav: DocCategory[] = [
   {
     title: "Tools",
     items: [
-      { slug: "inspector", title: "Request inspector", description: "Inspect and replay traffic locally.", type: "md" },
-      { slug: "desktop-gui", title: "Desktop app", description: "The cross-platform trqsh GUI.", type: "md" },
-      { slug: "configuration", title: "Configuration", description: "The ~/.trqsh-uz/trqsh.yml schema.", type: "md" },
+      { slug: "cli-reference", title: "CLI reference", description: "Slash commands, root flags, shortcuts and lifecycle.", type: "md" },
+      { slug: "configuration", title: "Configuration", description: "The ~/.trqsh/trqsh.yml schema, overrides and reloads.", type: "md" },
+      { slug: "inspector", title: "Request inspector", description: "Local captures, replay, body limits and retention.", type: "md" },
+      { slug: "desktop-gui", title: "Desktop app (planned)", description: "Future desktop workspace; use the CLI today.", type: "md" },
+      { slug: "remote-control", title: "QR remote control", description: "Pair a phone, send commands and end access.", type: "md" },
     ],
   },
   {
     title: "Guides",
     items: [
-      { slug: "webhooks-ci", title: "Webhooks & CI", description: "Receive webhooks and share dev builds.", type: "md" },
-      { slug: "self-hosting", title: "Self-hosting", description: "Run the open-source agent your way.", type: "md" },
+      { slug: "webhooks-ci", title: "Webhooks & CI", description: "Webhook testing and a headless, job-owned agent.", type: "md" },
+      { slug: "self-hosting", title: "Self-hosting", description: "Full local stack, ports, networking and production.", type: "md" },
+      { slug: "troubleshooting", title: "Troubleshooting", description: "Diagnose app, credentials, transport and Docker issues.", type: "md" },
     ],
   },
   {
     title: "Reference",
     items: [
-      { slug: "api", title: "API reference", description: "The Control API, from OpenAPI.", type: "route" },
-      { slug: "errors", title: "Error reference", description: "Every error code and its fix.", type: "route" },
-      { slug: "security", title: "Security & abuse", description: "Our security posture and reporting.", type: "md" },
+      { slug: "api", title: "Control API", description: "Cloud endpoints, authentication, schemas and examples.", type: "route" },
+      { slug: "local-api", title: "Local agent API", description: "Start/stop tunnels and stream events on loopback.", type: "md" },
+      { slug: "errors", title: "Error reference", description: "Stable edge error codes and specific next steps.", type: "route" },
+      { slug: "security", title: "Security & privacy", description: "Encryption boundaries, local secrets and reporting.", type: "md" },
     ],
   },
 ];
