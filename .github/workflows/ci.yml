@@ -62,28 +62,27 @@ jobs:
       - name: Install
         working-directory: ${{ matrix.app }}
         run: pnpm install --frozen-lockfile
-      # web/site's pricing catalog and OpenAPI copy are fetched from the live
-      # control API at TRQSH_API_URL (default api.trqsh.uz) rather than built
-      # from local backend source — see lib/paths.ts and scripts/genplans.mjs.
-      # The check therefore needs that API reachable. When it isn't (transient
-      # outage or runner egress block), failing CI would be a false negative
-      # unrelated to the change under test — so probe the API first and skip
-      # with a warning if it's down. Only genuine, verifiable drift (API
-      # reachable and returning data that differs from the committed files)
-      # fails the build.
-      - name: Check generated plan catalog + OpenAPI copy are current
+      # Check this revision's contract, not an older deployed API. Otherwise
+      # correcting API docs would require deploying a branch before CI can pass.
+      - name: Check website OpenAPI matches the source contract
+        if: matrix.app == 'web/site'
+        run: |
+          cmp docs/openapi.yaml web/site/lib/openapi.generated.yaml \
+            || (echo "::error::Website OpenAPI is stale — sync it from docs/openapi.yaml"; exit 1)
+      # Pricing still regenerates from the configured public catalog. An API
+      # outage skips only that remote check; contract validation above is local.
+      - name: Check generated plan catalog is current
         if: matrix.app == 'web/site'
         working-directory: web/site
         run: |
           api="${TRQSH_API_URL:-https://api.trqsh.uz}"
           if ! curl -fsS --retry 2 --retry-all-errors --max-time 20 -o /dev/null "$api/v1/plans/public"; then
-            echo "::warning::Control API $api unreachable — skipping generated-file drift check."
+            echo "::warning::Control API $api unreachable — skipping plan-catalog drift check."
             exit 0
           fi
           node scripts/genplans.mjs
-          node scripts/gen-openapi.mjs
-          git diff --exit-code lib/catalog.generated.ts lib/openapi.generated.yaml \
-            || (echo "::error::web/site's generated files are stale — run 'make site-plans site-openapi'"; exit 1)
+          git diff --exit-code lib/catalog.generated.ts \
+            || (echo "::error::web/site's plan catalog is stale — run 'make site-plans'"; exit 1)
       - name: Build
         working-directory: ${{ matrix.app }}
         run: pnpm build
