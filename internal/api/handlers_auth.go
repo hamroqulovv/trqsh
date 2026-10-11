@@ -260,6 +260,7 @@ func (s *Server) clearNextCookie(w http.ResponseWriter) {
 }
 
 func (s *Server) setDashboardStateCookie(w http.ResponseWriter, state string, age int) {
+	// #nosec G124 -- production requires Secure; development permits local HTTP, matching the other OAuth cookies.
 	http.SetCookie(w, &http.Cookie{Name: "trqsh_oauth_dashboard", Value: state, Path: "/v1/auth/oauth",
 		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: age})
 }
@@ -293,6 +294,7 @@ func (s *Server) clearLegacySessionCookies(w http.ResponseWriter) {
 		return
 	}
 	for _, name := range []string{"trqsh_access", "trqsh_refresh"} {
+		// #nosec G124 -- Secure follows the production environment when expiring legacy cookies; HttpOnly and SameSite are explicit.
 		http.SetCookie(w, &http.Cookie{Name: name, Path: "/", Domain: "." + s.cfg.BaseDomain,
 			HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	}

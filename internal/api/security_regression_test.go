@@ -26,6 +26,29 @@ func TestAuditSessionCookieIsolation(t *testing.T) {
 		t.Errorf("session cookies sent to tenant host: %v", got)
 	}
 }
+
+func TestOAuthAndLegacyCookieSecurityByEnvironment(t *testing.T) {
+	for _, env := range []string{"production", "development"} {
+		t.Run(env, func(t *testing.T) {
+			s := &Server{cfg: Config{BaseDomain: "example.test", Env: env}}
+			for _, age := range []int{600, -1} {
+				w := httptest.NewRecorder()
+				s.setDashboardStateCookie(w, "state", age)
+				s.clearLegacySessionCookies(w)
+				cookies := w.Result().Cookies()
+				if len(cookies) != 3 {
+					t.Fatalf("got %d cookies, want 3", len(cookies))
+				}
+				for _, cookie := range cookies {
+					if cookie.Secure != (env == "production") || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode {
+						t.Errorf("unsafe cookie attributes: %+v", cookie)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestAuditReservedPlatformSubdomain(t *testing.T) {
 	cfg := DefaultConfig()
 	s, err := New(cfg, nil)
