@@ -55,7 +55,7 @@ test("installer verifies, stages, retries and honors explicit pins", async()=>{
   await assert.rejects(installer.fetch(`${base}/abort`), /interrupted|aborted/);
   checksumMode="missing";
   await assert.rejects(installer.install(), /checksums.txt/);
-  assert.equal(fs.existsSync(C.binPath),false);
+  assert.throws(() => fs.readFileSync(C.binPath), { code: "ENOENT" });
   checksumMode="bad";
   await assert.rejects(installer.install(), /checksum mismatch/);
   checksumMode="ok";
