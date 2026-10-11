@@ -113,6 +113,40 @@ func (s *Server) openPort(proto string, want int, bt *boundTunnel) (int, error) 
 	return s.openTCPPort(want)
 }
 
+// openLeasedPort skips ports held by another edge as well as local listeners.
+// Opening locally first prevents a second tunnel in this session from changing
+// or releasing the first tunnel's registry entry (both have the same owner).
+func (s *Server) openLeasedPort(ctx context.Context, typ string, want int, bt *boundTunnel, owner Binding) (int, error) {
+	first, last := s.ports.min, s.ports.max
+	if want != 0 {
+		first, last = want, want
+	}
+	for candidate := first; candidate <= last; candidate++ {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		port, err := s.openPort(typ, candidate, bt)
+		if err != nil {
+			if want != 0 {
+				return 0, err
+			}
+			continue
+		}
+		err = s.reg.Bind(ctx, Route{Proto: typ, Port: port}, owner, s.edgeTTL())
+		if err == nil {
+			return port, nil
+		}
+		s.ports.release(typ, port)
+		if !errors.Is(err, errRouteOwned) {
+			return 0, err
+		}
+		if want != 0 {
+			return 0, errPortUnavailable
+		}
+	}
+	return 0, errPortUnavailable
+}
+
 func (s *Server) openTCPPort(want int) (int, error) {
 	port, err := s.ports.reserve("tcp", want)
 	if err != nil {
@@ -138,14 +172,8 @@ func (s *Server) acceptTCPTunnel(ln net.Listener, port int) {
 		}
 		bt := s.hub.LookupPort("tcp", port)
 		if bt == nil {
-			// No cross-edge fallback here (unlike serveHTTPConn): a raw TCP
-			// connection carries no L7 routing key, and a public port is a physical
-			// resource each edge's in-memory pool binds independently — two edges can
-			// hand the SAME port to DIFFERENT tunnels, so a registry entry for
-			// "tcp:<port>" is not globally unique and can't safely identify an owner.
-			// Cross-edge port tunnels need a distributed/global port allocator first
-			// (a future stage); until then a stray connection on an unbound port is
-			// dropped, exactly as before.
+			// TCP ingress still serves only local bindings. Port ownership is
+			// shared, but peer forwarding for raw TCP has not been implemented.
 			_ = c.Close()
 			continue
 		}

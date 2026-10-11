@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -37,9 +38,11 @@ type Binding struct {
 // (and, later, forward traffic between them — see forward.go).
 type Registry interface {
 	Bind(ctx context.Context, r Route, b Binding, ttl time.Duration) error
-	Refresh(ctx context.Context, r Route, ttl time.Duration) error
+	Refresh(ctx context.Context, r Route, owner Binding, ttl time.Duration) error
 	Lookup(ctx context.Context, r Route) (Binding, bool, error)
-	Unbind(ctx context.Context, r Route) error
+	Unbind(ctx context.Context, r Route, owner Binding) error
+	AcquireTunnel(ctx context.Context, accountID, leaseID string, limit int, ttl time.Duration) error
+	ReleaseTunnel(ctx context.Context, accountID, leaseID string) error
 
 	// Edge presence: each edge advertises its own internal forwarding address under
 	// its EdgeID so a peer can turn a route's Binding.EdgeID into a dialable address
@@ -71,31 +74,39 @@ type edgeEntry struct {
 // never forwards (no peer bindings can exist), so the edge map is present only to
 // satisfy the interface.
 type InMemoryRegistry struct {
-	mu    sync.RWMutex
-	m     map[string]memEntry
-	edges map[string]edgeEntry
+	mu     sync.RWMutex
+	m      map[string]memEntry
+	edges  map[string]edgeEntry
+	leases map[string]map[string]time.Time
 }
 
 // NewInMemoryRegistry returns an empty in-memory registry.
 func NewInMemoryRegistry() *InMemoryRegistry {
-	return &InMemoryRegistry{m: make(map[string]memEntry), edges: make(map[string]edgeEntry)}
+	return &InMemoryRegistry{m: make(map[string]memEntry), edges: make(map[string]edgeEntry), leases: make(map[string]map[string]time.Time)}
 }
+
+var errRouteOwned = errors.New("registry: route already owned")
+var errTunnelLimit = errors.New("registry: concurrent tunnel limit reached")
 
 func (r *InMemoryRegistry) Bind(_ context.Context, route Route, b Binding, ttl time.Duration) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if e, ok := r.m[route.Key()]; ok && (e.expiry.IsZero() || time.Now().Before(e.expiry)) && e.b != b {
+		return errRouteOwned
+	}
 	r.m[route.Key()] = memEntry{b: b, expiry: expiryFrom(ttl)}
 	return nil
 }
 
-func (r *InMemoryRegistry) Refresh(_ context.Context, route Route, ttl time.Duration) error {
+func (r *InMemoryRegistry) Refresh(_ context.Context, route Route, owner Binding, ttl time.Duration) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if e, ok := r.m[route.Key()]; ok {
+	if e, ok := r.m[route.Key()]; ok && e.b == owner && (e.expiry.IsZero() || time.Now().Before(e.expiry)) {
 		e.expiry = expiryFrom(ttl)
 		r.m[route.Key()] = e
+		return nil
 	}
-	return nil
+	return errRouteOwned
 }
 
 func (r *InMemoryRegistry) Lookup(_ context.Context, route Route) (Binding, bool, error) {
@@ -111,10 +122,43 @@ func (r *InMemoryRegistry) Lookup(_ context.Context, route Route) (Binding, bool
 	return e.b, true, nil
 }
 
-func (r *InMemoryRegistry) Unbind(_ context.Context, route Route) error {
+func (r *InMemoryRegistry) Unbind(_ context.Context, route Route, owner Binding) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.m, route.Key())
+	if e, ok := r.m[route.Key()]; ok && e.b == owner {
+		delete(r.m, route.Key())
+	}
+	return nil
+}
+
+func (r *InMemoryRegistry) AcquireTunnel(_ context.Context, accountID, leaseID string, limit int, ttl time.Duration) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	leases := r.leases[accountID]
+	if leases == nil {
+		leases = make(map[string]time.Time)
+		r.leases[accountID] = leases
+	}
+	for id, expiry := range leases {
+		if !expiry.IsZero() && !time.Now().Before(expiry) {
+			delete(leases, id)
+		}
+	}
+	_, exists := leases[leaseID]
+	if !exists && limit > 0 && len(leases) >= limit {
+		return errTunnelLimit
+	}
+	leases[leaseID] = expiryFrom(ttl)
+	return nil
+}
+
+func (r *InMemoryRegistry) ReleaseTunnel(_ context.Context, accountID, leaseID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.leases[accountID], leaseID)
+	if len(r.leases[accountID]) == 0 {
+		delete(r.leases, accountID)
+	}
 	return nil
 }
 
@@ -175,15 +219,33 @@ func NewRedisRegistry(url string) (*RedisRegistry, error) {
 func (r *RedisRegistry) key(route Route) string { return redisRoutePrefix + route.Key() }
 
 func (r *RedisRegistry) Bind(ctx context.Context, route Route, b Binding, ttl time.Duration) error {
-	if err := r.rdb.Set(ctx, r.key(route), b.EdgeID+"|"+b.SessionID, ttl).Err(); err != nil {
+	n, err := r.rdb.Eval(ctx, `
+local current = redis.call('GET', KEYS[1])
+if current and current ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[1], ARGV[1])
+if tonumber(ARGV[2]) > 0 then redis.call('PEXPIRE', KEYS[1], ARGV[2]) end
+return 1`, []string{r.key(route)}, b.EdgeID+"|"+b.SessionID, ttl.Milliseconds()).Int()
+	if err != nil {
 		return err
+	}
+	if n == 0 {
+		return errRouteOwned
 	}
 	r.rdb.Publish(ctx, redisRouteEvents, "bind "+route.Key())
 	return nil
 }
 
-func (r *RedisRegistry) Refresh(ctx context.Context, route Route, ttl time.Duration) error {
-	return r.rdb.Expire(ctx, r.key(route), ttl).Err()
+func (r *RedisRegistry) Refresh(ctx context.Context, route Route, owner Binding, ttl time.Duration) error {
+	n, err := r.rdb.Eval(ctx, `if redis.call('GET', KEYS[1]) == ARGV[1] then
+if tonumber(ARGV[2]) > 0 then redis.call('PEXPIRE', KEYS[1], ARGV[2]) else redis.call('PERSIST', KEYS[1]) end return 1 end return 0`,
+		[]string{r.key(route)}, owner.EdgeID+"|"+owner.SessionID, ttl.Milliseconds()).Int()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errRouteOwned
+	}
+	return nil
 }
 
 func (r *RedisRegistry) Lookup(ctx context.Context, route Route) (Binding, bool, error) {
@@ -198,12 +260,41 @@ func (r *RedisRegistry) Lookup(ctx context.Context, route Route) (Binding, bool,
 	return Binding{EdgeID: edge, SessionID: sess}, true, nil
 }
 
-func (r *RedisRegistry) Unbind(ctx context.Context, route Route) error {
-	if err := r.rdb.Del(ctx, r.key(route)).Err(); err != nil {
+func (r *RedisRegistry) Unbind(ctx context.Context, route Route, owner Binding) error {
+	n, err := r.rdb.Eval(ctx, `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0`,
+		[]string{r.key(route)}, owner.EdgeID+"|"+owner.SessionID).Int()
+	if err != nil {
 		return err
 	}
-	r.rdb.Publish(ctx, redisRouteEvents, "unbind "+route.Key())
+	if n > 0 {
+		r.rdb.Publish(ctx, redisRouteEvents, "unbind "+route.Key())
+	}
 	return nil
+}
+
+func (r *RedisRegistry) AcquireTunnel(ctx context.Context, accountID, leaseID string, limit int, ttl time.Duration) error {
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	n, err := r.rdb.Eval(ctx, `
+local now = redis.call('TIME')
+local ms = tonumber(now[1])*1000 + math.floor(tonumber(now[2])/1000)
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ms)
+if not redis.call('ZSCORE', KEYS[1], ARGV[1]) and tonumber(ARGV[2]) > 0 and redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[2]) then return 0 end
+redis.call('ZADD', KEYS[1], ms + tonumber(ARGV[3]), ARGV[1])
+redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[3])*2)
+return 1`, []string{"trqsh:tunnelleases:" + accountID}, leaseID, limit, ttl.Milliseconds()).Int()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errTunnelLimit
+	}
+	return nil
+}
+
+func (r *RedisRegistry) ReleaseTunnel(ctx context.Context, accountID, leaseID string) error {
+	return r.rdb.ZRem(ctx, "trqsh:tunnelleases:"+accountID, leaseID).Err()
 }
 
 // RegisterEdge SETs the edge's forwarding address with a TTL. Re-calling it (each
