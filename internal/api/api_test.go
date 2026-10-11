@@ -200,6 +200,7 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{Jar: jar}
+	csrfToken := ""
 	req := func(method, url string, body, out any) *http.Response {
 		var r io.Reader
 		if body != nil {
@@ -207,6 +208,7 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 			r = bytes.NewReader(buf)
 		}
 		rq, _ := http.NewRequest(method, url, r)
+		rq.Header.Set("X-CSRF-Token", csrfToken)
 		if body != nil {
 			rq.Header.Set("Content-Type", "application/json")
 		}
@@ -228,9 +230,13 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 	}
 
 	// Admin login sets the session cookie in the jar.
-	if r := req("POST", ts.URL+"/admin/login", map[string]string{"username": "root", "password": "s3cret-pass"}, nil); r.StatusCode != http.StatusOK {
+	var login struct {
+		CSRF string `json:"csrf_token"`
+	}
+	if r := req("POST", ts.URL+"/admin/login", map[string]string{"username": "root", "password": "s3cret-pass"}, &login); r.StatusCode != http.StatusOK {
 		t.Fatalf("admin login: %d", r.StatusCode)
 	}
+	csrfToken = login.CSRF
 
 	// Grant Pro for a month.
 	var granted struct {

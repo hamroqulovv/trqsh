@@ -1,19 +1,12 @@
 import { cookies } from "next/headers";
+import { secureSession, sessionCookieName } from "./session-config";
 
-const ACCESS = "trqsh_access";
-const REFRESH = "trqsh_refresh";
+const ACCESS = sessionCookieName("trqsh_access");
+const REFRESH = sessionCookieName("trqsh_refresh");
 
-// Session cookies are scoped to the whole base domain so the API (api.<base>)
-// and the dashboard (app.<base>) share one session. Logout MUST clear the same
-// domain — otherwise the `.trqsh.uz` cookie survives and the old account stays
-// signed in.
+// Sessions are host-only. The base domain is used only to expire legacy cookies.
 const BASE = process.env.NEXT_PUBLIC_TRQSH_BASE_DOMAIN || "";
-// Local development uses host-only cookies. A Cloudflare-hosted development
-// stack still serves HTTPS publicly and must issue Secure cookies.
-const LOCAL = process.env.TRQSH_ENV === "development";
-const DOMAIN = !LOCAL && BASE && BASE !== "localhost" ? "." + BASE : undefined;
-const SECURE = (process.env.TRQSH_API_URL || "https://api.trqsh.uz").startsWith("https://") ||
-  (process.env.NODE_ENV === "production" && !LOCAL);
+const DOMAIN = BASE && BASE !== "localhost" ? "." + BASE : undefined;
 
 export interface Tokens {
   access_token: string;
@@ -29,20 +22,26 @@ export async function getTokens(): Promise<{ access?: string; refresh?: string }
 }
 
 /**
- * Persist tokens as httpOnly cookies scoped to the base domain. Only valid inside
+ * Persist tokens as host-only httpOnly cookies. Only valid inside
  * a Server Action or Route Handler; calling it during a plain render throws.
  */
 export async function setTokens(t: Tokens): Promise<void> {
   const c = await cookies();
   const opts = {
     httpOnly: true,
-    secure: SECURE,
+    secure: secureSession,
     sameSite: "lax" as const,
     path: "/",
-    domain: DOMAIN,
     maxAge: 60 * 60 * 24 * 30,
   };
-  c.set(ACCESS, t.access_token, opts);
+  // Remove domain-wide cookies left by older deployments before setting the
+  // host-only session. __Host- also prevents sibling-domain cookie injection.
+  if (DOMAIN) {
+    for (const name of ["trqsh_access", "trqsh_refresh"]) {
+      c.set(name, "", { ...opts, domain: DOMAIN, maxAge: 0 });
+    }
+  }
+  c.set(ACCESS, t.access_token, { ...opts, maxAge: t.expires_in });
   c.set(REFRESH, t.refresh_token, opts);
 }
 
@@ -50,8 +49,10 @@ export async function setTokens(t: Tokens): Promise<void> {
  * cookie so a different account can sign in cleanly. */
 export async function clearTokens(): Promise<void> {
   const c = await cookies();
-  for (const name of [ACCESS, REFRESH]) {
-    c.set(name, "", { httpOnly: true, secure: SECURE, sameSite: "lax", path: "/", domain: DOMAIN, maxAge: 0 });
-    c.set(name, "", { httpOnly: true, secure: SECURE, sameSite: "lax", path: "/", maxAge: 0 });
+  for (const name of [ACCESS, REFRESH, "trqsh_access", "trqsh_refresh"]) {
+    if (DOMAIN && !name.startsWith("__Host-")) {
+      c.set(name, "", { httpOnly: true, secure: secureSession, sameSite: "lax", path: "/", domain: DOMAIN, maxAge: 0 });
+    }
+    c.set(name, "", { httpOnly: true, secure: secureSession, sameSite: "lax", path: "/", maxAge: 0 });
   }
 }

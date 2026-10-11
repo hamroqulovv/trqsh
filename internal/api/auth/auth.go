@@ -86,6 +86,7 @@ func (a *Auth) sign(userID, orgID, kind string, ttl time.Duration) (string, erro
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 			Issuer:    "trqsh-api",
+			Audience:  jwt.ClaimStrings{"trqsh-host-session-v2"},
 		},
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(a.secret)
@@ -106,7 +107,7 @@ func (a *Auth) ParseToken(token string) (*Claims, error) {
 			return nil, ErrUnauthorized
 		}
 		return a.secret, nil
-	})
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer("trqsh-api"), jwt.WithAudience("trqsh-host-session-v2"), jwt.WithExpirationRequired())
 	if err != nil {
 		return nil, ErrUnauthorized
 	}
