@@ -117,6 +117,7 @@ type activeTunnel struct {
 	assignedHost   string
 	assignedPort   int
 	status         string
+	rebinding      bool
 	createdAt      time.Time
 	metrics        tunnelMetrics
 }
@@ -144,15 +145,19 @@ type Agent struct {
 	localRT   http.RoundTripper // pooled keep-alive transport to local services
 	localOnce sync.Once
 
-	mu        sync.Mutex
-	sess      tunnel.Session
-	control   tunnel.Stream
-	writeMu   sync.Mutex
-	connected bool
-	accountID string
-	plan      string
-	kind      string
-	tunnels   map[string]*activeTunnel
+	mu          sync.Mutex
+	connectMu   sync.Mutex
+	identityMu  sync.Mutex
+	identityGen uint64
+	loggedOut   bool
+	sess        tunnel.Session
+	control     tunnel.Stream
+	writeMu     sync.Mutex
+	connected   bool
+	accountID   string
+	plan        string
+	kind        string
+	tunnels     map[string]*activeTunnel
 
 	pendMu       sync.Mutex
 	pendingBinds map[string]chan *proto.BindResp
@@ -232,11 +237,45 @@ func (a *Agent) clientTLS() *tls.Config {
 
 // Login stores an API key (in memory and persisted to the config file).
 func (a *Agent) Login(_ context.Context, token string) error {
+	a.identityMu.Lock()
+	defer a.identityMu.Unlock()
 	a.mu.Lock()
-	a.cfg.APIKey = token
 	cfg := a.cfg
 	a.mu.Unlock()
-	return cfg.Save(DefaultConfigPath())
+	cfg.APIKey = token
+	if err := cfg.Save(DefaultConfigPath()); err != nil {
+		return err
+	}
+	a.resetIdentity(token, false)
+	return nil
+}
+
+// Logout keeps the daemon alive while invalidating all in-flight work and the
+// edge authentication. Starting another tunnel requires a fresh Login.
+func (a *Agent) Logout(_ context.Context) error {
+	a.identityMu.Lock()
+	defer a.identityMu.Unlock()
+	a.resetIdentity("", true)
+	return clearStoredAPIKey()
+}
+
+func (a *Agent) resetIdentity(token string, loggedOut bool) {
+	a.mu.Lock()
+	a.identityGen++
+	a.sessGen.Add(1)
+	sess := a.sess
+	a.sess, a.control = nil, nil
+	a.connected = false
+	a.accountID, a.plan, a.kind = "", "", ""
+	a.cfg.APIKey = token
+	a.loggedOut = loggedOut
+	a.tunnels = make(map[string]*activeTunnel)
+	a.mu.Unlock()
+	if sess != nil {
+		_ = sess.CloseWithError(0, "identity changed")
+	}
+	st := a.Status()
+	a.emit(Event{Type: "status", Status: &st})
 }
 
 // Status returns the current connection snapshot.
@@ -268,6 +307,9 @@ func (a *Agent) Events() <-chan Event { return a.events }
 
 // StartTunnel connects if needed, binds the tunnel, and returns its public URL.
 func (a *Agent) StartTunnel(ctx context.Context, spec TunnelSpec) (Tunnel, error) {
+	a.mu.Lock()
+	identityGen := a.identityGen
+	a.mu.Unlock()
 	if spec.Proto == "" {
 		spec.Proto = "http"
 	}
@@ -280,7 +322,13 @@ func (a *Agent) StartTunnel(ctx context.Context, spec TunnelSpec) (Tunnel, error
 	if err := a.ensureConnected(ctx); err != nil {
 		return Tunnel{}, err
 	}
-	return a.bind(ctx, spec)
+	a.mu.Lock()
+	changed := a.identityGen != identityGen
+	a.mu.Unlock()
+	if changed {
+		return Tunnel{}, &Error{Code: proto.CodeAuthRequired, Message: "identity changed while starting tunnel"}
+	}
+	return a.bind(ctx, spec, identityGen)
 }
 
 // StopTunnel unbinds a tunnel by id.
@@ -288,19 +336,26 @@ func (a *Agent) StopTunnel(ctx context.Context, id string) error {
 	a.mu.Lock()
 	t := a.tunnels[id]
 	control := a.control
+	gen := a.sessGen.Load()
+	var view Tunnel
+	if t != nil {
+		view = t.view()
+	}
 	a.mu.Unlock()
 	if t == nil {
 		return &Error{Code: proto.CodeInternal, Message: "no such tunnel " + id}
 	}
 	if control != nil {
-		_ = a.writeControl(&proto.Envelope{Msg: &proto.Envelope_Unbind{Unbind: &proto.Unbind{
+		_ = a.writeControlForGeneration(&proto.Envelope{Msg: &proto.Envelope_Unbind{Unbind: &proto.Unbind{
 			ClientTunnelId: id,
-		}}})
+		}}}, gen)
 	}
 	a.mu.Lock()
-	delete(a.tunnels, id)
+	if a.tunnels[id] == t {
+		delete(a.tunnels, id)
+	}
 	a.mu.Unlock()
-	a.emit(Event{Type: "tunnel", Tunnel: ptr(t.view())})
+	a.emit(Event{Type: "tunnel", Tunnel: &view})
 	return nil
 }
 
@@ -331,7 +386,15 @@ func (a *Agent) emit(ev Event) {
 }
 
 func (a *Agent) writeControl(env *proto.Envelope) error {
+	return a.writeControlForGeneration(env, 0)
+}
+
+func (a *Agent) writeControlForGeneration(env *proto.Envelope, gen uint64) error {
 	a.mu.Lock()
+	if gen != 0 && gen != a.sessGen.Load() {
+		a.mu.Unlock()
+		return &Error{Code: proto.CodeAuthRequired, Message: "session changed"}
+	}
 	control := a.control
 	a.mu.Unlock()
 	if control == nil {

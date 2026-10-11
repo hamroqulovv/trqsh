@@ -127,11 +127,10 @@ func (l *LocalAPI) Handler() http.Handler {
 		apiWriteJSON(w, http.StatusOK, sessionInfo{Authed: true, Status: l.core.Status()})
 	})
 	mux.HandleFunc("POST /logout", func(w http.ResponseWriter, r *http.Request) {
-		// Stop every tunnel but keep the daemon alive so the user can re-login.
-		for _, t := range l.core.List() {
-			_ = l.core.StopTunnel(r.Context(), t.ID)
+		if err := l.core.Logout(r.Context()); err != nil {
+			apiWriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
 		}
-		_ = clearStoredAPIKey()
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /tunnels", func(w http.ResponseWriter, _ *http.Request) {

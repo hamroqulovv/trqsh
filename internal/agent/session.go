@@ -35,7 +35,20 @@ func (a *Agent) ensureConnected(ctx context.Context) error {
 
 // connect dials the edge, opens the control stream, and authenticates.
 func (a *Agent) connect(ctx context.Context) error {
-	sess, err := a.dialer.Dial(ctx, a.cfg.Server)
+	a.connectMu.Lock()
+	defer a.connectMu.Unlock()
+	a.mu.Lock()
+	if a.closed || a.loggedOut {
+		a.mu.Unlock()
+		return &Error{Code: proto.CodeAuthRequired, Message: "sign in before starting a tunnel"}
+	}
+	if a.connected {
+		a.mu.Unlock()
+		return nil
+	}
+	cfg, identityGen := a.cfg, a.identityGen
+	a.mu.Unlock()
+	sess, err := a.dialer.Dial(ctx, cfg.Server)
 	if err != nil {
 		return &Error{Code: proto.CodeUpstreamUnreachable, Message: "cannot reach edge: " + err.Error()}
 	}
@@ -45,7 +58,7 @@ func (a *Agent) connect(ctx context.Context) error {
 		return &Error{Code: proto.CodeInternal, Message: err.Error()}
 	}
 
-	apiKey := a.cfg.APIKey
+	apiKey := cfg.APIKey
 	if apiKey == "" {
 		apiKey = "tq_dev_local" // #nosec G101 -- dev fallback constant, not a real credential; a real edge requires a valid key
 	}
@@ -55,7 +68,7 @@ func (a *Agent) connect(ctx context.Context) error {
 		Os:              runtime.GOOS,
 		Arch:            runtime.GOARCH,
 		ApiKey:          apiKey,
-		RegionHint:      a.cfg.Region,
+		RegionHint:      cfg.Region,
 		Features:        []string{"quic", "tcp", "udp"},
 	}
 	if err := proto.WriteMsg(control, &proto.Envelope{Msg: &proto.Envelope_Hello{Hello: hello}}); err != nil {
@@ -80,6 +93,11 @@ func (a *Agent) connect(ctx context.Context) error {
 	}
 
 	a.mu.Lock()
+	if a.closed || a.loggedOut || a.identityGen != identityGen {
+		a.mu.Unlock()
+		_ = sess.CloseWithError(0, "identity changed during connection")
+		return &Error{Code: proto.CodeAuthRequired, Message: "identity changed during connection"}
+	}
 	a.sess = sess
 	a.control = control
 	a.connected = true
@@ -89,7 +107,7 @@ func (a *Agent) connect(ctx context.Context) error {
 	gen := a.sessGen.Add(1)
 	a.mu.Unlock()
 
-	a.log.Info("connected to edge", "edge", a.cfg.Server, "kind", sess.Kind(), "plan", ar.Plan)
+	a.log.Info("connected to edge", "edge", cfg.Server, "kind", sess.Kind(), "plan", ar.Plan)
 	st := a.Status()
 	a.emit(Event{Type: "status", Status: &st})
 
@@ -105,13 +123,16 @@ func (a *Agent) controlLoop(control tunnel.Stream, gen uint64) {
 			a.handleSessionDown(gen, err)
 			return
 		}
+		if gen != a.sessGen.Load() {
+			return
+		}
 		switch env.GetMsg().(type) {
 		case *proto.Envelope_BindResp:
 			a.deliverBind(env.GetBindResp())
 		case *proto.Envelope_Ping:
-			_ = a.writeControl(&proto.Envelope{Msg: &proto.Envelope_Pong{Pong: &proto.Pong{
+			_ = a.writeControlForGeneration(&proto.Envelope{Msg: &proto.Envelope_Pong{Pong: &proto.Pong{
 				TsUnixMs: env.GetPing().TsUnixMs,
-			}}})
+			}}}, gen)
 		case *proto.Envelope_Pong:
 			// liveness ack
 		case *proto.Envelope_Shutdown:
@@ -132,12 +153,23 @@ func (a *Agent) acceptLoop(sess tunnel.Session, gen uint64) {
 			a.handleSessionDown(gen, err)
 			return
 		}
+		if gen != a.sessGen.Load() {
+			_ = st.Close()
+			return
+		}
 		go a.handleDataStream(st)
 	}
 }
 
 // bind sends a BindTunnel and waits for the matching BindResp.
-func (a *Agent) bind(ctx context.Context, spec TunnelSpec) (Tunnel, error) {
+func (a *Agent) bind(ctx context.Context, spec TunnelSpec, identityGen ...uint64) (Tunnel, error) {
+	a.mu.Lock()
+	if len(identityGen) > 0 && identityGen[0] != a.identityGen {
+		a.mu.Unlock()
+		return Tunnel{}, &Error{Code: proto.CodeAuthRequired, Message: "identity changed during bind"}
+	}
+	gen := a.sessGen.Load()
+	a.mu.Unlock()
 	clientTunnelID := "ct_" + randHex(6)
 	ttype, _ := tunnelType(spec.Proto)
 
@@ -167,7 +199,7 @@ func (a *Agent) bind(ctx context.Context, spec TunnelSpec) (Tunnel, error) {
 		RemotePort:     uint32(spec.RemotePort), // #nosec G115 -- a real TCP/UDP port (0-65535)
 		Options:        options,
 	}
-	if err := a.writeControl(&proto.Envelope{Msg: &proto.Envelope_Bind{Bind: bind}}); err != nil {
+	if err := a.writeControlForGeneration(&proto.Envelope{Msg: &proto.Envelope_Bind{Bind: bind}}, gen); err != nil {
 		return Tunnel{}, err
 	}
 
@@ -186,11 +218,16 @@ func (a *Agent) bind(ctx context.Context, spec TunnelSpec) (Tunnel, error) {
 			createdAt:      time.Now(),
 		}
 		a.mu.Lock()
+		if gen != a.sessGen.Load() || !a.connected {
+			a.mu.Unlock()
+			return Tunnel{}, &Error{Code: proto.CodeAuthRequired, Message: "session changed during bind"}
+		}
 		a.tunnels[clientTunnelID] = at
+		view := at.view()
 		a.mu.Unlock()
 		a.log.Info("tunnel online", "name", sanitizeLog(spec.Name), "url", sanitizeLog(br.PublicUrl))
-		a.emit(Event{Type: "tunnel", Tunnel: ptr(at.view())})
-		return at.view(), nil
+		a.emit(Event{Type: "tunnel", Tunnel: &view})
+		return view, nil
 	case <-time.After(20 * time.Second):
 		return Tunnel{}, &Error{Code: proto.CodeInternal, Message: "bind timed out"}
 	case <-ctx.Done():
