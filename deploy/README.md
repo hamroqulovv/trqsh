@@ -41,8 +41,8 @@ docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-
 # or: make local
 ```
 
-Open the site at `http://localhost:3002`, the dashboard at
-`http://localhost:3000`, and API docs at `http://localhost:8081/docs`. The site
+Open the site at `http://localhost:3004`, the dashboard at
+`http://localhost:3005`, and API docs at `http://localhost:8081/docs`. The site
 links to this local dashboard/API. The dashboard sets host-only HTTP cookies in
 explicit development mode so email sign-in works on localhost. The edge accepts
 agents on `localhost:4443` and serves local `*.lvh.me` tunnels on ports 80/443.
@@ -53,7 +53,7 @@ Stop the stack with `make local-down`, or the same Compose command ending in
 
 ## Local host published through Cloudflare (trqsh.uz)
 
-Keep the existing Cloudflare Tunnel HTTP origin at `http://localhost:3002`.
+Set the Cloudflare Tunnel HTTP origin to `http://localhost:3004`.
 Run the same persistent stack with the public URL overlay:
 
 ```bash
@@ -88,7 +88,7 @@ authentication/QR checks and remaining deployment limitations.
 ```bash
 make dev            # pg + redis + migrate + api + edge + mailhog  (builds images)
 # in another shell — a public URL to your local server:
-go run ./cmd/trqsh http 3000 --server 127.0.0.1:4443 --insecure
+TRQSH_API_URL=http://localhost:8080 go run ./cmd/trqsh --server 127.0.0.1:4443 --insecure http 3000
 curl -H 'Host: <sub>.lvh.me' http://127.0.0.1
 
 make dev-web        # + dashboard on :3000

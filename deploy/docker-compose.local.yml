@@ -1,5 +1,6 @@
 # Persistent local stack. Layer over the shared dev services:
 #   docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web up -d --build --wait
+# Site: localhost:3004, dashboard: localhost:3005, API: localhost:8081.
 
 services:
   postgres:
@@ -20,8 +21,8 @@ services:
     environment:
       TRQSH_ENV: development
       TRQSH_API_PUBLIC_URL: http://localhost:8081
-      TRQSH_APP_URL: http://localhost:3000
-      TRQSH_QR_URL: http://localhost:3000/remote
+      TRQSH_APP_URL: http://localhost:3005
+      TRQSH_QR_URL: http://localhost:3005/remote
     ports: !override
       - "127.0.0.1:8081:8080"
 
@@ -53,10 +54,11 @@ services:
       args:
         TRQSH_API_URL: http://localhost:8081
         NEXT_PUBLIC_TRQSH_BASE_DOMAIN: lvh.me
+        NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH: ""
     environment:
       TRQSH_ENV: development
     ports: !override
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3005:3000"
     depends_on:
       api:
         condition: service_healthy
@@ -68,11 +70,11 @@ services:
       context: ..
       dockerfile: deploy/docker/Dockerfile.site
       args:
-        TRQSH_DASHBOARD_URL: http://localhost:3000
+        TRQSH_DASHBOARD_URL: http://localhost:3005
         TRQSH_API_URL: http://localhost:8081
-        TRQSH_SITE_URL: http://localhost:3002
+        TRQSH_SITE_URL: http://localhost:3004
     ports:
-      - "127.0.0.1:3002:3000"
+      - "127.0.0.1:3004:3000"
     depends_on:
       api:
         condition: service_healthy
