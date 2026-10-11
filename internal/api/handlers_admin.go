@@ -161,8 +161,8 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
-	// #nosec G124 -- Secure is set below (s.cfg.IsProduction()); gosec's cookie check only recognizes a literal `true`, not a conditional
 	value := s.signAdmin(time.Now().Add(adminTTL))
+	// #nosec G124 -- Secure is set below (s.cfg.IsProduction()); gosec's cookie check only recognizes a literal `true`, not a conditional
 	http.SetCookie(w, &http.Cookie{
 		Name: adminCookie, Value: value, Path: "/",
 		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode,
