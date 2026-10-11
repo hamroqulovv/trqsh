@@ -69,7 +69,9 @@ func (m model) View() string {
 	if m.width < 1 || m.height < 1 {
 		return ""
 	}
-	if m.setup.stage != "" { return m.setupView() }
+	if m.setup.stage != "" {
+		return m.setupView()
+	}
 	f := m.frame()
 	lines := append([]string{}, f.header...)
 	if f.viewportRows > 0 {
@@ -116,9 +118,10 @@ func (m model) renderHeader() string {
 	glyph, word, col := m.connState()
 	if m.loadingActive() && word != "error" {
 		glyph = m.pixelGlyph()
-		if word == "idle" {
+		switch word {
+		case "idle":
 			word, col = "loading", colSecondary
-		} else if word == "online" {
+		case "online":
 			word = "working"
 		}
 	}

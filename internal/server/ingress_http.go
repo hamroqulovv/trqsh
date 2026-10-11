@@ -528,10 +528,3 @@ func writeUnauthorized(conn net.Conn) {
 func newRequestID() string {
 	return "req_" + randSubdomain(12)
 }
-
-func max64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}

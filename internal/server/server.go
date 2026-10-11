@@ -500,14 +500,13 @@ func (s *Server) handleUnbind(ctx context.Context, a *agentSession, clientTunnel
 	s.releaseTunnel(ctx, bt)
 }
 
-func (s *Server) releaseTunnel(ctx context.Context, bt *boundTunnel) {
+func (s *Server) releaseTunnel(_ context.Context, bt *boundTunnel) {
 	if bt.released.Swap(true) {
 		return
 	}
 	// Cleanup must still run after the session/server context is canceled.
-	cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	ctx = cleanup
 	owner := Binding{EdgeID: s.cfg.EdgeID, SessionID: bt.session.sessionID}
 	s.hub.unbind(bt)
 	if bt.host != "" {

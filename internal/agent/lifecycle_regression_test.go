@@ -25,12 +25,16 @@ func TestAuditReconnectPreservesUnreservedSpec(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := New(DefaultConfig(), nil)
-			defer a.Shutdown(context.Background())
+			defer func() { _ = a.Shutdown(context.Background()) }()
 			c, d := net.Pipe()
-			defer c.Close()
-			defer d.Close()
-			c.SetDeadline(time.Now().Add(3 * time.Second))
-			d.SetDeadline(time.Now().Add(3 * time.Second))
+			defer func() { _ = c.Close() }()
+			defer func() { _ = d.Close() }()
+			if err := c.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+				t.Fatal(err)
+			}
 			a.control = &auditControlStream{c}
 			old := &activeTunnel{spec: tc.spec, clientTunnelID: "old", assignedHost: tc.host, assignedPort: tc.port}
 			a.tunnels["old"] = old
@@ -61,7 +65,7 @@ func TestAuditLogoutClearsAgentCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := New(cfg, nil)
-	defer a.Shutdown(context.Background())
+	defer func() { _ = a.Shutdown(context.Background()) }()
 	l := NewLocalAPI(a)
 	w := httptest.NewRecorder()
 	l.Handler().ServeHTTP(w, httptest.NewRequest("POST", "http://127.0.0.1/logout", nil))

@@ -53,9 +53,9 @@ func saveOnboarding(config, status string) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if err := json.NewEncoder(f).Encode(onboardingState{Version: 1, Status: status}); err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	if err := f.Close(); err != nil {

@@ -385,10 +385,6 @@ func (a *Agent) emit(ev Event) {
 	}
 }
 
-func (a *Agent) writeControl(env *proto.Envelope) error {
-	return a.writeControlForGeneration(env, 0)
-}
-
 func (a *Agent) writeControlForGeneration(env *proto.Envelope, gen uint64) error {
 	a.mu.Lock()
 	if gen != 0 && gen != a.sessGen.Load() {
@@ -420,5 +416,3 @@ func tunnelType(p string) (proto.TunnelType, bool) {
 	}
 	return proto.TunnelType_HTTP, false
 }
-
-func ptr[T any](v T) *T { return &v }

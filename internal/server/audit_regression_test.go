@@ -28,7 +28,7 @@ type auditSession struct {
 func (s *auditSession) OpenStream(context.Context) (tunnel.Stream, error) {
 	a, b := net.Pipe()
 	go func() {
-		defer b.Close()
+		defer func() { _ = b.Close() }()
 		_, err := proto.ReadStreamInit(b)
 		if err != nil {
 			return
@@ -37,12 +37,12 @@ func (s *auditSession) OpenStream(context.Context) (tunnel.Stream, error) {
 		if err != nil {
 			return
 		}
-		io.Copy(io.Discard, r.Body)
-		r.Body.Close()
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = r.Body.Close()
 		if s.seen != nil {
 			s.seen <- r
 		}
-		io.WriteString(b, s.response)
+		_, _ = io.WriteString(b, s.response)
 	}()
 	return &auditStream{a}, nil
 }
@@ -124,17 +124,23 @@ func TestAuditChunkedHTTPUsage(t *testing.T) {
 	a.sess = &auditSession{response: "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\nhello\r\n0\r\n\r\n"}
 	s.handleBind(context.Background(), a, &proto.BindTunnel{ClientTunnelId: "1", Subdomain: "chunks"})
 	c, d := tcpConnPair(t)
-	defer c.Close()
-	c.SetDeadline(time.Now().Add(3 * time.Second))
+	defer func() { _ = c.Close() }()
+	if err := c.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	done := make(chan struct{})
 	go func() { defer close(done); s.serveHTTPConn(d, "https") }()
-	io.WriteString(c, "GET / HTTP/1.1\r\nHost: chunks.example.test\r\nConnection: close\r\n\r\n")
+	if _, err := io.WriteString(c, "GET / HTTP/1.1\r\nHost: chunks.example.test\r\nConnection: close\r\n\r\n"); err != nil {
+		t.Fatal(err)
+	}
 	resp, err := http.ReadResponse(bufio.NewReader(c), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 	<-done
 	if string(body) != "hello" {
 		t.Fatalf("body %q", body)
@@ -170,7 +176,9 @@ func TestAuditRegistryOwnership(t *testing.T) {
 	if err := r.Bind(ctx, route, b, time.Minute); err == nil {
 		t.Fatal("live route overwritten")
 	}
-	r.Unbind(ctx, route, b)
+	if err := r.Unbind(ctx, route, b); err != nil {
+		t.Fatal(err)
+	}
 	got, ok, err := r.Lookup(ctx, route)
 	if err != nil || !ok || got != a {
 		t.Fatal("non-owner unbind removed route")

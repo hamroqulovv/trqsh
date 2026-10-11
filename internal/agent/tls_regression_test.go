@@ -18,7 +18,7 @@ func TestAuditTCPVerifiedTLS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	roots := x509.NewCertPool()
 	roots.AddCert(srv.Certificate())
 	d := &tunnel.Dialer{ForceKind: tunnel.KindTCP, DialTimeout: time.Second, TLSConfig: &tls.Config{RootCAs: roots, NextProtos: []string{tunnel.ALPNProto}}}
@@ -26,6 +26,8 @@ func TestAuditTCPVerifiedTLS(t *testing.T) {
 	if err != nil {
 		t.Errorf("verified TCP dial with trusted certificate failed: %v", err)
 	} else {
-		sess.CloseWithError(0, "done")
+		if err := sess.CloseWithError(0, "done"); err != nil {
+			t.Error(err)
+		}
 	}
 }

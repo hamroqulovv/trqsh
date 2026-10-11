@@ -25,7 +25,7 @@ func TestPostgresBillingAndUsageRegression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer admin.Close()
+	defer func() { _ = admin.Close() }()
 	schema := NewID("fix_test")
 	if _, err := admin.ExecContext(ctx, `CREATE SCHEMA `+schema); err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestPostgresBillingAndUsageRegression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
+	defer func() { _ = p.Close() }()
 	files, err := filepath.Glob("../db/migrations/*.sql")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("migrations: %v", err)
