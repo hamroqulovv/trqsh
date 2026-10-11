@@ -1,0 +1,491 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
+)
+
+// Both relayout and View use this budget. Optional panels and menus shrink
+// before the header or prompt, so a small terminal never crops from the top.
+type frameLayout struct {
+	header, pins, loading, menu, prompt, footer []string
+	viewportRows                                int
+	scrollHint                                  bool
+}
+
+func (m model) frame() frameLayout {
+	var f frameLayout
+	if m.height < 1 {
+		return f
+	}
+	if m.height >= 2 {
+		f.header = append(f.header, m.renderHeader())
+	}
+	if m.height >= 7 {
+		f.header = append(f.header, stRule.Render(m.rule()))
+	}
+	f.prompt = strings.Split(m.renderInputBox(m.height >= 7), "\n")
+	if m.height >= 4 {
+		f.footer = append(f.footer, m.renderHint())
+	}
+	if m.height >= 12 {
+		f.footer = append(f.footer, "")
+		f.scrollHint = true
+	}
+	room := max(0, m.height-len(f.header)-len(f.prompt)-len(f.footer))
+	if f.scrollHint {
+		room--
+	}
+	room = max(0, room)
+	if m.menuOpen() && room > 0 {
+		// Always leave at least one selectable row, even in a short window.
+		menuBudget := min(8, max(1, room-min(3, room-1)))
+		f.menu = m.renderMenu(menuBudget)
+	}
+	room -= len(f.menu)
+	if m.loadingActive() && room > 0 {
+		rows := 1
+		if room >= 8 && m.width >= 44 && !m.menuOpen() {
+			rows = 3
+		}
+		f.loading = m.renderLoading(rows)
+		room -= len(f.loading)
+	}
+	// Keep enough transcript context to read an operation's result. Wide
+	// terminals use one row of panels; narrow ones use one-line summaries.
+	f.pins = m.renderPinnedBlock(min(6, max(0, room-min(5, room))))
+	f.viewportRows = room - len(f.pins)
+	return f
+}
+
+func (m model) View() string {
+	if !m.ready {
+		return "  " + stText.Render(m.pixelGlyph()) + " " + stDim.Render("Starting trqsh…")
+	}
+	if m.width < 1 || m.height < 1 {
+		return ""
+	}
+	if m.setup.stage != "" { return m.setupView() }
+	f := m.frame()
+	lines := append([]string{}, f.header...)
+	if f.viewportRows > 0 {
+		vp := m.vp
+		vp.Height = f.viewportRows
+		lines = append(lines, strings.Split(vp.View(), "\n")...)
+	}
+	if f.scrollHint {
+		lines = append(lines, m.renderScrollHint())
+	}
+	lines = append(lines, f.pins...)
+	lines = append(lines, f.loading...)
+	lines = append(lines, f.menu...)
+	lines = append(lines, f.prompt...)
+	lines = append(lines, f.footer...)
+	for len(lines) < m.height {
+		lines = append(lines, "")
+	}
+	for i := range lines {
+		lines[i] = padCell(lines[i], m.width)
+	}
+	body := strings.Join(lines, "\n")
+	if lipgloss.ColorProfile() == termenv.Ascii {
+		return ansi.Strip(body)
+	}
+	page := lipgloss.NewStyle().Foreground(colBrand).Background(colPage)
+	return page.Render(fillStyle(body, page))
+}
+
+func (m model) rule() string { return strings.Repeat("─", max(0, m.width)) }
+
+func (m model) spread(left, right string) string {
+	available := max(0, m.width-lipgloss.Width(left)-2)
+	right = ansi.Truncate(right, available, "…")
+	gap := max(1, m.width-lipgloss.Width(left)-lipgloss.Width(right)-1)
+	return left + strings.Repeat(" ", gap) + right + " "
+}
+
+func (m model) renderHeader() string {
+	left := stBrand.Render(" trqsh")
+	if m.width >= 64 && m.opts.Version != "" {
+		left += " " + stDim.Render(m.opts.Version)
+	}
+	glyph, word, col := m.connState()
+	if m.loadingActive() && word != "error" {
+		glyph = m.pixelGlyph()
+		if word == "idle" {
+			word, col = "loading", colSecondary
+		} else if word == "online" {
+			word = "working"
+		}
+	}
+	right := boldFg(col, glyph+" "+strings.ToUpper(word))
+	meta := stDim.Render(" · " + m.headerMeta())
+	if lipgloss.Width(left)+lipgloss.Width(right)+lipgloss.Width(meta)+3 <= m.width {
+		right += meta
+	}
+	return m.spread(left, right)
+}
+
+func (m model) connState() (glyph, word string, col lipgloss.TerminalColor) {
+	if len(m.tunnels) == 0 {
+		return "○", "idle", colDim
+	}
+	allFailed := true
+	for _, t := range m.tunnels {
+		if t.Status != "error" {
+			allFailed = false
+			break
+		}
+	}
+	if allFailed {
+		return "!", "error", colCritical
+	}
+	if m.status.Connected {
+		return "●", "online", colGood
+	}
+	return "◌", "connecting", colWarning
+}
+
+func (m model) headerMeta() string {
+	var parts []string
+	if m.status.Edge != "" {
+		parts = append(parts, m.status.Edge)
+	}
+	if m.status.Kind != "" {
+		parts = append(parts, m.status.Kind)
+	}
+	parts = append(parts, plural(len(m.tunnels), "tunnel"))
+	if m.remoteConnected {
+		parts = append(parts, "paired")
+	}
+	return strings.Join(parts, " · ")
+}
+
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+const pinnedRows = 4
+
+func (m model) renderPinnedBlock(budget int) []string {
+	if len(m.pins) == 0 || budget < 1 {
+		return nil
+	}
+	const gap = "  "
+	innerW := max(0, m.width-4)
+	w := (innerW - (len(m.pins)-1)*len(gap)) / len(m.pins)
+	if w >= 36 && budget >= 4 {
+		rows := min(pinnedRows, budget-2)
+		var boxes []string
+		for i, name := range m.pins {
+			if i > 0 {
+				boxes = append(boxes, strings.TrimSuffix(strings.Repeat(gap+"\n", rows+2), "\n"))
+			}
+			boxes = append(boxes, m.pinBox(name, w, rows))
+		}
+		lines := strings.Split(lipgloss.JoinHorizontal(lipgloss.Top, boxes...), "\n")
+		for i := range lines {
+			lines[i] = "  " + lines[i]
+		}
+		return lines
+	}
+	// Compact summaries keep every pinned category visible without stacking
+	// several six-line boxes. No pin is removed from the user's selection.
+	var lines []string
+	for _, name := range m.pins {
+		if len(lines) >= budget {
+			break
+		}
+		label := stTitle.Render(pad(strings.ToUpper(name), 9))
+		lines = append(lines, "  "+label+" "+m.pinSummary(name, max(1, m.width-12)))
+	}
+	if len(lines) < len(m.pins) {
+		lines[len(lines)-1] = "  " + stDim.Render(fmt.Sprintf("+ %d pinned panels", len(m.pins)-len(lines)+1))
+	}
+	return lines
+}
+
+func (m model) pinBox(name string, w, rows int) string {
+	var title string
+	var body []string
+	switch name {
+	case "tunnels":
+		title = fmt.Sprintf("TUNNELS · %d", len(m.tunnels))
+		body = m.tunnelsBody(w-4, rows)
+	case "traffic":
+		title = "TRAFFIC"
+		body = m.trafficBody(w-4, rows)
+	case "status":
+		title = "SESSION"
+		body = m.statusBody()
+	}
+	return panelBox(title, strings.Join(fitLines(body, rows, w-4), "\n"), w)
+}
+
+func (m model) pinSummary(name string, w int) string {
+	switch name {
+	case "tunnels":
+		if len(m.tunnels) == 0 {
+			return stDim.Render("No tunnels · /http 3000")
+		}
+		return stURL.Render(trunc(m.tunnels[0].PublicURL, w))
+	case "traffic":
+		if len(m.requests) == 0 {
+			return stDim.Render("Waiting for requests…")
+		}
+		return requestLine(m.requests[len(m.requests)-1], w, true)
+	case "status":
+		glyph, word, col := m.connState()
+		return boldFg(col, glyph+" "+strings.ToUpper(word)) + stDim.Render(" · "+m.headerMeta())
+	}
+	return ""
+}
+
+func (m model) tunnelsBody(w, rows int) []string {
+	if len(m.tunnels) == 0 {
+		return []string{stDim.Render("No active tunnels"), stKey.Render("/http 3000")}
+	}
+	limit := min(len(m.tunnels), max(1, rows/2))
+	var out []string
+	for _, t := range m.tunnels[:limit] {
+		out = append(out, stURL.Render(trunc(t.PublicURL, w)))
+		out = append(out, stDim.Render(trunc(fmt.Sprintf("→ %s · %d req", t.LocalAddr, t.Metrics.Requests), w)))
+	}
+	if len(m.tunnels) > limit {
+		out = out[:min(len(out), rows-1)]
+		out = append(out, stDim.Render(fmt.Sprintf("+ %d more · /ls", len(m.tunnels)-limit)))
+	}
+	return out
+}
+
+func (m model) trafficBody(w, rows int) []string {
+	if len(m.requests) == 0 {
+		return []string{stDim.Render("Waiting for requests…")}
+	}
+	var out []string
+	if w >= 26 && rows >= 3 {
+		out = append(out, stDim.Render(requestHeader(w, true)))
+	}
+	limit := max(0, rows-len(out))
+	for _, r := range m.requests[max(0, len(m.requests)-limit):] {
+		out = append(out, requestLine(r, w, true))
+	}
+	return out
+}
+
+// Fixed columns use terminal cell widths, including wide Unicode paths.
+// The timestamp is optional so status and duration survive narrow layouts.
+func requestHeader(w int, showTime bool) string {
+	clock, pathW := requestWidths(w, showTime)
+	prefix := ""
+	if clock {
+		prefix = "TIME     "
+	}
+	return prefix + pad("METHOD", 7) + " " + pad("PATH", pathW) + " " + pad("CODE", 5) + " " + leftPad("LATENCY", 7)
+}
+
+func requestWidths(w int, showTime bool) (clock bool, pathW int) {
+	clock = showTime && w >= 70
+	pathW = max(1, w-22)
+	if clock {
+		pathW -= 9
+	}
+	return clock, pathW
+}
+
+func requestLine(r reqRow, w int, showTime bool) string {
+	code := fmt.Sprintf("%d", r.status)
+	if r.status >= 400 {
+		code = "! " + code
+	}
+	if w < 13 {
+		return padCell(statusStyle(r.status).Render(code)+" "+stSub.Render(requestDuration(r.ms)), w)
+	}
+	if w < 26 {
+		methodW, durationW := min(7, max(1, w/4)), min(7, max(5, w/4))
+		pathW := w - methodW - durationW - 8
+		path := ""
+		if pathW > 0 {
+			path = stText.Render(padCell(r.path, pathW)) + " "
+		} else {
+			methodW = max(1, w-durationW-7)
+		}
+		return methodStyle(r.method).Render(padCell(r.method, methodW)) + " " + path +
+			statusStyle(r.status).Render(pad(code, 5)) + " " + stSub.Render(leftPad(requestDuration(r.ms), durationW))
+	}
+	clock, pathW := requestWidths(w, showTime)
+	prefix := ""
+	if clock {
+		timestamp := "—"
+		if !r.at.IsZero() {
+			timestamp = r.at.Format("15:04:05")
+		}
+		prefix = stDim.Render(pad(timestamp, 8) + " ")
+	}
+	return prefix + methodStyle(r.method).Render(padCell(r.method, 7)) + " " + stText.Render(padCell(r.path, pathW)) + " " +
+		statusStyle(r.status).Render(pad(code, 5)) + " " + stSub.Render(leftPad(requestDuration(r.ms), 7))
+}
+
+func requestDuration(ms int64) string {
+	switch {
+	case ms >= 60000:
+		return fmt.Sprintf("%.1f m", float64(ms)/60000)
+	case ms >= 1000:
+		return fmt.Sprintf("%.1f s", float64(ms)/1000)
+	default:
+		return fmt.Sprintf("%d ms", ms)
+	}
+}
+
+func leftPad(s string, w int) string {
+	s = trunc(s, w)
+	return strings.Repeat(" ", max(0, w-lipgloss.Width(s))) + s
+}
+
+func (m model) statusBody() []string {
+	glyph, word, col := m.connState()
+	return []string{
+		boldFg(col, glyph+" "+strings.ToUpper(word)),
+		stDim.Render("Edge       ") + stSub.Render(firstNonEmpty(m.status.Edge, "—")),
+		stDim.Render("Transport  ") + stSub.Render(firstNonEmpty(m.status.Kind, "—")),
+		stDim.Render("Tunnels    ") + stSub.Render(fmt.Sprint(len(m.tunnels))),
+	}
+}
+
+func (m model) renderWelcome() []string {
+	title := "Your tunnel workspace"
+	accountLine := stDim.Render("Not signed in · ") + stKey.Render("/login")
+	if m.acct != nil {
+		title = "Welcome, " + firstNonEmpty(m.acct.User.Name, m.acct.User.Email, "you")
+		accountLine = stSub.Render(firstNonEmpty(m.acct.Plan, m.acct.Org.Plan, "free") + " plan")
+		if m.acct.User.Email != "" {
+			accountLine += stDim.Render(" · " + m.acct.User.Email)
+		}
+	} else if m.authed {
+		accountLine = stSub.Render("Signed in")
+	}
+	action := stKey.Render("/http 3000") + stDim.Render(" to share localhost · ") + stKey.Render("/") + stDim.Render(" for commands")
+	if m.width < 60 {
+		action = stKey.Render("/http 3000") + stDim.Render(" · ") + stKey.Render("/") + stDim.Render(" commands")
+	}
+	lines := []string{"  " + stBrand.Render(title), "  " + accountLine, "  " + action}
+	if m.height >= 14 {
+		lines = append([]string{""}, append(lines, "")...)
+	}
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], max(1, m.width-2), "…")
+	}
+	return lines
+}
+
+func (m *model) refreshWelcome() {
+	if !m.welcomeShown || m.welcomeLen == 0 || len(m.transcript) < m.welcomeLen {
+		return
+	}
+	fresh := m.renderWelcome()
+	m.transcript = append(fresh, m.transcript[m.welcomeLen:]...)
+	m.welcomeLen = len(fresh)
+}
+
+func padCell(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	if lipgloss.Width(s) > w {
+		s = ansi.Truncate(s, w, "…")
+	}
+	return s + strings.Repeat(" ", w-lipgloss.Width(s))
+}
+
+func (m model) renderInputBox(divider bool) string {
+	ta := m.input
+	if m.selectAll {
+		ta.FocusedStyle.Text = stMenuSel
+		ta.FocusedStyle.Placeholder = stMenuSel
+		ta.Focus()
+	}
+	lines := strings.Split(ta.View(), "\n")
+	for i := range lines {
+		lines[i] = " " + lines[i]
+	}
+	body := strings.Join(lines, "\n")
+	if divider {
+		return inputBox(body, m.width)
+	}
+	return body
+}
+
+func (m model) renderScrollHint() string {
+	if m.vp.AtBottom() {
+		return ""
+	}
+	text := "↓ More output below · End to follow latest · PgDn to scroll"
+	if m.width < 64 {
+		text = "↓ More below · End to follow latest"
+	}
+	return "  " + stDim.Render(text)
+}
+
+func (m model) renderHint() string {
+	var variants []string
+	if m.menuOpen() {
+		variants = []string{"↑↓ select · Tab complete · Enter run · Esc close", "↑↓ select · Enter run · Esc close", "Enter run · Esc close", "Esc close"}
+	} else {
+		variants = []string{"↑↓ history · / commands · PgUp/PgDn scroll · Ctrl+C quit", "↑↓ history · / commands · Ctrl+C quit", "/ commands · Ctrl+C quit", "Ctrl+C quit", "Ctrl+C"}
+	}
+	for _, text := range variants {
+		if lipgloss.Width(text)+2 <= m.width {
+			return "  " + stDim.Render(text)
+		}
+	}
+	return ""
+}
+
+func (m model) renderMenu(budget int) []string {
+	if !m.menuOpen() || budget < 1 {
+		return nil
+	}
+	var out []string
+	if budget >= 3 {
+		out = append(out, "  "+stTitle.Render("COMMANDS")+stDim.Render(fmt.Sprintf("  %d/%d", m.menuIdx+1, len(m.menuItems))))
+	}
+	window := min(7, budget-len(out))
+	start := max(0, m.menuIdx-window+1)
+	end := min(start+window, len(m.menuItems))
+	innerW := max(1, m.width-4)
+	labelW := 0
+	for _, e := range m.menuItems {
+		labelW = max(labelW, lipgloss.Width(e.label))
+	}
+	labelW = min(labelW, min(26, max(1, innerW-2)))
+	for i := start; i < end; i++ {
+		e := m.menuItems[i]
+		label := padCell(e.label, labelW)
+		desc := ""
+		if m.width >= 60 && e.desc != "" {
+			desc = "  " + trunc(e.desc, max(1, innerW-labelW-4))
+		}
+		if i == m.menuIdx {
+			out = append(out, "  "+stMenuSel.Render(padCell("› "+label+desc, innerW)))
+		} else {
+			out = append(out, "    "+stKey.Render(label)+stDim.Render(desc))
+		}
+	}
+	return out
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}

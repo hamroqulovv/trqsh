@@ -31,10 +31,14 @@ func runTUI(cmd *cobra.Command, g *globalFlags, initial string) error {
 		return err
 	}
 	addr := controlAddr(cfg)
+	configPath := firstNonEmpty(g.configPath, agent.DefaultConfigPath())
+	showSetup := needsOnboarding(configPath, cfg.APIKey, initial)
 	if err := ensureDaemon(cmd, g, addr); err != nil {
 		return err
 	}
 	return tui.Run(tui.Options{
+		ShowSetup:      showSetup,
+		OnSetupDone:    func(status string) error { return saveOnboarding(configPath, status) },
 		Addr:           addr,
 		Token:          agent.LoadControlToken(),
 		APIKey:         strings.TrimSpace(cfg.APIKey),

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // normalizeAddr turns "3000" into "localhost:3000", leaving host:port as-is —
@@ -20,29 +22,18 @@ func normalizeAddr(a string) string {
 	return "localhost:" + a
 }
 
-// trunc shortens s to at most n display cells, appending an ellipsis when cut.
-// It counts runes (good enough for the ASCII-heavy URLs and paths shown here).
+// trunc counts display cells, so Unicode paths and ANSI styles do not shift
+// neighboring columns or cause an extra terminal line to wrap.
 func trunc(s string, n int) string {
 	if n <= 0 {
 		return ""
 	}
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	if n == 1 {
-		return "…"
-	}
-	return string(r[:n-1]) + "…"
+	return ansi.Truncate(s, n, "…")
 }
 
-// pad right-pads s with spaces to width n (rune count).
+// pad right-pads a label to n terminal cells without truncating it.
 func pad(s string, n int) string {
-	r := []rune(s)
-	if len(r) >= n {
-		return s
-	}
-	return s + strings.Repeat(" ", n-len(r))
+	return s + strings.Repeat(" ", max(0, n-ansi.StringWidth(s)))
 }
 
 // shortID trims a tunnel id to its first 8 characters for compact display.
