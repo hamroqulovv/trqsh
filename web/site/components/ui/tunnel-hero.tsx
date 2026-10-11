@@ -73,7 +73,7 @@ export default function TunnelHero({ className }: { className?: string }) {
     let camera: Three.OrthographicCamera | undefined;
     let geometry: Three.PlaneGeometry | undefined;
     let material: Three.ShaderMaterial | undefined;
-    let disposed = false;
+    const lifecycle = new AbortController();
     let initializing = false;
     let lost = false;
     let visible = true;
@@ -95,7 +95,7 @@ export default function TunnelHero({ className }: { className?: string }) {
     const loop = (now: number) => {
       frame = 0;
       if (
-        disposed ||
+        lifecycle.signal.aborted ||
         lost ||
         !visible ||
         document.hidden ||
@@ -121,7 +121,7 @@ export default function TunnelHero({ className }: { className?: string }) {
       if (
         !frame &&
         material &&
-        !disposed &&
+        !lifecycle.signal.aborted &&
         !lost &&
         visible &&
         !document.hidden &&
@@ -132,7 +132,7 @@ export default function TunnelHero({ className }: { className?: string }) {
       }
     };
     const resize = () => {
-      if (!renderer || !material || disposed) return;
+      if (!renderer || !material || lifecycle.signal.aborted) return;
       const width = Math.max(host.clientWidth, 1);
       const height = Math.max(host.clientHeight, 1);
       const pixelBudget = mobile.matches ? 240_000 : 700_000;
@@ -163,12 +163,12 @@ export default function TunnelHero({ className }: { className?: string }) {
         });
     };
     const initialize = async () => {
-      if (renderer || initializing || disposed || motion.matches) return;
+      if (renderer || initializing || lifecycle.signal.aborted || motion.matches) return;
       initializing = true;
       try {
         // Three.js is fetched after hydration; text and navigation render first.
         const THREE = await import("three");
-        if (disposed || motion.matches) return;
+        if (lifecycle.signal.aborted || motion.matches) return;
         renderer = new THREE.WebGLRenderer({
           canvas,
           antialias: false,
@@ -274,7 +274,7 @@ export default function TunnelHero({ className }: { className?: string }) {
     void initialize();
 
     return () => {
-      disposed = true;
+      lifecycle.abort();
       stop();
       cancelAnimationFrame(resizeFrame);
       observer.disconnect();
