@@ -1,69 +1,95 @@
 # TCP & UDP tunnels
 
-trqsh isn't just for web apps. Tunnel any TCP service — and, unlike ngrok, **UDP**
-too.
+Use raw transport tunnels for services that do not speak HTTP. TCP and UDP traffic is forwarded to the local destination without HTTP request inspection.
 
-## TCP tunnels
+The tunnel protocol and agent transport are different settings: `/tcp` chooses what visitors send, while `transport: tcp` chooses how the agent connects to the edge.
 
-Expose a raw TCP port, such as SSH:
+## TCP: expose an existing service
 
-```sh
+For an SSH server listening locally on port 22:
+
+~~~text
+/tcp 22
+/ls
+~~~
+
+Or launch from your shell:
+
+~~~sh
 trqsh tcp 22
-```
+~~~
 
-trqsh assigns a public host and port:
+The edge returns a URL shaped like `tcp://HOST:PORT`. Use the **returned host and port**, not the agent's transport port 4443.
 
-```
-Forwarding  tcp://tcp.trqsh.uz:24187  →  localhost:22
-```
+For SSH:
 
-Connect through it like any other host:
+~~~sh
+ssh -p ASSIGNED_PORT your-user@ASSIGNED_HOST
+~~~
 
-```sh
-ssh -p 24187 user@tcp.trqsh.uz
-```
+TCP tunnels can also forward database connections and custom TCP protocols. The service still handles its own authentication and, when required, its own TLS. trqsh does not create a database user or SSH account for you.
 
-TCP tunnels are great for SSH, Postgres/MySQL, Redis, SMTP, and any custom
-protocol.
+## Request a public port
 
-### Reserve a port
+~~~text
+/tcp 22 --remote-port 2222
+~~~
 
-Ask for a specific remote port (subject to availability and your plan):
+`--remote-port` requests a port; it is not a permanent reservation. The edge's port pool, availability and deployment firewall determine whether it can be used.
 
-```sh
-trqsh tcp 22 --remote-port 2222
-```
+If the edge reports [ERR_PORT_UNAVAILABLE](/docs/errors#err_port_unavailable), omit the flag or choose an allowed available port. The local port and public port can differ.
 
-A taken port returns [`ERR_PORT_UNAVAILABLE`](/docs/errors#err_port_unavailable);
-omit `--remote-port` to get an ephemeral one.
+## UDP: expose a datagram service
 
-## UDP tunnels
+For a UDP service listening on port 51820:
 
-UDP is a first-class citizen — QUIC makes it natural. Expose a UDP service such as
-a DNS resolver, game server, or WebRTC endpoint:
+~~~text
+/udp 51820
+~~~
 
-```sh
-trqsh udp 51820
-```
+A full local address also works:
 
-```
-Forwarding  udp://udp.trqsh.uz:39912  →  localhost:51820
-```
+~~~text
+/udp 127.0.0.1:51820 --remote-port 30020
+~~~
 
-UDP tunnels require a plan that includes UDP. On the free plan you'll see
-[`ERR_PLAN_FORBIDS`](/docs/errors#err_plan_forbids) with the plan needed — compare
-options on the [pricing page](/pricing).
+The returned URL is shaped like `udp://HOST:PORT`. Configure the connecting client with that host and port using the UDP application's own settings.
 
-## TLS tunnels
+UDP requires a plan that allows UDP. A disallowed bind returns [ERR_PLAN_FORBIDS](/docs/errors#err_plan_forbids). For self-hosting, the allocated UDP port must also be reachable through the host/container network and firewall.
 
-To terminate TLS yourself (passthrough), use a `tls` tunnel so the edge forwards
-the encrypted stream untouched:
+UDP is datagram traffic: packet loss, idle association expiry and application retry behavior still apply. It does not become a reliable byte stream just because the agent prefers QUIC.
 
-```sh
-trqsh tls 8443
-```
+## Save several services
 
-## Protocol support by plan
+~~~yaml
+tunnels:
+  ssh:
+    proto: tcp
+    addr: "localhost:22"
 
-HTTP, HTTPS, and TCP are available on every plan. UDP and TLS are included on Pro
-and above. See the full matrix on the [pricing page](/pricing).
+  game:
+    proto: udp
+    addr: "localhost:27015"
+~~~
+
+Launch the console and use `/start`. Check [Configuration](/docs/configuration) for the exact schema and [CLI reference](/docs/cli-reference) for lifecycle commands.
+
+## TLS-specific limitations
+
+The current console has `/http`, `/tcp` and `/udp` commands; there is no `/tls` command. Although the core/config accepts a `tls` identifier and plans contain a TLS entitlement, this is not a verified end-to-end SNI passthrough workflow in the current edge.
+
+For a service that already speaks TLS, use a raw TCP tunnel when a host-and-port endpoint suits your application. Its encrypted protocol bytes pass through the TCP tunnel, and the service must provide a certificate/name configuration appropriate for its clients.
+
+## Plan and connectivity checks
+
+TCP is allowed by the current Free, Pro and Team catalog; UDP is allowed on Pro and Team. Consult [Pricing](/pricing) and your account's effective plan rather than assuming that every deployment has the same enabled network services.
+
+To diagnose a failure:
+
+1. Confirm the service accepts a local TCP connection or UDP packet.
+2. Check `/status` and the bind result.
+3. Connect to the assigned public host and port.
+4. Check firewall/container port exposure on a self-hosted edge.
+5. Use the service's own logs for protocol errors.
+
+HTTP Basic Auth and the HTTP inspector do not protect or inspect raw TCP/UDP services. See [Security](/docs/security) for the applicable boundaries.

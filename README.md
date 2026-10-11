@@ -2,9 +2,9 @@
 
 # trqsh
 
-**Your localhost, live on the internet.** A developer tunneling service — like ngrok or
-Cloudflare Tunnel, but **QUIC-first** (faster on lossy/mobile links), with a **genuinely generous
-free tier**, **UDP tunnels**, a **first-class desktop app**, and an **open-source agent**.
+**Your localhost, live on the internet.** Expose local HTTP, TCP and UDP services through
+an authenticated agent with QUIC-first transport and TCP fallback. Use the interactive
+console or desktop app, inspect HTTP traffic locally, or self-host the full platform.
 
 [![CI](https://github.com/uzcreator/trqsh/actions/workflows/ci.yml/badge.svg)](https://github.com/uzcreator/trqsh/actions/workflows/ci.yml)
 [![Security](https://github.com/uzcreator/trqsh/actions/workflows/security.yml/badge.svg)](https://github.com/uzcreator/trqsh/actions/workflows/security.yml)
@@ -16,23 +16,25 @@ free tier**, **UDP tunnels**, a **first-class desktop app**, and an **open-sourc
 
 </div>
 
-```console
-$ trqsh http 3000
-● session online   transport quic   region us-east
-Forwarding  https://tidy-otter-4f2a.trqsh.uz  →  http://localhost:3000
-Inspect     http://localhost:4040
+```text
+# In your terminal: trqsh
+# Inside its console:
+/login
+/http 3000
+/ls
 ```
+
+The console prints the actual assigned public URL. Keep your local HTTP app running on
+port 3000. `/quit` leaves its background daemon and tunnels running; `/down` stops them.
 
 ## Why trqsh
 
-- ⚡ **QUIC / HTTP-3 transport** — lower latency on lossy/mobile networks, connection migration
-  across Wi-Fi ↔ 5G, with automatic **TCP + yamux fallback** where UDP is blocked.
-- 🎁 **A free tier that isn't a trap** — deliberately more generous than ngrok's 2026 cuts.
-- 🖥️ **A real desktop app** (macOS/Windows/Linux) with one-click tunnels and a live request
-  inspector + replay.
-- 🔌 **Every protocol, incl. UDP** — HTTP/HTTPS/TLS/TCP **and UDP** (ngrok has none).
-- 🌐 **Custom domains + reserved subdomains**, teams/orgs, simple predictable pricing.
-- 🔓 **Fully open source (Apache-2.0)** — audit it, script it, self-host the entire stack.
+- **QUIC-first transport**, with TLS-over-TCP + yamux fallback where UDP is blocked.
+- **HTTP, TCP and UDP workflows**, subject to plan entitlements and edge networking.
+- **Interactive console and desktop UI**, with local tunnel management and HTTP replay.
+- **Reserved subdomains and verified custom domains** for stable HTTP endpoints.
+- **Loopback agent API** for scripts and integrations; a separate cloud Control API.
+- **Apache-2.0 source** for the agent, edge, control plane and web interfaces.
 
 ## Architecture
 
@@ -46,11 +48,11 @@ Inspect     http://localhost:4040
                               │  │ control API (trqshapi)│──┼──▶ Postgres
                               │  │ auth · quotas · domains│  │   Redis
                               │  └──────────┬───────────┘  │
-                              │       Stripe │ billing      │
+                              │     optional │ billing      │
                               └──────────────┴─────────────┘
 ```
 
-- **agent** (`cmd/trqsh`) opens one authenticated, multiplexed QUIC session to the nearest **edge**,
+- **agent** (`cmd/trqsh`) opens an authenticated, multiplexed session to its configured **edge**,
   registers tunnels, and forwards streams to local services.
 - **edge** (`cmd/trqshd`) accepts public traffic, resolves subdomain/SNI → session via a Redis
   registry, and welds the two connections.
@@ -62,22 +64,43 @@ Inspect     http://localhost:4040
 ```bash
 # macOS / Linux
 curl -fsSL https://trqsh.uz/install.sh | sh
-# Windows
-scoop install trqsh
+# Windows / macOS / Linux with npm
+npm install -g @trqsh-uz/trqsh
 
-trqsh login           # sign in through your browser
-trqsh http 3000       # → a public HTTPS URL for localhost:3000
-trqsh http 3000 -d    # …or in the background — `trqsh ls` to list, `trqsh stop all` to stop
+trqsh --version
+trqsh                # open the interactive console
 ```
 
-Full docs and an API reference live on the site (`web/site` → `/docs`), and the control API serves
-its own interactive Swagger UI at **`/docs`**.
+Inside the console:
 
-**Uninstall:** `trqsh uninstall` clears local data (config, key, cache) and stops any background
-tunnels, then remove the package itself — `npm rm -g @trqsh-uz/trqsh`, `pip uninstall trqsh`, or
-`scoop uninstall trqsh`.
+```text
+/login               # approve the device code in your browser
+/http 3000           # public HTTPS URL for a local HTTP app
+/pin traffic         # watch completed HTTP exchanges
+/stop all            # stop this agent's tunnels
+/down                # stop the daemon and exit
+```
+
+The [documentation source index](docs/README.md) links all guides, including exact config,
+commands, limitations, local automation and troubleshooting. The website serves them at
+`/docs`; the Control API serves its own Swagger UI at `/docs` on the API origin.
+
+**Uninstall:** `/uninstall` explains local-data removal; `/uninstall yes` stops the agent and
+removes local config, credentials and cache. Remove the program with its original package
+manager, for example `npm uninstall -g @trqsh-uz/trqsh` or `python -m pip uninstall trqsh`.
 
 ## Local development
+
+For the persistent complete stack, including both frontends:
+
+```bash
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web up -d --build --wait
+```
+
+Website/docs: `http://localhost:3004`; dashboard: `http://localhost:3005`; API:
+`http://localhost:8081`. PostgreSQL and Redis are internal to Docker. Agent transport
+is on port 4443. See [development setup](docs/DEVELOPMENT.md) and [deployment guide](deploy/README.md)
+for configurations, port conflicts and safe service-specific rebuilds.
 
 ```bash
 make dev          # full local stack: postgres, redis, migrate, api, edge, mailhog
@@ -90,16 +113,20 @@ Run a public URL with **no cloud** (pure Go, in-memory registry + store):
 
 ```bash
 TRQSH_ENTITLEMENTS=stub TRQSH_BASE_DOMAIN=lvh.me go run ./cmd/trqshd   # edge
-go run ./cmd/trqsh http 3000 --server 127.0.0.1:4443 --insecure     # agent
+TRQSH_API_KEY=local-dev-key go run ./cmd/trqsh --server 127.0.0.1:4443 --insecure http 3000
 curl -H 'Host: <sub>.lvh.me' http://127.0.0.1
 ```
+
+The arbitrary key above works only with development stub entitlements. Cloud account
+commands require a real Control API; use the complete stack for those workflows.
 
 Frontends: `make site` (:3002), `pnpm dev` in `web/dashboard` (:3000), and `pnpm tauri dev` in `desktop/` (the native Tauri app).
 
 ## Security
 
-trqsh routes other people's traffic, so security is a first-class concern: TLS everywhere,
-argon2id-hashed API keys, HMAC-pinned JWTs, constant-time comparisons, bounded protocol frames,
+Public HTTPS terminates at the edge; the agent-edge transport is encrypted, while the
+documented HTTP upstream is local plain HTTP. Other controls include argon2id-hashed
+API keys, HMAC-pinned JWTs, constant-time comparisons, bounded protocol frames,
 per-IP rate limiting, server timeouts, and a **fail-closed production config** (`TRQSH_ENV=production`
 refuses to boot on dev-default secrets). CI runs gosec, govulncheck, CodeQL, and Trivy.
 

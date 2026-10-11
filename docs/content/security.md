@@ -1,47 +1,69 @@
-# Security & abuse
+# Security & privacy
 
-How trqsh protects your traffic and your account — and how to report a problem.
+Understand the boundaries before exposing a local service. trqsh provides tunnel transport and access controls; your application remains responsible for its own authorization and data handling.
 
-## Transport security
+## Where encryption applies
 
-- **TLS everywhere.** Agent ↔ edge, public ↔ edge, and browser ↔ dashboard are all
-  encrypted. There is no plaintext path in production.
-- **QUIC/HTTP-3** by default, with an authenticated TLS-over-TCP fallback. Either
-  way the session is mutually established before any tunnel binds.
+For the normal HTTP workflow:
 
-## Account & keys
+| Connection | Protection |
+| --- | --- |
+| Visitor → public HTTPS URL | TLS terminates at the edge. |
+| Agent → edge | QUIC with TLS, or authenticated TLS-over-TCP fallback. |
+| Agent → local HTTP service | Plain HTTP to the configured local destination. |
+| Browser → production dashboard/API | HTTPS when the deployment is configured correctly. |
 
-- API keys are **high-entropy**, **hashed at rest**, shown once, and revocable.
-- Use a **distinct key per machine or pipeline** so revocation is surgical.
-- The dashboard uses short-lived JWT sessions with refresh; OAuth via GitHub/Google
-  is supported.
+This is not end-to-end encryption between a visitor and a local HTTP app: the edge handles the HTTP request. A raw TCP tunnel can carry an application's own encrypted protocol, such as SSH or service-managed TLS.
 
-## Tenant isolation
+Local development may use HTTP frontends and self-signed edge certificates. `insecure: true` skips certificate verification and is intended only for that setup.
 
-A session can only bind subdomains, custom domains, and ports your account is
-entitled to. Quotas and protocol access are enforced at the edge on every bind —
-not just in the UI — so limits can't be bypassed by scripting the agent.
+## Public exposure and access control
 
-## Abuse controls
+A random URL is not an authentication mechanism. Anyone who learns it can request the exposed service unless your app or tunnel access controls reject them.
 
-Public hostnames are subject to **phishing and malware screening**. Tunnels that
-host illegal content, distribute malware, or attack others may be suspended. Per-
-account rate limits and network-level DDoS protections run at the edge.
+For HTTP previews, use `basic_auth` in a saved tunnel definition when appropriate. For TCP/UDP, retain the service's own authentication. Do not expose the local agent control port or inspector as a public tunnel.
 
-## Reporting abuse
+Only tunnel services and data you are authorized to share. Avoid exposing development admin routes, database consoles or secrets by accident.
 
-Seeing a trqsh URL used for phishing or malware? Email **abuse@trqsh.uz** with the
-hostname and details. We act on verified reports quickly.
+## API keys
 
-## Reporting a vulnerability
+Cloud API keys are random credentials, hashed on the Control API side and returned in full once at creation. The local agent stores its working key in the YAML config.
 
-Found a security issue in trqsh or the open-source agent? Please disclose it
-responsibly to **security@trqsh.uz** rather than filing a public issue. We'll
-acknowledge, investigate, and keep you updated. We don't take legal action against
-good-faith research that respects our users' privacy and data.
+- Use a separate key per machine or automation.
+- Keep config and environment secrets out of source control and build logs.
+- Rotate exposed keys and revoke old ones in the dashboard.
+- Check whether a key was supplied through an environment variable before assuming logout has removed every source.
 
-## Your responsibilities
+See [Authentication](/docs/authentication) for persistence and revocation behavior.
 
-- Keep your API keys secret; rotate them if exposed.
-- Don't tunnel services you aren't authorized to expose.
-- Follow the [Terms of Service](/terms) and applicable law.
+## Local agent and captures
+
+The control API normally binds to `127.0.0.1:4041` and requires the token in `~/.trqsh/control.token`. It also checks loopback Host headers and limits allowed origins.
+
+The inspector normally binds to `127.0.0.1:4040`. Its Host guard blocks non-loopback hosts, but it relies on local access rather than cloud login. Captures can contain cookies, authorization headers and request bodies.
+
+The recorder keeps up to 256 exchanges and 64 KiB per body in memory. Clear captures when no longer needed and keep both listeners on loopback. See [Request inspector](/docs/inspector).
+
+## QR remote control
+
+A QR pairing URL/code is a temporary capability: anyone holding it can view the shared console and send allowed console commands. It does not require a separate viewer login.
+
+Share it only with someone you trust and end it using `/qr stop`. The current relay temporarily holds console transcript/state in the Control API process. This is distinct from a cloud HTTP-body archive.
+
+See [QR remote control](/docs/remote-control) for lifetime and blocked commands.
+
+## Account isolation and limits
+
+The normal entitlement provider checks credentials, protocol access, reserved-name ownership, verified-domain ownership and applicable quotas when binding a tunnel. A hostname cannot have two active owners.
+
+Development stub entitlements and passwordless development sign-in are conveniences for local testing. Production operators must use the real API entitlement provider and production authentication settings.
+
+Rate limits and request-size controls reduce abuse; they are not a promise that an exposed application cannot be attacked. Infrastructure-level protection depends on the deployment.
+
+## Report abuse or a vulnerability
+
+For abuse involving a trqsh hostname, contact **abuse@trqsh.uz** with the hostname, time and relevant evidence.
+
+For a security vulnerability, follow the repository security policy and contact **security@trqsh.uz**. Include the affected component/version, impact and reproduction steps. Avoid publishing working credentials or private captured traffic in a public issue.
+
+Use the [Terms](/terms) and [Privacy policy](/privacy) for the hosted service's policies. Self-hosted operators control their own retention, access and infrastructure.

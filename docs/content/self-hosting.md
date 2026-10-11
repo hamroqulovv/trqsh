@@ -1,61 +1,131 @@
 # Self-hosting
 
-trqsh is **fully open source** (Apache-2.0) — not just the agent, but the entire stack: the
-edge, the control plane, and billing. You can run the whole thing yourself, or use the
-hosted service at [trqsh.uz](https://trqsh.uz) and skip the operations.
+Run the trqsh platform yourself: agent, edge, Control API, dashboard, website, PostgreSQL and Redis. This guide covers the repository's persistent local stack and the path to a production deployment.
 
-## Just the agent
+Local stack addresses are examples for the supplied Compose overlay. They are not public tunnel URLs.
 
-If you only want to point the CLI at the hosted service (or someone else's edge), build the
-agent from source:
+## Components and traffic
 
-```sh
-git clone https://github.com/uzcreator/trqsh
-cd trqsh
-go build ./cmd/trqsh
-```
+| Component | Role |
+| --- | --- |
+| Agent / console | Runs near your app and forwards tunnel traffic to it. |
+| Edge | Accepts public ingress and encrypted agent connections. |
+| Control API | Accounts, keys, reservations, domain verification, usage and entitlements. |
+| Dashboard | Browser account management. |
+| Website | Marketing pages and this documentation. |
+| PostgreSQL | Persistent account/resource/usage records. |
+| Redis | Shared edge/control-plane state. |
 
-You now have a `trqsh` binary identical to the released one (releases are just this,
-cross-compiled and signed). Point it at an edge with your API key and it behaves exactly
-like the packaged CLI.
+A working website login proves the HTTP control plane is reachable. It does not prove that the edge's QUIC/TCP port or allocated raw tunnel ports are reachable.
 
-- **Trust** — see precisely what runs on your machine and what it sends.
-- **Scriptability** — embed the agent core in your own tools; the Go API is stable.
-- **Portability** — build for any platform Go targets.
+## Prerequisites
 
-## The whole platform
+Use Docker with Compose **2.24.4 or later** for the overlay's `!override` support. Docker Desktop should be running on Windows/macOS. The persistent local workflow does not require a host Go or Node toolchain because images build those components.
 
-Everything needed to run your own trqsh — edge, control API, dashboard, and site — is in
-the repository:
+For native development, use Go 1.25.8 or newer as required by `go.mod`, Node.js 20+ and pnpm 9. Check the repository development guide for optional generators.
 
-```sh
-git clone https://github.com/uzcreator/trqsh
-cd trqsh
-make dev          # full local stack: postgres, redis, migrate, api, edge, mailhog
-```
+## Start the full local stack
 
-For a real deployment, [`deploy/`](https://github.com/uzcreator/trqsh/tree/main/deploy) has
-everything: multi-stage Dockerfiles, `docker-compose` for a single box, a Helm chart (edge
-DaemonSet, API autoscaling, ingress, migrations, network policies), and Terraform for a
-multi-region setup with managed Postgres/Redis and wildcard DNS. Start with
-[`deploy/PRODUCTION.md`](https://github.com/uzcreator/trqsh/blob/main/deploy/PRODUCTION.md).
+Clone the source repository shown on the website's source link, enter its root, then run:
 
-You'll need a domain with a wildcard DNS record pointed at your edge, and — for public
-HTTPS — a wildcard TLS certificate, which the edge can obtain automatically via Let's
-Encrypt DNS-01.
+~~~sh
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web up -d --build --wait
+~~~
 
-## Hosted vs self-hosted
+Always use the same project name and both files for this stack. This reuses its existing named database volumes rather than creating an unrelated preview deployment.
 
-| | Hosted (trqsh.uz) | Self-hosted |
-|---|---|---|
-| Setup | none — just `trqsh login` | run the edge + control plane |
-| Domain & TLS | managed | your domain + wildcard cert |
-| Multi-region | included | your infrastructure |
-| Cost | subscription | your servers |
-| Best for | most people | air-gapped, on-prem, compliance, tinkering |
+Inspect status:
 
-## Contributing
+~~~sh
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web ps
+~~~
 
-Issues and pull requests are welcome on [GitHub](https://github.com/uzcreator/trqsh). See the
-repository's [contributing guide](https://github.com/uzcreator/trqsh/blob/main/CONTRIBUTING.md)
-for the development setup and coding standards.
+The migration service exits successfully after applying the schema; that is expected.
+
+## Local addresses and ports
+
+| Service | Host address |
+| --- | --- |
+| Website | `http://localhost:3004` |
+| Dashboard | `http://localhost:3005` |
+| Control API | `http://localhost:8081` |
+| API Swagger UI | `http://localhost:8081/docs` |
+| API health | `http://localhost:8081/healthz` |
+| Edge HTTP / HTTPS ingress | `127.0.0.1:80` / `127.0.0.1:443` |
+| Agent transport | `127.0.0.1:4443`, TCP and UDP |
+| Edge metrics / health | `http://localhost:9090` |
+| Development mail UI | `http://localhost:8025` |
+| Development SMTP | `127.0.0.1:1025` |
+
+PostgreSQL and Redis stay on the Docker network with **no published host ports** in the persistent overlay. The base development file alone has different port mappings; do not mix its addresses with this overlay's addresses.
+
+The edge ports must be free before starting the stack. If another project uses them, change only this project's overlay and update the agent/advertised endpoints accordingly. TCP and UDP mappings are separate.
+
+## Connect a host agent
+
+The local edge uses development certificates. Set up a separate agent configuration:
+
+~~~yaml
+version: 1
+server: "127.0.0.1:4443"
+api_base: "http://localhost:8081"
+transport: "auto"
+region: "auto"
+insecure: true
+inspector:
+  enabled: true
+  addr: "127.0.0.1:4040"
+control_addr: "127.0.0.1:4041"
+~~~
+
+Select that file with `TRQSH_CONFIG` before launching trqsh. Use `/login` to approve a local device using the local dashboard, or create a local dashboard API key and use `/login YOUR_LOCAL_KEY`.
+
+Keys issued by the hosted service do not work with this independent local database.
+
+Then start your host app and enter `/http 3000`. The assigned hostname uses the configured local base domain, `lvh.me`, which resolves to loopback. For a direct HTTP ingress check:
+
+~~~sh
+curl -H "Host: YOUR-ASSIGNED-SUBDOMAIN.lvh.me" http://127.0.0.1/
+~~~
+
+HTTPS uses a development certificate, so it is not publicly trusted. For local testing only, `curl -k https://YOUR-ASSIGNED-SUBDOMAIN.lvh.me/` skips that check.
+
+## Container networking
+
+The address in a tunnel is resolved **from the agent's environment**. An agent on the host can use `localhost:3000` for a host app. An agent in a container sees its own container as `localhost`; use an appropriate service name or Docker Desktop's `host.docker.internal` when targeting the host.
+
+Raw TCP/UDP ports allocated inside an edge container also need explicit publication and firewall rules. The supplied local overlay primarily publishes HTTP ingress and agent transport; it does not publish every possible allocated service port.
+
+## Rebuild only the website
+
+For documentation or website changes, reuse the existing stack and rebuild only the site:
+
+~~~sh
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web build site
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web up -d --no-build --no-deps --wait site
+~~~
+
+Frontend URLs are build-time settings. A local build points to ports 3004/3005/8081; a public-origin build must use its public URL overlay.
+
+## Logs and stopping
+
+~~~sh
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web logs --tail 100 api edge site
+docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web down
+~~~
+
+`down` stops this Compose project and retains its database volumes. Adding `-v` deletes those volumes; do not use it when you need to keep accounts/data.
+
+## Public hosting
+
+Use the repository's `deploy/PRODUCTION.md` for secrets, DNS, certificates, backups and production startup checks. Production requires real API entitlements, disabled development sign-in, strong secrets and correctly configured OAuth.
+
+An HTTP reverse tunnel such as Cloudflare Tunnel can publish the website/dashboard/API. It does not automatically publish the agent's custom QUIC/TCP transport on 4443, wildcard tunnel ingress or dynamically allocated TCP/UDP ports. Those require separate network routing and DNS.
+
+The supplied Cloudflare overlay also changes public dashboard paths and frontend origins. See `deploy/README.md` before switching an existing project between local and public URL modes.
+
+## Operational limits
+
+The current QR remote relay is held in one API process; a restart loses pairings, and multiple API replicas need appropriate routing/shared relay work. The dashboard cloud inspector is not yet a working capture archive.
+
+For production details, use the deployment guide and validate each protocol separately rather than treating a successful website request as a full platform readiness check.

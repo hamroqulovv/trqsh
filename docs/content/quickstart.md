@@ -1,63 +1,103 @@
 # Quickstart
 
-Go from nothing to a public HTTPS URL for your local server in under a minute.
+Create a public HTTPS URL for a service running on your computer. Your app keeps running locally; trqsh forwards traffic from the edge to its local port.
 
-## 1. Install the CLI
+## Before you begin
 
-On macOS or Linux:
+You need an installed CLI, a trqsh account and a local HTTP server. Follow [Installation](/docs/installation) if the `trqsh` command is not available.
 
-```sh
-curl -fsSL https://trqsh.uz/install.sh | sh
-```
+These examples describe the current interactive console. Shell commands start with `trqsh`; commands beginning with `/` are typed **inside the trqsh console**. Use `trqsh --version` to identify your build and `/help` to see its commands.
 
-On Windows (PowerShell):
+## 1. Start your local app
 
-```sh
-scoop install trqsh
-```
+Run your usual development command in a separate terminal. For example, start your app on port 3000 and confirm that it opens at `http://localhost:3000`.
 
-Prefer a GUI, Homebrew, or a raw binary? See [all install options](/download).
+If you need a simple test server and have Python installed:
 
-## 2. Log in
+~~~sh
+python -m http.server 3000 --bind 127.0.0.1
+~~~
 
-```sh
-trqsh login
-```
+Run this in a directory containing only files you intend to share. Keep the server terminal open.
 
-This opens your browser and links the CLI to your account using a device code. No
-account yet? Signing in creates one on the free plan — no credit card. You can
-also skip the browser and paste an API key; see [Authentication](/docs/authentication).
+## 2. Open trqsh and sign in
 
-## 3. Start a tunnel
+In another terminal:
 
-Make sure something is listening locally — for example a dev server on port 3000 —
-then run:
+~~~sh
+trqsh
+~~~
 
-```sh
+Then, inside the console:
+
+~~~text
+/login
+~~~
+
+Open the approval URL printed by trqsh, sign in and approve the displayed device code. If the browser does not open automatically, copy the printed URL. Return to the console after approval.
+
+Already have an API key? See [Authentication](/docs/authentication) for the environment variable and direct-key options.
+
+## 3. Start the tunnel
+
+Inside the console:
+
+~~~text
+/http 3000
+~~~
+
+trqsh prints the assigned public URL and local destination. Copy the **actual URL from your console**; example hostnames in these docs are placeholders.
+
+You can also start the console with the first command prefilled:
+
+~~~sh
 trqsh http 3000
-```
+~~~
 
-trqsh prints your live URL and a local inspector address:
+The local target is HTTP even though visitors use HTTPS. No certificate is required on your local development server.
 
-```
-● session online   transport quic   region us-east
-Forwarding  https://tidy-otter-4f2a.trqsh.uz  →  http://localhost:3000
-Inspect     http://localhost:4040
-```
+## 4. Check the full path
 
-Open the `https://…trqsh.uz` URL in any browser, on any device — your local app is
-now on the internet, with TLS, over QUIC.
+Open the printed HTTPS URL in a browser, or test it from another terminal:
 
-## 4. Watch the traffic
+~~~sh
+curl -i https://YOUR-ASSIGNED-HOST/
+~~~
 
-Open <http://localhost:4040> to see every request in real time, inspect headers and
-bodies, and **replay** any request while you debug. More in [Request inspector](/docs/inspector).
+Replace `YOUR-ASSIGNED-HOST` with the hostname trqsh printed. A successful request should return the same application content as your local URL.
 
-## Where to go next
+Watch requests inside the console:
 
-- Keep the same URL every time with a [reserved subdomain](/docs/reserved-subdomains).
-- Use [your own domain](/docs/custom-domains) with guided DNS.
-- Tunnel SSH, databases, or game servers with [TCP & UDP tunnels](/docs/tcp-udp-tunnels).
-- Put it all in a [config file](/docs/configuration) and run `trqsh start`.
+~~~text
+/pin traffic
+/requests
+~~~
 
-Hitting an error code? Every one is explained in the [error reference](/docs/errors).
+For headers, captured bodies and replay, open `http://127.0.0.1:4040` on the computer running trqsh. See [Request inspector](/docs/inspector).
+
+## 5. Manage the tunnel
+
+~~~text
+/ls
+/copy
+/open
+/stop all
+~~~
+
+`/ls` shows tunnel IDs. Use `/stop <id>` to stop one tunnel, or `/stop all` to stop every tunnel on this local agent.
+
+**Closing the console does not stop the background agent.** `/quit` exits the console and leaves tunnels running. Use `/down` when you want to stop the agent and all its tunnels.
+
+## If the URL does not work
+
+First check the local app, then `/status`, then the [troubleshooting guide](/docs/troubleshooting). Signing in to the website and connecting to the edge are separate operations: the agent must also be able to reach the edge transport port.
+
+For a local Docker deployment, use the addresses and configuration in [Self-hosting](/docs/self-hosting), rather than the hosted defaults.
+
+## Continue
+
+- [HTTP tunnels](/docs/http-tunnels): access protection, Host headers and WebSockets.
+- [CLI reference](/docs/cli-reference): commands, shortcuts and lifecycle.
+- [Reserved subdomains](/docs/reserved-subdomains): a stable URL across restarts.
+- [Configuration](/docs/configuration): saved definitions and advanced options.
+- [Dashboard](/docs/dashboard): API keys, usage and account resources.
