@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,7 +21,7 @@ func TestRegistryLeaseOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer redis.Close()
+	defer func() { _ = redis.Close() }()
 	for _, registry := range []Registry{NewInMemoryRegistry(), redis} {
 		ctx := context.Background()
 		route := Route{Host: "owner.example.test"}
@@ -40,9 +41,15 @@ func TestRegistryLeaseOwnership(t *testing.T) {
 		if got, ok, _ := registry.Lookup(ctx, route); !ok || got != a {
 			t.Fatal("non-owner removed route")
 		}
-		registry.Unbind(ctx, route, a)
-		registry.Bind(ctx, route, b, time.Minute)
-		registry.Unbind(ctx, route, a)
+		if err := registry.Unbind(ctx, route, a); err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.Bind(ctx, route, b, time.Minute); err != nil {
+			t.Fatal(err)
+		}
+		if err := registry.Unbind(ctx, route, a); err != nil {
+			t.Fatal(err)
+		}
 		if got, ok, _ := registry.Lookup(ctx, route); !ok || got != b {
 			t.Fatal("stale owner removed replacement")
 		}
@@ -55,9 +62,9 @@ func TestRegistryLeaseOwnership(t *testing.T) {
 func TestConcurrentTunnelLeasesAcrossEdges(t *testing.T) {
 	mr := miniredis.RunT(t)
 	a, _ := NewRedisRegistry("redis://" + mr.Addr())
-	defer a.Close()
+	defer func() { _ = a.Close() }()
 	b, _ := NewRedisRegistry("redis://" + mr.Addr())
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	for _, pair := range [][2]Registry{{NewInMemoryRegistry(), nil}, {a, b}} {
 		if pair[1] == nil {
 			pair[1] = pair[0]
@@ -84,7 +91,7 @@ func TestConcurrentTunnelLeasesAcrossEdges(t *testing.T) {
 func TestUsageSpoolRestart(t *testing.T) {
 	mr := miniredis.RunT(t)
 	registry, _ := NewRedisRegistry("redis://" + mr.Addr())
-	defer registry.Close()
+	defer func() { _ = registry.Close() }()
 	for _, backend := range []string{"disk", "redis"} {
 		t.Run(backend, func(t *testing.T) {
 			ent := &auditUsageEnt{fail: true}
@@ -125,13 +132,38 @@ func TestUsageSpoolRestart(t *testing.T) {
 	}
 }
 
+func TestUsageSpoolRejectsSymlinkOutsideDirectory(t *testing.T) {
+	dir := t.TempDir()
+	spool := filepath.Join(dir, "spool")
+	if err := os.Mkdir(spool, 0700); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(dir, "outside.json")
+	if err := os.WriteFile(outside, []byte(`{"event_id":"usage_escape","account_id":"org","window_end":"2026-10-11T00:00:00Z"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(spool, "usage_escape.json")); err != nil {
+		if os.IsPermission(err) {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		t.Fatal(err)
+	}
+	u := newUsageAgg(&auditUsageEnt{}, time.Second)
+	if err := u.enableSpool(spool); err == nil {
+		t.Fatal("usage spool read a symlink outside its directory")
+	}
+	if len(u.pending) != 0 {
+		t.Fatal("usage from outside the spool was queued")
+	}
+}
+
 func TestPortAllocationSkipsOtherEdge(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rr, err := NewRedisRegistry("redis://" + mr.Addr())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rr.Close()
+	defer func() { _ = rr.Close() }()
 	for _, registry := range []Registry{NewInMemoryRegistry(), rr} {
 		for _, kind := range []proto.TunnelType{proto.TunnelType_TCP, proto.TunnelType_UDP} {
 			t.Run(fmt.Sprintf("%T/%s", registry, kind), func(t *testing.T) {
@@ -146,7 +178,7 @@ func TestPortAllocationSkipsOtherEdge(t *testing.T) {
 				if err := registry.Bind(context.Background(), route, other, time.Minute); err != nil {
 					t.Fatal(err)
 				}
-				t.Cleanup(func() { registry.Unbind(context.Background(), route, other) })
+				t.Cleanup(func() { _ = registry.Unbind(context.Background(), route, other) })
 				exact := s.handleBind(context.Background(), a, &proto.BindTunnel{ClientTunnelId: "exact", Type: kind, RemotePort: uint32(first)})
 				if exact.Ok {
 					t.Fatal("explicit port replaced other edge's binding")
@@ -172,7 +204,9 @@ func freePortPair(t *testing.T) int {
 			t.Fatal(err)
 		}
 		port := ln.Addr().(*net.TCPAddr).Port
-		ln.Close()
+		if err := ln.Close(); err != nil {
+			t.Fatal(err)
+		}
 		if port >= 65535 {
 			continue
 		}
@@ -183,13 +217,17 @@ func freePortPair(t *testing.T) int {
 				available = false
 				break
 			}
-			ln.Close()
+			if err := ln.Close(); err != nil {
+				t.Fatal(err)
+			}
 			uc, err := net.ListenUDP("udp", &net.UDPAddr{Port: candidate})
 			if err != nil {
 				available = false
 				break
 			}
-			uc.Close()
+			if err := uc.Close(); err != nil {
+				t.Fatal(err)
+			}
 		}
 		if available {
 			return port
@@ -222,7 +260,7 @@ func TestUsageSnapshotPersistedBeforeDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rr.Close()
+	defer func() { _ = rr.Close() }()
 	for _, backend := range []string{"disk", "redis"} {
 		t.Run(backend, func(t *testing.T) {
 			dir := t.TempDir()

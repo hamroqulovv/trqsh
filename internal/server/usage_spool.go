@@ -18,11 +18,16 @@ func (u *usageAgg) enableSpool(dir string) error {
 	if err != nil {
 		return err
 	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "usage_") || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		data, err := root.ReadFile(entry.Name())
 		if err != nil {
 			return err
 		}
