@@ -42,6 +42,7 @@ type Decision struct {
 
 // Usage is a metered slice of traffic reported by the edge for billing.
 type Usage struct {
+	EventID     string
 	AccountID   string
 	TunnelID    string
 	BytesIn     int64

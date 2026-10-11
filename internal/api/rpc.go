@@ -75,10 +75,15 @@ func (s *Server) rpcReportUsage(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	_ = s.ent.ReportUsage(r.Context(), authz.Usage{
+	err := s.ent.ReportUsage(r.Context(), authz.Usage{
+		EventID:   req.EventID,
 		AccountID: req.AccountID, TunnelID: req.TunnelID, BytesIn: req.BytesIn, BytesOut: req.BytesOut,
 		Requests: req.Requests, WindowStart: req.WindowStart, WindowEnd: req.WindowEnd,
 	})
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "usage storage unavailable")
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 

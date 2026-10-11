@@ -11,55 +11,72 @@ import (
 )
 
 // CollectMeteredUsage rolls usage_records up into metered_usage push rows for
-// every Pay-as-you-go org over [start, end). It is idempotent: re-running over
-// the same window inserts nothing new (the store enforces uniqueness on
-// org+metric+window_start). Returns the number of push rows created.
+// every Pay-as-you-go org, including usage windows ending in (start, end].
+// It subtracts previously queued quantities transactionally, so repeated and
+// growing windows push only new usage, including records reported late.
+// Returns the number of push rows created.
 //
 // Run this once per billing period close (e.g. daily/at month end) from a
 // scheduler; usage itself flows in continuously via ReportUsage.
 func (s *Service) CollectMeteredUsage(ctx context.Context, start, end time.Time) (int, error) {
+	if !end.After(start) {
+		return 0, errors.New("invalid metering window")
+	}
 	orgs, err := s.store.OrgsByPlan(ctx, PlanPAYG)
 	if err != nil {
 		return 0, err
 	}
 	created := 0
+	var collectErrors []error
 	for _, org := range orgs {
 		n, err := s.collectForOrg(ctx, org.ID, start, end)
 		if err != nil {
 			s.log.Error("metering: collect", "org", org.ID, "err", err)
+			collectErrors = append(collectErrors, err)
 			continue
 		}
 		created += n
 	}
-	return created, nil
+	return created, errors.Join(collectErrors...)
 }
 
 func (s *Service) collectForOrg(ctx context.Context, orgID string, start, end time.Time) (int, error) {
-	usage, err := s.store.UsageForOrg(ctx, orgID, start)
+	created := 0
+	err := s.store.BillingTransaction(ctx, func(tx store.Store) error {
+		usage, err := tx.UsageForOrgWindow(ctx, orgID, start, end)
+		if err != nil {
+			return err
+		}
+		for _, m := range []struct {
+			metric string
+			qty    int64
+		}{
+			{MetricBandwidth, usage.BytesIn + usage.BytesOut},
+			{MetricRequests, usage.Requests},
+		} {
+			if m.qty <= 0 {
+				continue
+			}
+			previous, _, err := tx.MeteredForWindow(ctx, orgID, m.metric, start, end)
+			if err != nil {
+				return err
+			}
+			delta := m.qty - previous
+			if delta <= 0 {
+				continue
+			}
+			_, err = tx.InsertMeteredUsage(ctx, store.MeteredUsage{
+				OrgID: orgID, Metric: m.metric, Quantity: delta, WindowStart: start, WindowEnd: end,
+			})
+			if err != nil {
+				return err
+			}
+			created++
+		}
+		return nil
+	})
 	if err != nil {
 		return 0, err
-	}
-	created := 0
-	for _, m := range []struct {
-		metric string
-		qty    int64
-	}{
-		{MetricBandwidth, usage.BytesIn + usage.BytesOut},
-		{MetricRequests, usage.Requests},
-	} {
-		if m.qty <= 0 {
-			continue
-		}
-		_, err := s.store.InsertMeteredUsage(ctx, store.MeteredUsage{
-			OrgID: orgID, Metric: m.metric, Quantity: m.qty, WindowStart: start, WindowEnd: end,
-		})
-		if errors.Is(err, store.ErrConflict) {
-			continue // already collected for this window
-		}
-		if err != nil {
-			return created, err
-		}
-		created++
 	}
 	return created, nil
 }
@@ -106,9 +123,12 @@ func (s *Service) FlushMeteredUsage(ctx context.Context) (int, error) {
 	return len(reported), nil
 }
 
-// meterIdentifier is the stable per-window idempotency key for a usage push.
+// meterIdentifier preserves legacy keys and gives each new delta its own key.
 func meterIdentifier(u store.MeteredUsage) string {
-	return fmt.Sprintf("mu_%s_%s_%d", u.OrgID, u.Metric, u.WindowStart.Unix())
+	if u.Identifier != "" {
+		return u.Identifier
+	}
+	return fmt.Sprintf("mu_%s_%s_%d", u.OrgID, u.Metric, u.ID)
 }
 
 // RunMeteringLoop periodically collects the current period's metered usage and
@@ -122,6 +142,10 @@ func (s *Service) RunMeteringLoop(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case now := <-t.C:
+			current := monthStart(now)
+			if _, err := s.CollectMeteredUsage(ctx, current.AddDate(0, -1, 0), current); err != nil {
+				s.log.Error("metering: previous period collect", "err", err)
+			}
 			if _, err := s.CollectMeteredUsage(ctx, monthStart(now), now); err != nil {
 				s.log.Error("metering: periodic collect", "err", err)
 			}

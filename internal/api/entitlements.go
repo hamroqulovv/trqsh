@@ -131,6 +131,7 @@ func (e *Entitlements) CheckBind(ctx context.Context, req authz.BindRequest) (au
 // ReportUsage persists a usage window for billing/metering.
 func (e *Entitlements) ReportUsage(ctx context.Context, u authz.Usage) error {
 	return e.store.UpsertUsage(ctx, store.UsageRecord{
+		EventID:     u.EventID,
 		OrgID:       u.AccountID,
 		TunnelID:    u.TunnelID,
 		BytesIn:     u.BytesIn,

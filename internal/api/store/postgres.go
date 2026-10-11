@@ -17,7 +17,34 @@ import (
 // compilation + schema review here; run the migrations and point TRQSH_DATABASE_URL
 // at a live database to exercise it.
 type PostgresStore struct {
-	db *sql.DB
+	db sqlExecutor
+}
+
+type sqlExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func (p *PostgresStore) BillingTransaction(ctx context.Context, fn func(Store) error) error {
+	db, ok := p.db.(*sql.DB)
+	if !ok {
+		return errors.New("nested billing transaction")
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	// All billing writers share this transaction lock, including across API
+	// replicas. No network/Stripe calls are made inside the callback.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('trqsh:billing:transaction'))`); err != nil {
+		return err
+	}
+	if err := fn(&PostgresStore{db: tx}); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // PoolConfig tunes the database/sql connection pool. Zero fields fall back to
@@ -400,9 +427,9 @@ func (p *PostgresStore) CountCustomDomains(ctx context.Context, orgID string) (i
 
 func (p *PostgresStore) UpsertUsage(ctx context.Context, u UsageRecord) error {
 	_, err := p.db.ExecContext(ctx,
-		`INSERT INTO usage_records (org_id,tunnel_id,bytes_in,bytes_out,requests,window_start,window_end)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		u.OrgID, u.TunnelID, u.BytesIn, u.BytesOut, u.Requests, u.WindowStart, u.WindowEnd)
+		`INSERT INTO usage_records (org_id,tunnel_id,bytes_in,bytes_out,requests,window_start,window_end,event_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (event_id) DO NOTHING`,
+		u.OrgID, u.TunnelID, u.BytesIn, u.BytesOut, u.Requests, u.WindowStart, u.WindowEnd, nullStr(u.EventID))
 	return err
 }
 
@@ -437,6 +464,14 @@ func (p *PostgresStore) UsageSeriesForOrg(ctx context.Context, orgID string, sin
 		out = append(out, b)
 	}
 	return out, rows.Err()
+}
+
+func (p *PostgresStore) UsageForOrgWindow(ctx context.Context, orgID string, start, end time.Time) (UsageRecord, error) {
+	agg := UsageRecord{OrgID: orgID, WindowStart: start, WindowEnd: end}
+	err := p.db.QueryRowContext(ctx, `SELECT COALESCE(sum(bytes_in),0),COALESCE(sum(bytes_out),0),COALESCE(sum(requests),0)
+FROM usage_records WHERE org_id=$1 AND window_end>$2 AND window_end<=$3`, orgID, start, end).
+		Scan(&agg.BytesIn, &agg.BytesOut, &agg.Requests)
+	return agg, err
 }
 
 // --- Tunnel history ---
@@ -759,7 +794,7 @@ func (p *PostgresStore) PendingMeteredUsage(ctx context.Context, limit int) ([]M
 		limit = 1000
 	}
 	rows, err := p.db.QueryContext(ctx,
-		`SELECT id,org_id,metric,quantity,window_start,window_end,reported_at,created_at
+		`SELECT id,org_id,metric,quantity,window_start,window_end,reported_at,created_at,COALESCE(stripe_identifier,'')
 		 FROM metered_usage WHERE reported_at IS NULL ORDER BY id LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
@@ -769,7 +804,7 @@ func (p *PostgresStore) PendingMeteredUsage(ctx context.Context, limit int) ([]M
 	for rows.Next() {
 		var u MeteredUsage
 		var reported sql.NullTime
-		if err := rows.Scan(&u.ID, &u.OrgID, &u.Metric, &u.Quantity, &u.WindowStart, &u.WindowEnd, &reported, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.OrgID, &u.Metric, &u.Quantity, &u.WindowStart, &u.WindowEnd, &reported, &u.CreatedAt, &u.Identifier); err != nil {
 			return nil, err
 		}
 		u.ReportedAt = nullTimePtr(reported)
@@ -787,7 +822,32 @@ func (p *PostgresStore) MarkMeteredUsageReported(ctx context.Context, ids []int6
 	return err
 }
 
-func (p *PostgresStore) Close() error { return p.db.Close() }
+func (p *PostgresStore) MeteredForWindow(ctx context.Context, orgID, metric string, start, end time.Time) (int64, time.Time, error) {
+	var quantity int64
+	var lastEnd sql.NullTime
+	var overlap bool
+	err := p.db.QueryRowContext(ctx, `SELECT COALESCE(sum(quantity),0),max(window_end),
+COALESCE(bool_or(window_start<$3 OR window_end>$4),false) FROM metered_usage
+WHERE org_id=$1 AND metric=$2 AND window_start<$4 AND window_end>$3`, orgID, metric, start, end).
+		Scan(&quantity, &lastEnd, &overlap)
+	if err != nil {
+		return 0, start, err
+	}
+	if overlap {
+		return 0, start, ErrConflict
+	}
+	if !lastEnd.Valid {
+		return quantity, start, nil
+	}
+	return quantity, lastEnd.Time, nil
+}
+
+func (p *PostgresStore) Close() error {
+	if db, ok := p.db.(*sql.DB); ok {
+		return db.Close()
+	}
+	return nil
+}
 
 // --- helpers ---
 

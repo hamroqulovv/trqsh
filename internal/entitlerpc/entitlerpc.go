@@ -60,6 +60,7 @@ type CheckBindResponse struct {
 
 // UsageRequest covers Entitlements.ReportUsage.
 type UsageRequest struct {
+	EventID     string    `json:"event_id,omitempty"`
 	AccountID   string    `json:"account_id"`
 	TunnelID    string    `json:"tunnel_id"`
 	BytesIn     int64     `json:"bytes_in"`
@@ -189,6 +190,7 @@ func (c *Client) CheckBind(ctx context.Context, req authz.BindRequest) (authz.De
 // ReportUsage forwards a usage window to the control plane.
 func (c *Client) ReportUsage(ctx context.Context, u authz.Usage) error {
 	return c.post(ctx, PathReportUsage, UsageRequest{
+		EventID:   u.EventID,
 		AccountID: u.AccountID, TunnelID: u.TunnelID, BytesIn: u.BytesIn, BytesOut: u.BytesOut,
 		Requests: u.Requests, WindowStart: u.WindowStart, WindowEnd: u.WindowEnd,
 	}, nil)

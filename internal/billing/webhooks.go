@@ -37,22 +37,29 @@ func (s *Service) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Idempotency: Stripe redelivers events; process each at most once.
-	first, err := s.store.MarkEventProcessed(r.Context(), event.ID, event.Type)
+	if event.ID == "" {
+		writeError(w, http.StatusBadRequest, "event id required")
+		return
+	}
+	first := false
+	err = s.store.BillingTransaction(r.Context(), func(tx store.Store) error {
+		var err error
+		first, err = tx.MarkEventProcessed(r.Context(), event.ID, event.Type)
+		if err != nil || !first {
+			return err
+		}
+		worker := *s
+		worker.store = tx
+		return worker.dispatch(r.Context(), event)
+	})
 	if err != nil {
-		s.log.Error("webhook: dedupe", "event", sanitizeLog(event.ID), "err", err)
-		writeError(w, http.StatusInternalServerError, "dedupe failed")
+		// Return 500 so Stripe retries transient failures.
+		s.log.Error("webhook: handler failed", "type", sanitizeLog(event.Type), "event", sanitizeLog(event.ID), "err", err)
+		writeError(w, http.StatusInternalServerError, "handler error")
 		return
 	}
 	if !first {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate_ignored"})
-		return
-	}
-
-	if err := s.dispatch(r.Context(), event); err != nil {
-		// Return 500 so Stripe retries transient failures.
-		s.log.Error("webhook: handler failed", "type", sanitizeLog(event.Type), "event", sanitizeLog(event.ID), "err", err)
-		writeError(w, http.StatusInternalServerError, "handler error")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
