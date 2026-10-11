@@ -14,71 +14,78 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Documentation",
   description:
-    "Learn to connect your local environment with trqsh. Installation, tunnels, debugging, and the API reference.",
+    "Step-by-step trqsh guides: installation, interactive CLI, HTTP/TCP/UDP tunnels, configuration, local automation, self-hosting and API schemas.",
 };
 
 const guides = [
   {
     icon: Terminal,
-    title: "HTTP tunnels",
-    description: "Connect web apps, APIs, and webhooks.",
-    href: "/docs/http-tunnels",
+    title: "Console commands",
+    description: "Every command, option and stop/exit behavior.",
+    href: "/docs/cli-reference",
   },
   {
     icon: Globe2,
-    title: "Your own domain",
-    description: "Make a custom domain your endpoint.",
-    href: "/docs/custom-domains",
+    title: "Run the full stack",
+    description: "Local Docker ports, networking and deployment.",
+    href: "/docs/self-hosting",
   },
   {
     icon: KeyRound,
-    title: "API reference",
-    description: "Build trqsh into your own workflow.",
-    href: "/docs/api",
+    title: "Automate an agent",
+    description: "Create tunnels from scripts with the local API.",
+    href: "/docs/local-api",
   },
 ];
 
 export default function DocsIndexPage() {
   return (
-    <div className="py-10 sm:py-12">
+    <div className="docs-overview py-10 sm:py-12">
       <header>
         <p className="eyebrow">Documentation</p>
         <h1 className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.05em] sm:text-5xl">
           Build with trqsh.
         </h1>
         <p className="mt-4 max-w-xl text-base leading-relaxed text-secondary">
-          From your first tunnel to your everyday workflow. Find a guide,
-          connect your environment, and keep building.
+          Start with a working local app, create its public URL, then learn
+          how to manage tunnels, inspect requests and automate your workflow.
         </p>
       </header>
-      <section className="inverse-surface mt-8 rounded-xl bg-primary p-7 text-primary-foreground sm:p-8">
-        <p className="text-xs font-medium uppercase tracking-[0.12em] text-white/60">
-          A good place to start
+      <section className="docs-start-card mt-8">
+        <div>
+        <p className="text-xs font-medium text-muted">
+          Getting started
         </p>
         <h2 className="mt-3 text-2xl font-semibold tracking-tight">
           Your first tunnel.
         </h2>
-        <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/70">
+        <p className="mt-3 max-w-lg text-sm leading-relaxed text-secondary">
           Install the CLI, connect your account, and give your local app a
           public URL. We’ll walk you through each step.
         </p>
         <Link
           href="/docs/quickstart"
           className={cn(
-            buttonVariants({ variant: "outline" }),
-            "mt-5 border-white bg-white text-primary hover:border-white hover:bg-white/90",
+            buttonVariants({ variant: "default" }),
+            "mt-5",
           )}
         >
           Open the quickstart{" "}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
+        </div>
+        <div className="docs-start-steps">
+          {[ ["Install", "Choose your platform and install the CLI."], ["Connect", "Sign in to link the agent to your account."], ["Share", "Start a tunnel and open its public URL."] ].map(([title, description], index) => (
+            <div key={title}><span>{index + 1}</span><p><strong>{title}</strong><small>{description}</small></p></div>
+          ))}
+        </div>
       </section>
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
         {guides.map((guide) => (
           <Link
             key={guide.href}
             href={guide.href}
-            className="group rounded-xl border border-border p-5 transition-colors hover:border-border-strong"
+            className="group rounded-xl border border-border bg-surface p-5 transition-colors hover:border-border-strong hover:bg-surface-2"
           >
             <guide.icon
               className="mb-5 h-5 w-5 text-secondary"

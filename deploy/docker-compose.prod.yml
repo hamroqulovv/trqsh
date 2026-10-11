@@ -89,6 +89,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # Usage batches must survive a Redis restart until the API acknowledges them.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always"]
     volumes:
       - trqsh_redis:/data
     healthcheck:

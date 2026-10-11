@@ -8,10 +8,10 @@ const apiUrl = process.env.TRQSH_API_URL || "https://api.trqsh.uz";
 // monorepo; CLI releases publish to their own dedicated repo so CLI download
 // links / changelog / checksums point users at a clean, CLI-only release list
 // instead of one mixed with desktop and other release types.
-const githubRepo = process.env.TRQSH_GITHUB_REPO || "uzcreator/trqsh";
-const cliGithubRepo = process.env.TRQSH_CLI_GITHUB_REPO || "uzcreator/trqshcli";
+const githubRepo = process.env.TRQSH_GITHUB_REPO || "algorithco/trqsh";
+const cliGithubRepo = process.env.TRQSH_CLI_GITHUB_REPO || "algorithco/trqshcli";
 const siteUrl = process.env.TRQSH_SITE_URL || "https://trqsh.uz";
-const version = process.env.TRQSH_LATEST_VERSION || "0.1.2";
+const version = process.env.TRQSH_LATEST_VERSION || "0.2.2";
 // Telegram handle (without @) users message to buy/upgrade a plan. There is no
 // self-serve checkout; the /upgrade page routes people here.
 const telegram = (process.env.TRQSH_TELEGRAM || "hamroqulovv").replace(
@@ -23,7 +23,7 @@ export const site = {
   name: "trqsh",
   tagline: "Your localhost, live on the internet.",
   description:
-    "Bring your localhost to the internet with trqsh. Share development servers, receive webhooks, and connect TCP or UDP services with a CLI or desktop app.",
+    "Bring your localhost to the internet with the trqsh CLI. Share development servers, receive webhooks, and connect TCP or UDP services from your terminal.",
   version,
   siteUrl,
   dashboardUrl,

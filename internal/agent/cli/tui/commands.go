@@ -50,9 +50,11 @@ func init() {
 		{"requests", "", "Show recently captured requests", cmdRequests},
 		{"pin", "<panel>", "Keep a live panel on screen (traffic/tunnels/status)", cmdPin},
 		{"unpin", "<panel>", "Remove a pinned panel", cmdUnpin},
+		{"theme", "[auto|dark|light]", "Switch the console theme", cmdTheme},
 		{"status", "", "Show connection status", cmdStatus},
 		{"whoami", "", "Show account, plan and usage", cmdWhoami},
 		{"login", "[key]", "Sign in via browser (or paste a key)", cmdLogin},
+		{"setup", "", "Open the welcome and sign-in guide", cmdSetup},
 		{"logout", "", "Sign out", cmdLogout},
 		{"subdomains", "[reserve|release]", "Manage reserved subdomains", cmdSubdomains},
 		{"domains", "[add|verify]", "Manage custom domains", cmdDomains},
@@ -135,7 +137,13 @@ func startTunnelCmd(m *model, proto string, args []string) tea.Cmd {
 		if err != nil {
 			return printMsg{[]string{stErr.Render("  ✗ " + err.Error())}}
 		}
-		return printMsg{[]string{stOK.Render("  ✓ ") + stURL.Render(t.PublicURL) + stDim.Render("  → "+t.LocalAddr)}}
+		return printMsg{[]string{
+			"",
+			stOK.Render("  ✓ " + strings.ToUpper(proto) + " tunnel online"),
+			"  " + stURL.Render(t.PublicURL),
+			stDim.Render("  → " + t.LocalAddr),
+			stDim.Render("  /copy · /open · /pin traffic"),
+		}}
 	}
 }
 
@@ -255,7 +263,7 @@ func renderPairQR(m *model, url, code string) {
 // uninstall), and pairing management itself (qr) so a phone can't end or
 // replace its own session.
 var remoteBlocked = map[string]bool{
-	"qr": true, "login": true, "logout": true,
+	"qr": true, "login": true, "logout": true, "setup": true,
 	"uninstall": true, "update": true, "down": true, "quit": true,
 }
 
@@ -274,6 +282,7 @@ func cmdCopy(m *model, args []string) tea.Cmd {
 }
 
 func cmdRequests(m *model, _ []string) tea.Cmd {
+	w := max(1, m.width-4)
 	cl := m.cl
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
@@ -286,10 +295,13 @@ func cmdRequests(m *model, _ []string) tea.Cmd {
 			return printMsg{[]string{stDim.Render("  no requests captured yet — expose an HTTP service with /http")}}
 		}
 		out := []string{"  " + stTitle.Render("RECENT REQUESTS")}
+		if w >= 26 {
+			out = append(out, "  "+stDim.Render(requestHeader(w, false)))
+		}
 		for _, r := range reqs[max(0, len(reqs)-20):] {
-			out = append(out, "  "+methodStyle(r.Method).Render(pad(r.Method, 6))+" "+
-				statusStyle(r.Status).Render(fmt.Sprintf("%3d", r.Status))+" "+
-				stDim.Render(r.Host)+r.Path+stDim.Render(fmt.Sprintf("  %dms", r.DurationMs)))
+			out = append(out, "  "+requestLine(reqRow{
+				method: r.Method, path: r.Host + r.Path, status: r.Status, ms: r.DurationMs,
+			}, w, false))
 		}
 		return printMsg{out}
 	}
@@ -716,13 +728,13 @@ func cmdHelp(m *model, _ []string) tea.Cmd {
 	}
 	for _, g := range []struct {
 		title string
-		color lipgloss.Color
+		color lipgloss.TerminalColor
 		names []string
 	}{
 		{"TUNNELS", colBrand, []string{"http", "tcp", "udp", "start", "ls", "open", "qr", "copy", "stop", "down", "requests"}},
-		{"PANELS", colCyan, []string{"pin", "unpin"}},
-		{"ACCOUNT", colViolet, []string{"status", "whoami", "login", "logout", "subdomains", "domains"}},
-		{"SYSTEM", colAmber, []string{"config", "update", "uninstall", "version", "clear", "help", "quit"}},
+		{"PANELS", colSecondary, []string{"pin", "unpin", "theme"}},
+		{"ACCOUNT", colSecondary, []string{"status", "whoami", "setup", "login", "logout", "subdomains", "domains"}},
+		{"SYSTEM", colSecondary, []string{"config", "update", "uninstall", "version", "clear", "help", "quit"}},
 	} {
 		m.appendLines("  " + boldFg(g.color, g.title))
 		for _, n := range g.names {

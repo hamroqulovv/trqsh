@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -117,8 +118,18 @@ func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "provider not configured")
 		return
 	}
-	// Preserve a safe post-login destination (e.g. /device?code=… for desktop
-	// sign-in) so the callback can return the user where they started.
+	// Bootstrap on the dashboard first to bind the exchange to that browser.
+	dashboardState := r.URL.Query().Get("dashboard_state")
+	if len(dashboardState) != 64 {
+		dest := s.appBase() + "/login/oauth/" + url.PathEscape(name)
+		if next := safeNextPath(r.URL.Query().Get("next")); next != "" {
+			dest += "?next=" + url.QueryEscape(next)
+		}
+		http.Redirect(w, r, dest, http.StatusFound)
+		return
+	}
+	s.setDashboardStateCookie(w, dashboardState, 600)
+	// Preserve the destination, including a pending desktop device approval.
 	if next := safeNextPath(r.URL.Query().Get("next")); next != "" {
 		s.setNextCookie(w, next)
 	}
@@ -127,7 +138,7 @@ func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, p.AuthCodeURL(state), http.StatusFound)
 }
 
-// handleLogout clears the shared session cookies so a different account can sign
+// handleLogout clears the API's host-only session cookies so another account can sign
 // in, and revokes the refresh token server-side so it can't mint new access
 // tokens even if it was captured before logout. The access token is short-lived
 // (1h) and expires on its own.
@@ -139,9 +150,12 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// refreshTokenFromRequest pulls the refresh token from the shared cookie
+// refreshTokenFromRequest pulls the refresh token from the host-only cookie
 // (browser) or, failing that, a JSON {refresh_token} body (programmatic clients).
 func refreshTokenFromRequest(r *http.Request) string {
+	if c, err := r.Cookie("__Host-trqsh_refresh"); err == nil && c.Value != "" {
+		return c.Value
+	}
 	if c, err := r.Cookie("trqsh_refresh"); err == nil && c.Value != "" {
 		return c.Value
 	}
@@ -186,18 +200,29 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// Browser flow: set the session as cookies shared across *.<base> and send the
-	// user to the dashboard — or back to a preserved destination such as the
-	// device-approval page. (Programmatic clients use the JSON login endpoints.)
-	dest := s.appBase() + "/"
+	dashboardState, err := r.Cookie("trqsh_oauth_dashboard")
+	s.setDashboardStateCookie(w, "", -1)
+	if err != nil || len(dashboardState.Value) != 64 {
+		writeError(w, http.StatusBadRequest, "missing dashboard login state")
+		return
+	}
+	next := "/"
 	if nc, _ := r.Cookie("trqsh_oauth_next"); nc != nil {
 		if n := safeNextPath(nc.Value); n != "" {
-			dest = s.appBase() + n
+			next = n
 		}
 	}
 	s.clearNextCookie(w)
+	code, err := s.dashboardLogins.issue(r.Context(), dashboardLogin{Tokens: tokens, State: dashboardState.Value, Next: next})
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "login exchange unavailable")
+		return
+	}
 	s.setSessionCookies(w, tokens)
-	http.Redirect(w, r, dest, http.StatusFound) // #nosec G710 -- dest is either appBase()+"/" or appBase()+safeNextPath(...), which rejects anything not a same-site absolute path
+	dest := s.appBase() + "/login/callback?code=" + url.QueryEscape(code) + "&state=" + url.QueryEscape(dashboardState.Value)
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, dest, http.StatusFound) // #nosec G710 -- fixed dashboard callback path; query values are escaped
 }
 
 // appBase returns the public dashboard origin (no trailing slash).
@@ -211,7 +236,8 @@ func (s *Server) appBase() string {
 // safeNextPath accepts only same-site absolute paths (e.g. "/device?code=…"),
 // rejecting anything that could redirect off-site.
 func safeNextPath(p string) string {
-	if p == "" || !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") || strings.HasPrefix(p, "/\\") {
+	if p == "" || !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") || strings.Contains(p, "\\") ||
+		strings.IndexFunc(p, func(c rune) bool { return c <= ' ' || c == 127 }) >= 0 {
 		return ""
 	}
 	return p
@@ -233,31 +259,55 @@ func (s *Server) clearNextCookie(w http.ResponseWriter) {
 	})
 }
 
-// setSessionCookies writes the access + refresh JWTs as cookies scoped to the
-// whole base domain, so the dashboard (app.<base>) shares the API's session.
+func (s *Server) setDashboardStateCookie(w http.ResponseWriter, state string, age int) {
+	// #nosec G124 -- production requires Secure; development permits local HTTP, matching the other OAuth cookies.
+	http.SetCookie(w, &http.Cookie{Name: "trqsh_oauth_dashboard", Value: state, Path: "/v1/auth/oauth",
+		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: age})
+}
+
+func (s *Server) sessionCookieName(name string) string {
+	if s.cfg.IsProduction() {
+		return "__Host-" + name
+	}
+	return name
+}
+
+// Sessions are host-only: tenant subdomains must never receive these tokens.
 func (s *Server) setSessionCookies(w http.ResponseWriter, t auth.Tokens) {
-	domain := "." + s.cfg.BaseDomain
+	s.clearLegacySessionCookies(w)
 	secure := s.cfg.IsProduction()
 	// #nosec G124 -- Secure: secure is set from s.cfg.IsProduction() just above; gosec's cookie check only recognizes a literal `true`, not a variable
 	http.SetCookie(w, &http.Cookie{
-		Name: "trqsh_access", Value: t.Access, Path: "/", Domain: domain,
+		Name: s.sessionCookieName("trqsh_access"), Value: t.Access, Path: "/",
 		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: t.ExpiresIn,
 	})
 	// #nosec G124 -- Secure: secure is set from s.cfg.IsProduction() above; gosec's cookie check only recognizes a literal `true`, not a variable
 	http.SetCookie(w, &http.Cookie{
-		Name: "trqsh_refresh", Value: t.Refresh, Path: "/", Domain: domain,
+		Name: s.sessionCookieName("trqsh_refresh"), Value: t.Refresh, Path: "/",
 		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: 30 * 24 * 60 * 60,
 	})
 }
 
-// clearSessionCookies expires the shared session cookies (logout).
+// Expire credentials from deployments that shared cookies with tenant hosts.
+func (s *Server) clearLegacySessionCookies(w http.ResponseWriter) {
+	if s.cfg.BaseDomain == "" {
+		return
+	}
+	for _, name := range []string{"trqsh_access", "trqsh_refresh"} {
+		// #nosec G124 -- Secure follows the production environment when expiring legacy cookies; HttpOnly and SameSite are explicit.
+		http.SetCookie(w, &http.Cookie{Name: name, Path: "/", Domain: "." + s.cfg.BaseDomain,
+			HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	}
+}
+
+// clearSessionCookies expires current and legacy cookies (logout).
 func (s *Server) clearSessionCookies(w http.ResponseWriter) {
-	domain := "." + s.cfg.BaseDomain
+	s.clearLegacySessionCookies(w)
 	secure := s.cfg.IsProduction()
 	// #nosec G124 -- Secure: secure is set from s.cfg.IsProduction() just above; gosec's cookie check only recognizes a literal `true`, not a variable
 	for _, name := range []string{"trqsh_access", "trqsh_refresh"} {
 		http.SetCookie(w, &http.Cookie{
-			Name: name, Value: "", Path: "/", Domain: domain,
+			Name: s.sessionCookieName(name), Value: "", Path: "/",
 			HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: -1,
 		})
 	}

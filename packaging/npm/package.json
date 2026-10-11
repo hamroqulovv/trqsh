@@ -34,6 +34,7 @@
     "bin/trqsh.js",
     "lib/common.js",
     "lib/install.js",
+    "lib/ui.js",
     "README.md"
   ],
   "engines": {

@@ -1,48 +1,76 @@
 # Reserved subdomains
 
-By default each tunnel gets a random subdomain like `tidy-otter-4f2a.trqsh.uz`.
-Reserve one to keep the **same URL every time** — handy for webhooks, OAuth
-callbacks, and sharing a stable link.
+Reserve a name to reuse the same public hostname across tunnel restarts. This is useful for webhook callbacks, OAuth redirects and links you share with teammates.
 
-## Reserve one
+A reservation keeps the **name**. It does not keep your app running or the tunnel connected.
 
-In the dashboard, open **Subdomains** and reserve a name, e.g. `myapp`. It's then
-yours across restarts. Your plan sets how many you can hold:
+## Reserve and list names
 
-- Free: 1
-- Pro: 10
-- Team: 50
+Inside the console:
 
-The exact numbers are on the [pricing page](/pricing) (and enforced by the edge).
+~~~text
+/subdomains reserve myapp
+/subdomains
+~~~
 
-## Use it
+You can also manage reservations in the dashboard's **Domains** page, which includes both reserved subdomains and custom domains.
 
-```sh
+A name uses lowercase letters, digits and hyphens, is 1–63 characters long, and cannot begin or end with a hyphen. Enter `myapp`, not a URL or `myapp.trqsh.uz`. The API normalizes the name to lowercase.
+
+If someone has already reserved it, choose another name.
+
+## Bind the reserved name
+
+~~~text
+/http 3000 --subdomain myapp
+~~~
+
+From your shell:
+
+~~~sh
 trqsh http 3000 --subdomain myapp
-```
+~~~
 
-You'll consistently get `https://myapp.trqsh.uz`.
+On a deployment using `trqsh.uz` as the base domain, the resulting host is `myapp.trqsh.uz`. A self-hosted deployment uses its own configured base domain.
 
-## In a config file
+The account/key that starts the tunnel must own the reservation. An available but unreserved name is rejected by the normal entitlement provider.
 
-```yaml
+## Save the definition
+
+~~~yaml
 tunnels:
   web:
     proto: http
     addr: "localhost:3000"
     subdomain: "myapp"
-```
+~~~
 
-Then just run `trqsh start`. See [Configuration](/docs/configuration).
+Restart after changing the file and run `/start`. See [Configuration](/docs/configuration).
 
-## Errors
+Only one active bind can own the hostname at a time. Stop an existing tunnel before rebinding the same name from another process or computer.
 
-- [`ERR_SUBDOMAIN_TAKEN`](/docs/errors#err_subdomain_taken) — someone else holds it;
-  pick another.
-- [`ERR_SUBDOMAIN_FORBIDDEN`](/docs/errors#err_subdomain_forbidden) — you haven't
-  reserved it, or you're out of slots. Reserve it first, or upgrade for more.
+## Limits
 
-## Custom domains
+The current catalog allows one reservation on Free, ten on Pro and fifty on Team. Reservations are account/organization resources, not per-computer resources.
 
-Want `tunnel.yourcompany.com` instead of a `trqsh.uz` subdomain? Use a
-[custom domain](/docs/custom-domains).
+Check [Pricing](/pricing) and the dashboard for your effective plan. A reservation-count limit and an active-tunnel limit are separate constraints.
+
+## Release a name
+
+~~~text
+/stop TUNNEL_ID
+/subdomains release myapp
+~~~
+
+The release command also accepts the reservation ID. It frees the name for others to reserve. Stop its active tunnel first; releasing the reservation is not a replacement for stopping a local agent.
+
+If you still need a stable webhook URL, update the provider before releasing the name.
+
+## Common errors
+
+- [ERR_SUBDOMAIN_FORBIDDEN](/docs/errors#err_subdomain_forbidden): the name is not reserved by the account starting the tunnel.
+- [ERR_SUBDOMAIN_TAKEN](/docs/errors#err_subdomain_taken): another reservation or active bind owns the name.
+- HTTP 403 while reserving through the API: the reservation limit is reached.
+- HTTP 409 while reserving: the requested name is already taken.
+
+For a hostname under your own domain, follow [Custom domains](/docs/custom-domains).

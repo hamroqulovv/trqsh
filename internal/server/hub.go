@@ -32,6 +32,9 @@ type boundTunnel struct {
 	bytesIn   atomic.Int64
 	bytesOut  atomic.Int64
 	requests  atomic.Int64
+	released  atomic.Bool
+	leaseID   string
+	limit     int
 }
 
 // addTraffic accumulates this tunnel's lifetime byte/request counters.
@@ -52,6 +55,8 @@ type agentSession struct {
 	apiKey    string
 
 	mu      sync.Mutex
+	bindMu  sync.Mutex
+	closed  bool
 	tunnels map[string]*boundTunnel // by clientTunnelID
 
 	writeMu sync.Mutex // serializes writes to the control stream
@@ -126,7 +131,7 @@ func (h *Hub) removeSession(a *agentSession) {
 func (h *Hub) bindHost(bt *boundTunnel) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if existing, ok := h.byHost[bt.host]; ok && existing.session != bt.session {
+	if existing, ok := h.byHost[bt.host]; ok && existing != bt {
 		return fmt.Errorf("host %q already bound", bt.host)
 	}
 	h.byHost[bt.host] = bt
@@ -138,7 +143,7 @@ func (h *Hub) bindPort(bt *boundTunnel) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	key := portKey(protoForType(bt.ttype), bt.port)
-	if existing, ok := h.byPort[key]; ok && existing.session != bt.session {
+	if existing, ok := h.byPort[key]; ok && existing != bt {
 		return fmt.Errorf("port %s already bound", key)
 	}
 	h.byPort[key] = bt
@@ -148,10 +153,10 @@ func (h *Hub) bindPort(bt *boundTunnel) error {
 func (h *Hub) unbind(bt *boundTunnel) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if bt.host != "" {
+	if bt.host != "" && h.byHost[bt.host] == bt {
 		delete(h.byHost, bt.host)
 	}
-	if bt.port != 0 {
+	if bt.port != 0 && h.byPort[portKey(protoForType(bt.ttype), bt.port)] == bt {
 		delete(h.byPort, portKey(protoForType(bt.ttype), bt.port))
 	}
 }
@@ -189,6 +194,19 @@ func (h *Hub) SnapshotRoutes() []Route {
 	}
 	for _, bt := range h.byPort {
 		out = append(out, Route{Proto: protoForType(bt.ttype), Port: bt.port})
+	}
+	return out
+}
+
+func (h *Hub) snapshotTunnels() []*boundTunnel {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make([]*boundTunnel, 0, len(h.byHost)+len(h.byPort))
+	for _, bt := range h.byHost {
+		out = append(out, bt)
+	}
+	for _, bt := range h.byPort {
+		out = append(out, bt)
 	}
 	return out
 }

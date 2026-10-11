@@ -5,6 +5,7 @@ import { ERRORS, errorAnchor } from "@/lib/errors";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Fragment } from "react";
 
 export const metadata: Metadata = {
   title: "Error reference",
@@ -15,14 +16,19 @@ export const metadata: Metadata = {
 export default function ErrorsPage() {
   return (
     <div className="py-10">
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Error reference</h1>
-        <p className="mt-3 max-w-2xl text-secondary">
-          When trqsh declines a request, it returns one of these stable codes. The CLI, desktop app,
-          and dashboard link straight to the matching entry below — so you always know what happened
-          and what to do next.
+      <nav aria-label="Breadcrumb" className="docs-breadcrumb"><Link href="/docs">Documentation</Link><span aria-hidden="true">/</span>Error reference</nav>
+      <header className="docs-article-header max-w-3xl">
+        <div className="docs-page-meta"><span>Reference</span><span>Errors & recovery</span></div>
+        <h1>Error reference</h1>
+        <p className="docs-lead">
+          These are stable tunnel/edge error codes. Use the specific fix below, then verify the
+          affected part of the connection. Control API HTTP errors can instead return a plain
+          message in an error field; they do not all use this code taxonomy.
         </p>
-      </div>
+        <Link href="/docs/troubleshooting" className="mt-4 inline-block text-sm font-medium underline underline-offset-4">
+          Follow the diagnostic checklist
+        </Link>
+      </header>
 
       <div className="mb-8 flex flex-wrap gap-2">
         {ERRORS.map((e) => (
@@ -52,7 +58,7 @@ export default function ErrorsPage() {
             </div>
             <p className="mt-3 text-sm text-secondary">{e.detail}</p>
             <p className="mt-2 text-sm text-foreground">
-              <span className="font-medium">Fix:</span> {e.fix}
+              <span className="font-medium">Fix:</span> <InlineCode text={e.fix} />
             </p>
             {e.upgrade && (
               <Link href="/pricing" className={cn(buttonVariants({ variant: "subtle", size: "sm" }), "mt-4")}>
@@ -64,4 +70,10 @@ export default function ErrorsPage() {
       </div>
     </div>
   );
+}
+
+function InlineCode({ text }: { text: string }) {
+  return text.split(/(`[^`]+`)/g).map((part, index) => part.startsWith("`")
+    ? <code key={index} className="break-words rounded bg-accent px-1 font-mono text-xs">{part.slice(1, -1)}</code>
+    : <Fragment key={index}>{part}</Fragment>);
 }

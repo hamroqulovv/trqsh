@@ -87,10 +87,21 @@ func New(cfg Config, log *slog.Logger) (*Server, error) {
 		proxyClient: newReverseProxyClient(),
 		ready:       make(chan struct{}),
 	}
-	// Cert manager depends on the server (its on-demand decision consults the hub
-	// + registry), so build it after s exists.
+	if rr, ok := reg.(*RedisRegistry); ok && cfg.EntitlementsMode == "api" {
+		if err := s.usage.enableRedisSpool(rr.rdb, cfg.EdgeID); err != nil {
+			_ = reg.Close()
+			return nil, fmt.Errorf("usage Redis spool: %w", err)
+		}
+	} else if cfg.UsageSpoolDir != "" {
+		if err := s.usage.enableSpool(cfg.UsageSpoolDir); err != nil {
+			_ = reg.Close()
+			return nil, fmt.Errorf("usage spool: %w", err)
+		}
+	}
+	// Certificate decisions consult the server's hub and shared registry.
 	certs, err := buildCertManager(cfg, log, s.tlsDecision)
 	if err != nil {
+		_ = reg.Close()
 		return nil, err
 	}
 	s.certs = certs
@@ -207,9 +218,9 @@ func (s *Server) Run(ctx context.Context) error {
 		if err := s.startForward(ctx); err != nil {
 			return err
 		}
-		s.wg.Add(1)
-		go func() { defer s.wg.Done(); s.runPresence(ctx) }()
 	}
+	s.wg.Add(1)
+	go func() { defer s.wg.Done(); s.runPresence(ctx) }()
 	// Pre-provision the wildcard cert (ACME/DNS-01) when a DNS token is set;
 	// on-demand issuance covers everything else, so this is best-effort.
 	if w, ok := s.certs.(certWarmer); ok {
@@ -296,6 +307,15 @@ func (s *Server) acceptAgents(ctx context.Context) {
 
 // handleBind authorizes and registers a tunnel, returning the BindResp to send.
 func (s *Server) handleBind(ctx context.Context, a *agentSession, b *proto.BindTunnel) *proto.BindResp {
+	a.bindMu.Lock()
+	defer a.bindMu.Unlock()
+	a.mu.Lock()
+	_, duplicate := a.tunnels[b.ClientTunnelId]
+	closed := a.closed
+	a.mu.Unlock()
+	if closed || b.ClientTunnelId == "" || duplicate {
+		return bindErr(b, proto.CodeInternal, "invalid or duplicate client tunnel id")
+	}
 	typ := protoForType(b.Type)
 	req := authz.BindRequest{
 		APIKey:     a.apiKey,
@@ -331,14 +351,33 @@ func (s *Server) handleBind(ctx context.Context, a *agentSession, b *proto.BindT
 		ttype:          b.Type,
 		options:        b.Options,
 		session:        a,
+		leaseID:        s.cfg.EdgeID + "|" + a.sessionID + "|" + b.ClientTunnelId,
+		limit:          int(dec.Limits.MaxConcurrentTunnels),
 	}
+	if err := s.reg.AcquireTunnel(ctx, bt.accountID, bt.leaseID, bt.limit, s.edgeTTL()); err != nil {
+		if errors.Is(err, errTunnelLimit) {
+			return bindErr(b, proto.CodePlanForbids, "concurrent tunnel limit reached")
+		}
+		return bindErr(b, proto.CodeInternal, "tunnel lease unavailable")
+	}
+	bound := false
+	defer func() {
+		if !bound {
+			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = s.reg.ReleaseTunnel(cleanup, bt.accountID, bt.leaseID)
+		}
+	}()
+	var resp *proto.BindResp
 
 	switch b.Type {
 	case proto.TunnelType_TCP, proto.TunnelType_UDP:
-		return s.bindPortTunnel(ctx, a, b, bt, typ)
+		resp = s.bindPortTunnel(ctx, a, b, bt, typ)
 	default:
-		return s.bindHostTunnel(ctx, a, b, bt, dec)
+		resp = s.bindHostTunnel(ctx, a, b, bt, dec)
 	}
+	bound = resp.Ok
+	return resp
 }
 
 func (s *Server) bindHostTunnel(ctx context.Context, a *agentSession, b *proto.BindTunnel, bt *boundTunnel, dec authz.Decision) *proto.BindResp {
@@ -347,13 +386,17 @@ func (s *Server) bindHostTunnel(ctx context.Context, a *agentSession, b *proto.B
 		return bindErr(b, code, "could not allocate hostname")
 	}
 	bt.host = host
+	owner := Binding{EdgeID: s.cfg.EdgeID, SessionID: a.sessionID}
+	if err := s.reg.Bind(ctx, Route{Host: host}, owner, s.edgeTTL()); err != nil {
+		return bindErr(b, proto.CodeSubdomainTaken, "hostname lease unavailable")
+	}
 	if err := s.hub.bindHost(bt); err != nil {
+		_ = s.reg.Unbind(context.Background(), Route{Host: host}, owner)
 		return bindErr(b, proto.CodeSubdomainTaken, err.Error())
 	}
 	bt.publicURL = "https://" + host
 	bt.startedAt = time.Now()
 	s.trackTunnel(a, bt)
-	_ = s.reg.Bind(ctx, Route{Host: host}, Binding{EdgeID: s.cfg.EdgeID, SessionID: a.sessionID}, 2*s.cfg.HeartbeatInterval)
 	s.metrics.TunnelsActive.Inc()
 	s.reportTunnelOpen(a, bt)
 
@@ -366,7 +409,8 @@ func (s *Server) bindHostTunnel(ctx context.Context, a *agentSession, b *proto.B
 }
 
 func (s *Server) bindPortTunnel(ctx context.Context, a *agentSession, b *proto.BindTunnel, bt *boundTunnel, typ string) *proto.BindResp {
-	port, err := s.openPort(typ, int(b.RemotePort), bt)
+	owner := Binding{EdgeID: s.cfg.EdgeID, SessionID: a.sessionID}
+	port, err := s.openLeasedPort(ctx, typ, int(b.RemotePort), bt, owner)
 	if err != nil {
 		if errors.Is(err, errPortUnavailable) {
 			return bindErr(b, proto.CodePortUnavailable, "no ports available")
@@ -374,14 +418,15 @@ func (s *Server) bindPortTunnel(ctx context.Context, a *agentSession, b *proto.B
 		return bindErr(b, proto.CodeInternal, err.Error())
 	}
 	bt.port = port
+	route := Route{Proto: typ, Port: port}
 	if err := s.hub.bindPort(bt); err != nil {
+		_ = s.reg.Unbind(context.Background(), route, owner)
 		s.ports.release(typ, port)
 		return bindErr(b, proto.CodePortUnavailable, err.Error())
 	}
 	bt.publicURL = fmt.Sprintf("%s://%s:%d", typ, s.cfg.BaseDomain, port)
 	bt.startedAt = time.Now()
 	s.trackTunnel(a, bt)
-	_ = s.reg.Bind(ctx, Route{Proto: typ, Port: port}, Binding{EdgeID: s.cfg.EdgeID, SessionID: a.sessionID}, 2*s.cfg.HeartbeatInterval)
 	s.metrics.TunnelsActive.Inc()
 	s.reportTunnelOpen(a, bt)
 
@@ -403,10 +448,17 @@ func (s *Server) trackTunnel(a *agentSession, bt *boundTunnel) {
 // allocateHost resolves the public hostname for an HTTP-family tunnel.
 func (s *Server) allocateHost(b *proto.BindTunnel, dec authz.Decision) (string, string) {
 	if b.CustomDomain != "" {
+		if s.isPlatformHost(b.CustomDomain) {
+			return "", proto.CodeSubdomainForbidden
+		}
 		if !dec.Limits.AllowCustomDomains {
 			return "", proto.CodePlanForbids
 		}
-		return strings.ToLower(b.CustomDomain), ""
+		host := strings.ToLower(b.CustomDomain)
+		if s.hub.LookupHost(host) != nil {
+			return "", proto.CodeSubdomainTaken
+		}
+		return host, ""
 	}
 	sub := b.Subdomain
 	if sub == "" && dec.AssignedSubdomain != "" {
@@ -417,6 +469,9 @@ func (s *Server) allocateHost(b *proto.BindTunnel, dec authz.Decision) (string, 
 			return "", proto.CodeSubdomainForbidden
 		}
 		host := strings.ToLower(sub) + "." + s.cfg.BaseDomain
+		if s.isPlatformHost(host) {
+			return "", proto.CodeSubdomainForbidden
+		}
 		if s.hub.LookupHost(host) != nil {
 			return "", proto.CodeSubdomainTaken
 		}
@@ -433,6 +488,8 @@ func (s *Server) allocateHost(b *proto.BindTunnel, dec authz.Decision) (string, 
 }
 
 func (s *Server) handleUnbind(ctx context.Context, a *agentSession, clientTunnelID string) {
+	a.bindMu.Lock()
+	defer a.bindMu.Unlock()
 	a.mu.Lock()
 	bt := a.tunnels[clientTunnelID]
 	delete(a.tunnels, clientTunnelID)
@@ -443,16 +500,24 @@ func (s *Server) handleUnbind(ctx context.Context, a *agentSession, clientTunnel
 	s.releaseTunnel(ctx, bt)
 }
 
-func (s *Server) releaseTunnel(ctx context.Context, bt *boundTunnel) {
+func (s *Server) releaseTunnel(_ context.Context, bt *boundTunnel) {
+	if bt.released.Swap(true) {
+		return
+	}
+	// Cleanup must still run after the session/server context is canceled.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	owner := Binding{EdgeID: s.cfg.EdgeID, SessionID: bt.session.sessionID}
 	s.hub.unbind(bt)
 	if bt.host != "" {
-		_ = s.reg.Unbind(ctx, Route{Host: bt.host})
+		_ = s.reg.Unbind(ctx, Route{Host: bt.host}, owner)
 	}
 	if bt.port != 0 {
 		typ := protoForType(bt.ttype)
 		s.ports.release(typ, bt.port)
-		_ = s.reg.Unbind(ctx, Route{Proto: typ, Port: bt.port})
+		_ = s.reg.Unbind(ctx, Route{Proto: typ, Port: bt.port}, owner)
 	}
+	_ = s.reg.ReleaseTunnel(ctx, bt.accountID, bt.leaseID)
 	s.metrics.TunnelsActive.Dec()
 	s.reportTunnelClose(bt)
 }

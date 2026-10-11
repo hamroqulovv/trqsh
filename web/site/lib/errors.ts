@@ -21,7 +21,7 @@ export const ERRORS: ErrorDoc[] = [
     code: "ERR_AUTH_REQUIRED",
     title: "Authentication required",
     detail: "The edge received a bind without valid credentials.",
-    fix: "Run `trqsh login`, or set `TRQSH_API_KEY` / the `api_key` field in `~/.trqsh-uz/trqsh.yml`.",
+    fix: "Run `/login` inside the console, or set `TRQSH_API_KEY` / `api_key` in `~/.trqsh/trqsh.yml`. Restart an existing daemon after changing startup credentials.",
   },
   {
     code: "ERR_AUTH_INVALID",
@@ -33,7 +33,7 @@ export const ERRORS: ErrorDoc[] = [
     code: "ERR_VERSION_UNSUPPORTED",
     title: "Agent version unsupported",
     detail: "This edge no longer supports your agent's protocol version.",
-    fix: "Update the CLI: `trqsh update` or reinstall from the download page.",
+    fix: "Use `/update` inside the console or reinstall through your original package manager. Use `/down` before relaunching the updated agent.",
   },
   {
     code: "ERR_QUOTA_TUNNELS",
@@ -45,15 +45,15 @@ export const ERRORS: ErrorDoc[] = [
   {
     code: "ERR_QUOTA_BANDWIDTH",
     title: "Bandwidth quota exceeded",
-    detail: "This month's transfer allowance is used up.",
-    fix: "Wait for the monthly reset, or upgrade for more bandwidth.",
+    detail: "The account's transfer allowance for the enforced usage window is used up.",
+    fix: "Check the account usage window, wait for allowance to become available, or choose a plan with more bandwidth.",
     upgrade: true,
   },
   {
     code: "ERR_QUOTA_REQUESTS",
     title: "Request quota exceeded",
     detail: "This month's request allowance is used up.",
-    fix: "Wait for the monthly reset, or upgrade for a higher request ceiling.",
+    fix: "Check this deployment's request allowance and usage window, then wait or choose a higher limit.",
     upgrade: true,
   },
   {
@@ -65,9 +65,8 @@ export const ERRORS: ErrorDoc[] = [
   {
     code: "ERR_SUBDOMAIN_FORBIDDEN",
     title: "Subdomain not permitted",
-    detail: "Reserved subdomains require an entitlement your plan lacks, or you've used them all.",
-    fix: "Reserve the subdomain in the dashboard, or upgrade for more reserved slots.",
-    upgrade: true,
+    detail: "The requested name is not reserved by the account binding the tunnel, or reserved names are not permitted.",
+    fix: "Use `/subdomains reserve NAME` or the dashboard's Domains page, then bind using the same account. Check reservation limits separately.",
   },
   {
     code: "ERR_DOMAIN_UNVERIFIED",
@@ -78,21 +77,21 @@ export const ERRORS: ErrorDoc[] = [
   {
     code: "ERR_PLAN_FORBIDS",
     title: "Not available on your plan",
-    detail: "The feature you requested (e.g. UDP or TLS tunnels) isn't included in your plan.",
-    fix: "Upgrade to a plan that includes it — the error names the plan required.",
+    detail: "The feature you requested (for example UDP or a custom domain) isn't allowed by your effective plan.",
+    fix: "Check the effective plan and its expiry, then use an allowed feature or upgrade. Protocol availability also depends on the edge deployment.",
     upgrade: true,
   },
   {
     code: "ERR_PROTO_UNSUPPORTED",
     title: "Unsupported protocol",
     detail: "The tunnel protocol you asked for isn't available on this edge.",
-    fix: "Use one of http, https, tls, tcp, or udp.",
+    fix: "Use the documented HTTP, TCP or UDP workflow supported by your edge. Core HTTPS/TLS identifiers do not guarantee HTTPS upstream forwarding or SNI passthrough.",
   },
   {
     code: "ERR_PORT_UNAVAILABLE",
     title: "Remote port unavailable",
     detail: "The requested TCP/UDP remote port is already in use.",
-    fix: "Choose another port, or omit `remote_port` for an ephemeral assignment.",
+    fix: "Choose an available port in the edge's configured pool, or omit `remote_port`. On a self-hosted edge, also publish/open the assigned port.",
   },
   {
     code: "ERR_RATE_LIMITED",

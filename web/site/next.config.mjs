@@ -11,14 +11,14 @@ const nextConfig = {
     // Control API (Part 05) — used for the OAuth deep-links on signup.
     TRQSH_API_URL: process.env.TRQSH_API_URL || "https://api.trqsh.uz",
     // Source repo (also hosts the desktop GUI's desktop-v* releases).
-    TRQSH_GITHUB_REPO: process.env.TRQSH_GITHUB_REPO || "uzcreator/trqsh",
+    TRQSH_GITHUB_REPO: process.env.TRQSH_GITHUB_REPO || "algorithco/trqsh",
     // CLI releases (Part 08 goreleaser output) publish to their own repo.
-    TRQSH_CLI_GITHUB_REPO: process.env.TRQSH_CLI_GITHUB_REPO || "uzcreator/trqshcli",
+    TRQSH_CLI_GITHUB_REPO: process.env.TRQSH_CLI_GITHUB_REPO || "algorithco/trqshcli",
     // Canonical public origin (sitemap, robots, Open Graph, docs links).
     TRQSH_SITE_URL: process.env.TRQSH_SITE_URL || "https://trqsh.uz",
     // Latest published version — drives download filenames (matches goreleaser
-    // `trqsh_<version>_<os>_<arch>` and the GUI installer names).
-    TRQSH_LATEST_VERSION: process.env.TRQSH_LATEST_VERSION || "0.1.2",
+    // `trqsh_<version>_<os>_<arch>` archive names).
+    TRQSH_LATEST_VERSION: process.env.TRQSH_LATEST_VERSION || "0.2.2",
     // Telegram username (no @) users contact to buy/upgrade a plan — shown on the
     // /upgrade page (there is no self-serve checkout).
     TRQSH_TELEGRAM: process.env.TRQSH_TELEGRAM || "hamroqulovv",

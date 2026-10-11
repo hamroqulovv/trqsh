@@ -36,8 +36,9 @@ type Server struct {
 
 	providers map[string]auth.OAuthProvider
 
-	oauthState oauthStateStore
-	remote     *remoteHub
+	oauthState      oauthStateStore
+	dashboardLogins *dashboardLoginStore
+	remote          *remoteHub
 }
 
 // New builds the API server, choosing Postgres or the in-memory store from config.
@@ -135,6 +136,7 @@ func New(cfg Config, log *slog.Logger) (*Server, error) {
 	} else {
 		s.oauthState = newMemStateStore()
 	}
+	s.dashboardLogins = newDashboardLoginStore(rdb)
 	return s, nil
 }
 
@@ -178,7 +180,7 @@ func (s *Server) Router() http.Handler {
 	// approve.<base> admin console: the page + login are served same-origin as the
 	// /v1/admin/* API (below) so the admin session cookie flows without CORS.
 	r.Get("/admin", s.handleAdminPage)
-	r.Post("/admin/logout", s.handleAdminLogout)
+	r.With(s.requireAdmin).Post("/admin/logout", s.handleAdminLogout)
 	r.Group(func(r chi.Router) {
 		r.Use(s.authLimiter.middleware) // brute-force guard on the credential check
 		r.Post("/admin/login", s.handleAdminLogin)
@@ -205,6 +207,7 @@ func (s *Server) Router() http.Handler {
 			r.Post("/auth/signup", s.handleSignup)
 			r.Post("/auth/login", s.handleLogin)
 			r.Post("/auth/refresh", s.handleRefresh)
+			r.Post("/auth/dashboard/exchange", s.handleDashboardExchange)
 			r.Get("/auth/oauth/{provider}", s.handleOAuthStart)
 			r.Get("/auth/oauth/{provider}/callback", s.handleOAuthCallback)
 			r.Post("/auth/logout", s.handleLogout)

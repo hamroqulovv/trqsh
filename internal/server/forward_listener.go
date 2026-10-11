@@ -113,13 +113,37 @@ func (s *Server) runPresence(ctx context.Context) {
 			return
 		case <-t.C:
 			rctx, cancel := context.WithTimeout(context.Background(), forwardDialTimeout)
-			if err := s.reg.RegisterEdge(rctx, s.cfg.EdgeID, s.fwdAddr, ttl); err != nil {
+			if err := s.refreshEdgePresence(rctx, ttl); err != nil {
 				s.log.Warn("forward: edge address refresh failed", "err", err)
 			}
-			for _, r := range s.hub.SnapshotRoutes() {
-				_ = s.reg.Refresh(rctx, r, ttl)
+			for _, bt := range s.hub.snapshotTunnels() {
+				bt.session.bindMu.Lock()
+				if bt.released.Load() {
+					bt.session.bindMu.Unlock()
+					continue
+				}
+				owner := Binding{EdgeID: s.cfg.EdgeID, SessionID: bt.session.sessionID}
+				route := Route{Host: bt.host, Proto: protoForType(bt.ttype), Port: bt.port}
+				if err := s.reg.AcquireTunnel(rctx, bt.accountID, bt.leaseID, bt.limit, ttl); err != nil {
+					bt.session.bindMu.Unlock()
+					s.log.Warn("tunnel lease renewal failed", "err", err)
+					_ = bt.session.sess.CloseWithError(0, "tunnel lease lost")
+					continue
+				}
+				err := s.reg.Refresh(rctx, route, owner, ttl)
+				bt.session.bindMu.Unlock()
+				if err != nil {
+					_ = bt.session.sess.CloseWithError(0, "route lease lost")
+				}
 			}
 			cancel()
 		}
 	}
+}
+
+func (s *Server) refreshEdgePresence(ctx context.Context, ttl time.Duration) error {
+	if s.fwdAddr == "" {
+		return nil
+	}
+	return s.reg.RegisterEdge(ctx, s.cfg.EdgeID, s.fwdAddr, ttl)
 }

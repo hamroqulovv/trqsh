@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeDashboardNextPath } from "./lib/paths";
+import { sessionCookieName } from "./lib/session-config";
 
 // Route protection: without a session cookie, everything except /login redirects
 // to /login; with one, /login redirects into the app. JWT validity is enforced
@@ -31,7 +32,8 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasSession = req.cookies.has("trqsh_access") || req.cookies.has("trqsh_refresh");
+  if (pathname === "/login/callback" || pathname.startsWith("/login/oauth/")) return NextResponse.next();
+  const hasSession = req.cookies.has(sessionCookieName("trqsh_access")) || req.cookies.has(sessionCookieName("trqsh_refresh"));
   const isPublic = pathname === "/login" || pathname.startsWith("/login/");
 
   // The desktop device-approval page must be reachable in both states: signed-in

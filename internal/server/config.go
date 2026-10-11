@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -55,7 +56,8 @@ type Config struct {
 	// State. When set, also selects the shared TLS cert storage (RedisStorage) so
 	// all edges share one cert cache + issuance lock instead of each hitting Let's
 	// Encrypt independently (see tls_acme.go buildCertStorage).
-	RedisURL string // TRQSH_REDIS_URL; empty => in-memory registry + on-disk cert storage (single edge)
+	RedisURL      string // TRQSH_REDIS_URL; empty => in-memory registry + on-disk cert storage (single edge)
+	UsageSpoolDir string // TRQSH_USAGE_SPOOL_DIR; durable pending usage, on a persistent volume
 
 	// Entitlements.
 	EntitlementsMode string // TRQSH_ENTITLEMENTS: "stub" (default) | "api"
@@ -95,9 +97,8 @@ type Config struct {
 	// multi-edge production deployment MUST set this to a routable address.
 	ForwardAdvertiseAddr string // TRQSH_FORWARD_ADVERTISE_ADDR
 
-	// Reserved control-plane hosts. When set, requests to these hostnames that
-	// match no tunnel are reverse-proxied to the internal service instead of the
-	// branded 404: apex (<base>) + www → SiteUpstream, app.<base> → AppUpstream,
+	// Reserved control-plane hosts always route to their internal service or a
+	// 404: apex (<base>) + www → SiteUpstream, app.<base> → AppUpstream,
 	// api.<base> → APIUpstream.
 	SiteUpstream string // TRQSH_SITE_UPSTREAM, e.g. "http://site:3000"
 	AppUpstream  string // TRQSH_APP_UPSTREAM, e.g. "http://dashboard:3000"
@@ -155,6 +156,15 @@ func LoadConfig() (Config, error) {
 	envStr(&c.ACMEEmail, "TRQSH_ACME_EMAIL")
 	envStr(&c.CloudflareToken, "TRQSH_CLOUDFLARE_API_TOKEN")
 	envStr(&c.TLSStorageDir, "TRQSH_TLS_STORAGE_DIR")
+	envStr(&c.UsageSpoolDir, "TRQSH_USAGE_SPOOL_DIR")
+	if c.UsageSpoolDir == "" && c.EntitlementsMode == "api" {
+		root := c.TLSStorageDir
+		if root == "" {
+			root, _ = os.UserCacheDir()
+			root = filepath.Join(root, "trqsh")
+		}
+		c.UsageSpoolDir = filepath.Join(root, "usage")
+	}
 	envStr(&c.MetricsAddr, "TRQSH_METRICS_ADDR")
 	envStr(&c.ForwardAddr, "TRQSH_FORWARD_ADDR")
 	envStr(&c.ForwardAdvertiseAddr, "TRQSH_FORWARD_ADVERTISE_ADDR")

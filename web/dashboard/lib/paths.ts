@@ -6,7 +6,9 @@ export function dashboardPath(path: string): string {
 }
 
 export function safeDashboardNextPath(path: string): string {
-  return path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\") ? path : "/";
+  // URL parsers strip control characters and normalize backslashes. Reject
+  // them before interpreting the value so a path cannot become another origin.
+  return path.startsWith("/") && !path.startsWith("//") && !/[\\\u0000-\u0020\u007f]/.test(path) ? path : "/";
 }
 
 // redirect() does not add basePath to a normal HTML form's Location header.

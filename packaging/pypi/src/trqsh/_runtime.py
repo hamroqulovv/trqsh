@@ -11,22 +11,27 @@ from __future__ import annotations
 import hashlib
 import os
 import platform
+import re
 import site
 import stat
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
 
 from . import __version__
+from ._ui import InstallUI
 
 # CLI releases publish to their own dedicated repo (source stays in
 # algorithco/trqsh; see .goreleaser.yaml).
 REPO = os.environ.get("TRQSH_REPO", "algorithco/trqshcli")
-VERSION = os.environ.get("TRQSH_VERSION", __version__)
+VERSION = os.environ.get("TRQSH_VERSION", __version__).lstrip("v")
+if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[\w.-]+)?(?:\+[\w.-]+)?", VERSION):
+    raise SystemExit("trqsh: invalid TRQSH_VERSION; use a release version such as 0.2.2")
 
 
 def _target() -> tuple[str, str, str]:
@@ -63,10 +68,25 @@ def bin_path() -> Path:
     return _cache_dir() / _bin_name()
 
 
-def _download(url: str) -> bytes:
+def _download(url: str, progress=None) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "trqsh-pypi-installer"})
-    with urllib.request.urlopen(req) as resp:  # noqa: S310 (trusted GitHub host)
-        return resp.read()
+    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+        total = int(resp.headers.get("Content-Length", "0"))
+        chunks, received = [], 0
+        deadline = time.monotonic() + 300
+        while True:
+            chunk = resp.read(65536)
+            if not chunk:
+                break
+            if time.monotonic() > deadline:
+                raise TimeoutError("download exceeded 5 minutes; retry installation")
+            chunks.append(chunk)
+            received += len(chunk)
+            if progress:
+                progress(received, total)
+        if total and received != total:
+            raise OSError("download interrupted; retry installation")
+        return b"".join(chunks)
 
 
 def _verify(data: bytes, archive: str, base: str) -> None:
@@ -75,8 +95,7 @@ def _verify(data: bytes, archive: str, base: str) -> None:
     try:
         sums = _download(f"{base}/checksums.txt").decode()
     except Exception as exc:  # noqa: BLE001
-        print(f"trqsh: warning — could not fetch checksums.txt ({exc}); skipping verify", file=sys.stderr)
-        return
+        raise OSError("could not fetch checksums.txt; retry installation") from exc
     want = None
     for line in sums.splitlines():
         parts = line.split()
@@ -84,8 +103,7 @@ def _verify(data: bytes, archive: str, base: str) -> None:
             want = parts[0].lower()
             break
     if not want:
-        print(f"trqsh: warning — {archive} absent from checksums.txt; skipping verify", file=sys.stderr)
-        return
+        raise OSError(f"{archive} absent from checksums.txt")
     got = hashlib.sha256(data).hexdigest()
     if got != want:
         raise SystemExit(f"trqsh: checksum mismatch for {archive}\n  expected {want}\n  got      {got}")
@@ -212,11 +230,22 @@ def _ensure_on_path() -> None:
         print(f"trqsh: warning — couldn't update PATH automatically ({exc})", file=sys.stderr)
 
 
+def _binary_version(target: Path):
+    try:
+        result = subprocess.run([str(target), "--version"], capture_output=True,
+                                text=True, timeout=10, check=True)
+        match = re.search(r"\btrqsh\s+v?(\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?)", result.stdout)
+        return match.group(1) if match else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def ensure_binary() -> Path:
     """Return the path to the trqsh binary, downloading it once if needed."""
     _ensure_on_path()
     target = bin_path()
-    if target.exists():
+    cached = _binary_version(target) if target.exists() else None
+    if cached and (not os.environ.get("TRQSH_VERSION") or cached == VERSION.lstrip("v")):
         return target
 
     goos, goarch, ext = _target()
@@ -224,23 +253,38 @@ def ensure_binary() -> Path:
     # Overridable (TRQSH_DOWNLOAD_BASE) for mirrors, air-gapped installs, or tests.
     base = os.environ.get("TRQSH_DOWNLOAD_BASE") or f"https://github.com/{REPO}/releases/download/v{VERSION}"
 
-    print(f"trqsh: downloading {archive} (v{VERSION})...", file=sys.stderr)
-    data = _download(f"{base}/{archive}")
+    ui = InstallUI()
+    ui.title(VERSION, f"{goos} / {goarch}")
+    ui.step("Downloading", archive, "..")
+    try:
+        data = _download(f"{base}/{archive}", ui.progress)
+    finally:
+        ui.end()
+    ui.step("Downloaded", f"{len(data)} bytes")
     _verify(data, archive, base)
-
-    tmp = Path(tempfile.mkdtemp())
-    archive_path = tmp / archive
-    archive_path.write_bytes(data)
-    _extract(archive_path, ext, _cache_dir())
-
-    if not target.exists():
-        for found in _cache_dir().rglob(target.name):
-            found.replace(target)
-            break
-    if not target.exists():
-        raise SystemExit("trqsh: binary not found after extraction")
-
-    if os.name != "nt":
-        target.chmod(target.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-    print("trqsh: installed ✓", file=sys.stderr)
+    if os.environ.get("TRQSH_SKIP_CHECKSUM") == "1":
+        ui.step("Verification skipped", "TRQSH_SKIP_CHECKSUM=1", "!")
+    else:
+        ui.step("Verified", "SHA-256")
+    ui.step("Installing", "Native CLI", "..")
+    with tempfile.TemporaryDirectory(prefix=".install-", dir=target.parent) as directory:
+        tmp = Path(directory)
+        archive_path = tmp / archive
+        archive_path.write_bytes(data)
+        unpacked = tmp / "unpacked"
+        unpacked.mkdir()
+        try:
+            _extract(archive_path, ext, unpacked)
+        except (tarfile.TarError, zipfile.BadZipFile) as exc:
+            raise OSError("could not extract release archive; retry installation") from exc
+        found = next(unpacked.rglob(target.name), None)
+        if found is None or not found.is_file() or found.is_symlink():
+            raise OSError("trqsh binary not found after extraction")
+        if os.name != "nt":
+            found.chmod(found.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+        if _binary_version(found) != VERSION.lstrip("v"):
+            raise OSError("downloaded binary version does not match release")
+        found.replace(target)
+    ui.step("Ready", target)
+    print("\n  Ready to launch. Run: trqsh\n", file=sys.stderr)
     return target

@@ -75,3 +75,8 @@ coordinate only through the **frozen shared contracts** defined in [`00-ARCHITEC
   on top without modifying them.
 - **Each spec ends with a "Done criteria" and "Run/verify" section** — a session is finished only
   when those pass.
+
+## Follow-up plans
+
+- [10 — Package installation and first-run terminal UI](./10-installation-experience.md):
+  branded installer progress and shared CLI onboarding across installation channels.

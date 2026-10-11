@@ -29,11 +29,11 @@ type User struct {
 
 // Org is a billing/ownership boundary (personal or team).
 type Org struct {
-	ID               string     `json:"id"`
-	Name             string     `json:"name"`
-	Plan             string     `json:"plan"`
-	StripeCustomerID string     `json:"stripe_customer_id,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
+	ID               string    `json:"id"`
+	Name             string    `json:"name"`
+	Plan             string    `json:"plan"`
+	StripeCustomerID string    `json:"stripe_customer_id,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
 	// PlanExpiresAt, when set, is when a manually-granted plan reverts to Free.
 	// nil means the plan never expires (the Stripe/webhook path and the default).
 	PlanExpiresAt *time.Time `json:"plan_expires_at,omitempty"`
@@ -79,6 +79,7 @@ type CustomDomain struct {
 
 // UsageRecord is a metered slice of traffic for an org/tunnel window.
 type UsageRecord struct {
+	EventID     string    `json:"event_id,omitempty"`
 	OrgID       string    `json:"org_id"`
 	TunnelID    string    `json:"tunnel_id"`
 	BytesIn     int64     `json:"bytes_in"`
@@ -168,9 +169,10 @@ type Subscription struct {
 }
 
 // MeteredUsage is one pending/settled usage push to Stripe for a metered plan.
-// Unique per (org, metric, window_start) so collection is idempotent.
+// Quantities are deltas from transactionally collected period snapshots.
 type MeteredUsage struct {
 	ID          int64      `json:"id"`
+	Identifier  string     `json:"-"` // preserved Stripe key for pending pre-migration rows
 	OrgID       string     `json:"org_id"`
 	Metric      string     `json:"metric"` // "bandwidth_bytes" | "requests"
 	Quantity    int64      `json:"quantity"`
@@ -182,6 +184,9 @@ type MeteredUsage struct {
 
 // Store is the persistence contract for the control plane.
 type Store interface {
+	// BillingTransaction commits the callback's DB effects together. Callbacks
+	// must use the supplied store and perform no external side effects.
+	BillingTransaction(ctx context.Context, fn func(Store) error) error
 	// Users.
 	CreateUser(ctx context.Context, u User) (User, error)
 	GetUser(ctx context.Context, id string) (User, error)
@@ -226,6 +231,7 @@ type Store interface {
 	// Usage.
 	UpsertUsage(ctx context.Context, u UsageRecord) error
 	UsageForOrg(ctx context.Context, orgID string, since time.Time) (UsageRecord, error)
+	UsageForOrgWindow(ctx context.Context, orgID string, start, end time.Time) (UsageRecord, error)
 	// UsageSeriesForOrg returns usage bucketed by "hour" or "day" since a time,
 	// for dashboard graphs. Buckets with no traffic are omitted.
 	UsageSeriesForOrg(ctx context.Context, orgID string, since time.Time, bucket string) ([]UsageBucket, error)
@@ -259,9 +265,10 @@ type Store interface {
 	// the first time an event ID is seen, false if it was already handled.
 	MarkEventProcessed(ctx context.Context, eventID, eventType string) (bool, error)
 
-	// Billing: metered-usage push queue. InsertMeteredUsage returns ErrConflict
-	// when (org, metric, window_start) already exists, making collection idempotent.
+	// Billing: metered-usage push queue. The collector computes deltas and inserts
+	// them in BillingTransaction; row IDs give each delta a stable Stripe key.
 	InsertMeteredUsage(ctx context.Context, u MeteredUsage) (MeteredUsage, error)
+	MeteredForWindow(ctx context.Context, orgID, metric string, start, end time.Time) (quantity int64, lastEnd time.Time, err error)
 	PendingMeteredUsage(ctx context.Context, limit int) ([]MeteredUsage, error)
 	MarkMeteredUsageReported(ctx context.Context, ids []int64, at time.Time) error
 

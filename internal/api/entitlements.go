@@ -7,6 +7,7 @@ import (
 
 	"github.com/trqsh-uz/trqsh/internal/api/auth"
 	"github.com/trqsh-uz/trqsh/internal/api/store"
+	"github.com/trqsh-uz/trqsh/internal/platform"
 	"github.com/trqsh-uz/trqsh/pkg/authz"
 	"github.com/trqsh-uz/trqsh/pkg/proto"
 )
@@ -76,6 +77,9 @@ func (e *Entitlements) CheckBind(ctx context.Context, req authz.BindRequest) (au
 	}
 	plan := PlanFor(planCode)
 	dec := authz.Decision{AccountID: accountID, Plan: planCode, Limits: plan.Limits()}
+	if platform.ReservedSubdomain(req.Subdomain) || platform.ReservedHost(req.CustomHost, e.baseDomain) {
+		return denyWith(dec, proto.CodeSubdomainForbidden, "hostname is reserved for the platform"), nil
+	}
 
 	// Protocol entitlements.
 	switch req.Type {
@@ -131,6 +135,7 @@ func (e *Entitlements) CheckBind(ctx context.Context, req authz.BindRequest) (au
 // ReportUsage persists a usage window for billing/metering.
 func (e *Entitlements) ReportUsage(ctx context.Context, u authz.Usage) error {
 	return e.store.UpsertUsage(ctx, store.UsageRecord{
+		EventID:     u.EventID,
 		OrgID:       u.AccountID,
 		TunnelID:    u.TunnelID,
 		BytesIn:     u.BytesIn,

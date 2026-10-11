@@ -8,7 +8,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"strings"
 	"time"
@@ -24,11 +23,13 @@ import (
 // Options configures a TUI session. cli.runTUI fills these from the loaded
 // config after ensuring a daemon is up.
 type Options struct {
-	Addr       string // control-API address (127.0.0.1:4041)
-	Token      string // loopback control-API token
-	APIKey     string // stored API key, pushed into the daemon so /cloud/me works
-	BaseDomain string // e.g. trqsh.uz (for display)
-	Version    string // agent.Version, shown in the header
+	ShowSetup   bool
+	OnSetupDone func(string) error
+	Addr        string // control-API address (127.0.0.1:4041)
+	Token       string // loopback control-API token
+	APIKey      string // stored API key, pushed into the daemon so /cloud/me works
+	BaseDomain  string // e.g. trqsh.uz (for display)
+	Version     string // agent.Version, shown in the header
 
 	// InitialCommand is the slash command to run on startup — the args the user
 	// passed to `trqsh` (e.g. `trqsh http 3000` opens the console and runs it).
@@ -62,11 +63,21 @@ type reqRow struct {
 }
 
 type model struct {
-	opts Options
-	cl   *client
+	setup setupState
+	opts  Options
+	cl    *client
 
-	width, height int
-	ready         bool
+	width, height    int
+	ready            bool
+	dataLoaded       bool
+	accountLoaded    bool
+	pixelFrame       int
+	pixelTickPending bool
+	nextOperation    int
+	operations       []loadingOperation
+	theme            string
+	terminalDark     bool
+	themeColors      map[string]string
 
 	input textarea.Model
 	vp    viewport.Model
@@ -105,7 +116,6 @@ type model struct {
 
 	welcomeShown bool // the welcome banner has been placed in the transcript
 	welcomeLen   int  // how many leading transcript lines the banner occupies
-	mascotFrame  int  // animation frame for the welcome mascot
 	loginActive  bool // a device-flow sign-in is polling
 	initialRan   bool // the InitialCommand (if any) has been dispatched
 	quitting     bool
@@ -125,7 +135,6 @@ type menuEntry struct {
 // --- messages ---
 
 type tickMsg time.Time
-type mascotTickMsg time.Time
 type dataMsg struct {
 	tunnels []agent.Tunnel
 	status  agent.Status
@@ -150,6 +159,8 @@ type remoteStartedMsg struct{ code, url string }
 
 // Run starts the TUI and blocks until the user quits.
 func Run(opts Options) error {
+	terminalDark := lipgloss.HasDarkBackground()
+	defer lipgloss.SetHasDarkBackground(terminalDark)
 	cl := newClient(opts.Addr, opts.Token)
 	// WithMouseCellMotion makes the wheel arrive as mouse events the viewport
 	// scrolls with, instead of the terminal translating it to ↑/↓ key presses
@@ -162,7 +173,10 @@ func Run(opts Options) error {
 	defer cancel()
 	go cl.streamEvents(ctx, func(ev agent.Event) { p.Send(eventMsg(ev)) })
 
-	_, err := p.Run()
+	final, err := p.Run()
+	if finished, ok := final.(model); ok && finished.setup.cancel != nil {
+		finished.setup.cancel()
+	}
 
 	// Best-effort: end any active pairing so a paired phone sees the session
 	// close right away instead of quietly going stale — the daemon (and any
@@ -180,9 +194,17 @@ func newModel(opts Options, cl *client) model {
 	ta.ShowLineNumbers = false
 	ta.Placeholder = "type / for commands"
 	ta.CharLimit = 240
-	ta.SetPromptFunc(3, inputPrompt) // "› " on the first line only; wraps stay flush under it
+	ta.SetPromptFunc(2, inputPrompt) // wrapped lines stay aligned with the command
 	ta.FocusedStyle.Prompt = stBrand
 	ta.BlurredStyle.Prompt = stBrand
+	ta.FocusedStyle.Text = stText
+	ta.BlurredStyle.Text = stText
+	ta.FocusedStyle.Placeholder = stDim
+	ta.BlurredStyle.Placeholder = stDim
+	ta.FocusedStyle.EndOfBuffer = stDim
+	ta.BlurredStyle.EndOfBuffer = stDim
+	ta.BlurredStyle.CursorLine = stText
+	ta.Cursor.Style = stMenuSel
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle() // no full-line highlight — stays a plain prompt, not an editor
 	ta.SetHeight(1)
 	ta.Focus()
@@ -192,30 +214,30 @@ func newModel(opts Options, cl *client) model {
 
 	// The welcome banner is placed on the first WindowSizeMsg, once the width is
 	// known to size its box to.
-	return model{opts: opts, cl: cl, input: ta, vp: vp}
+	m := model{opts: opts, cl: cl, input: ta, vp: vp, theme: "auto", terminalDark: lipgloss.HasDarkBackground()}
+	if opts.ShowSetup {
+		m.openSetup()
+	}
+	return m
 }
 
 // inputPrompt shows the chevron only on the input's first visual row, so a
 // line that wraps onto more rows doesn't repeat "› " down the left edge.
 func inputPrompt(line int) string {
 	if line == 0 {
-		return " › "
+		return "› "
 	}
-	return "   "
+	return "  "
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, m.poll(), m.fetchAccount(), tickCmd(), mascotTickCmd())
+	return tea.Batch(textarea.Blink, m.poll(), m.fetchAccount(), tickCmd())
 }
 
 // --- commands (async work) ---
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
-}
-
-func mascotTickCmd() tea.Cmd {
-	return tea.Tick(1200*time.Millisecond, func(t time.Time) tea.Msg { return mascotTickMsg(t) })
 }
 
 func (m model) poll() tea.Cmd {
@@ -263,11 +285,15 @@ func (m model) pollLogin(deviceCode string, interval time.Duration) tea.Cmd {
 
 // --- update loop ---
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case setupDeviceMsg:
+		return m.setupDevice(msg)
+	case setupResultMsg:
+		return m.setupResult(msg)
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
+		m.width, m.height = max(0, msg.Width), max(0, msg.Height)
 		m.ready = true
 		if !m.welcomeShown {
 			m.welcomeShown = true
@@ -275,6 +301,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.welcomeLen = len(w)
 			m.transcript = append(w, m.transcript...)
 		}
+		m.refreshWelcome()
 		m.relayout()
 		// Run the command the user typed after `trqsh` (e.g. `trqsh http 3000`),
 		// now that the viewport is sized so its output lands in the transcript.
@@ -285,18 +312,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.setup.stage != "" {
+			return m.setupKey(msg)
+		}
 		return m.handleKey(msg)
 
 	case tickMsg:
 		cmds = append(cmds, m.poll(), tickCmd())
 
-	case mascotTickMsg:
-		m.mascotFrame++
-		m.refreshWelcome() // redraw the banner so the cat blinks
-		m.relayout()
-		cmds = append(cmds, mascotTickCmd())
-
 	case dataMsg:
+		m.dataLoaded = true
 		if msg.ok {
 			m.tunnels = msg.tunnels
 		}
@@ -308,6 +333,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case accountMsg:
+		m.accountLoaded = true
 		m.acct, m.authed = msg.acct, msg.authed
 		m.refreshWelcome()
 		m.relayout()
@@ -359,6 +385,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Keep the input caret blinking and the viewport responsive to mouse wheel.
 	var c tea.Cmd
+	if m.setup.stage == "key" || m.setup.stage == "port" {
+		m.setup.input, c = m.setup.input.Update(msg)
+		cmds = append(cmds, c)
+	}
 	m.input, c = m.input.Update(msg)
 	cmds = append(cmds, c)
 	m.vp, c = m.vp.Update(msg)
@@ -543,6 +573,9 @@ func (m model) run(line string, remote bool) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	c := cmd.run(&m, args)
+	if c != nil && cmd.name != "quit" && cmd.name != "down" {
+		c = m.trackOperation(cmd.name, args, c)
+	}
 	m.relayout()
 	return m, c
 }
@@ -570,6 +603,10 @@ func (m *model) refreshMenu() {
 		for _, c := range slashCommands {
 			if strings.HasPrefix(c.name, prefix) {
 				insert, run := "/"+c.name, c.args == ""
+				// Enter on /theme reports its current mode; Tab still offers choices.
+				if c.name == "theme" {
+					run = true
+				}
 				label := "/" + c.name
 				if c.args != "" {
 					insert += " "
@@ -603,6 +640,8 @@ func (m *model) argOptions(name string) []string {
 		return []string{"traffic", "tunnels", "status"}
 	case "unpin":
 		return append(append([]string{}, m.pins...), "all")
+	case "theme":
+		return []string{"auto", "dark", "light"}
 	}
 	return nil
 }
@@ -636,7 +675,7 @@ func (m *model) handleEvent(ev agent.Event) tea.Cmd {
 		}
 	case "error":
 		if ev.Err != "" {
-			m.appendLines(stWarn.Render("  ⚠ " + ev.Err))
+			m.appendLines(stWarn.Render("  ! " + ev.Err))
 		}
 	case "remote":
 		return m.handleRemoteEvent(ev.Remote)
@@ -713,6 +752,12 @@ func (m model) publishRemoteLines(lines []string) tea.Cmd {
 // are also queued for publishRemoteLines to flush at the end of this
 // Update() tick, so a paired phone mirrors the same transcript.
 func (m *model) appendLines(lines ...string) {
+	if len(m.themeColors) > 0 {
+		lines = append([]string(nil), lines...)
+		for i := range lines {
+			lines[i] = rethemeLine(lines[i], m.themeColors)
+		}
+	}
 	m.transcript = append(m.transcript, lines...)
 	if m.remoteCode != "" {
 		for _, l := range lines {
@@ -735,400 +780,60 @@ const maxInputRows = 6
 // and that input box leave, preserving the reader's scroll position unless
 // they were already following the tail.
 func (m *model) relayout() {
-	if m.width == 0 {
+	if m.width < 1 || m.height < 1 {
+		m.vp.Width, m.vp.Height = m.width, 0
 		return
 	}
-	// Resolve the input box's height first — everything else lays out around it.
-	m.input.SetWidth(max(10, m.width-4))
-	rows := m.input.LineInfo().Height
-	if lc := m.input.LineCount(); lc > rows {
-		// A pasted clipboard blob can contain real newlines (unlike typed input,
-		// which never does — Enter submits instead of inserting one), putting the
-		// cursor's row over several logical lines. LineInfo only wraps-counts the
-		// cursor's own line, so fall back to the logical line count as a floor.
-		rows = lc
+	oldWidth, oldHeight := m.input.Width(), m.input.Height()
+	m.input.SetWidth(max(4, m.width-2))
+	switch {
+	case m.width < 48:
+		m.input.Placeholder = "/ for commands"
+	case len(m.tunnels) > 0:
+		m.input.Placeholder = "Type / for commands"
+	default:
+		m.input.Placeholder = "/http 3000 to start · / for commands"
 	}
-	inputRows := max(1, min(rows, maxInputRows))
+	rows := max(m.input.LineInfo().Height, m.input.LineCount())
+	// Leave room for the header, hints and output before allowing a long
+	// command to grow. Very short terminals keep a single editable row.
+	inputRows := max(1, min(rows, maxInputRows, max(1, m.height-9)))
 	m.input.SetHeight(inputRows)
+	m.syncInputView(oldWidth != m.input.Width() || oldHeight != inputRows)
 
-	// Fixed chrome around the scrolling transcript: header(1)+rule(1), the pinned
-	// panels, a scroll-hint line, the autocomplete menu, the input box (its rows
-	// plus a top/bottom border), a hint line, and a bottom gap so the box isn't
-	// glued to the terminal edge.
-	pinnedH := len(m.renderPinnedBlock())
-	menuH := len(m.renderMenu())
-	chrome := 2 + pinnedH + 1 + menuH + (inputRows + 2) + 1 + 1
-	vpH := max(m.height-chrome, 1)
 	atBottom := m.vp.AtBottom()
 	m.vp.Width = m.width
-	m.vp.Height = vpH
+	m.vp.Height = m.frame().viewportRows
 	m.vp.SetContent(strings.Join(m.transcript, "\n"))
 	switch {
 	case m.welcomeLen > 0 && len(m.transcript) <= m.welcomeLen:
-		m.vp.GotoTop() // nothing but the welcome yet — keep it in view from the top
+		m.vp.GotoTop()
 	case atBottom:
 		m.vp.GotoBottom()
 	}
 }
 
-// --- rendering ---
-
-func (m model) View() string {
-	if !m.ready {
-		return "  starting trqsh…"
-	}
-	var lines []string
-	lines = append(lines, m.renderHeader())
-	lines = append(lines, stDim.Render(m.rule()))
-	lines = append(lines, strings.Split(m.vp.View(), "\n")...) // transcript (welcome banner first)
-	lines = append(lines, m.renderScrollHint())                // empty when at the bottom
-	lines = append(lines, m.renderPinnedBlock()...)            // pinned panels sit just above the prompt
-	lines = append(lines, m.renderMenu()...)
-	lines = append(lines, strings.Split(m.renderInputBox(), "\n")...)
-	lines = append(lines, m.renderHint())
-	lines = append(lines, "") // bottom gap so the input box floats off the edge
-
-	// Guarantee exactly m.height lines and never overflow the width (which would
-	// wrap and throw the whole layout off).
-	for i := range lines {
-		lines[i] = m.clamp(lines[i])
-	}
-	if len(lines) > m.height {
-		lines = lines[len(lines)-m.height:]
-	}
-	for len(lines) < m.height {
-		lines = append(lines, "")
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (m model) rule() string { return strings.Repeat("─", max(0, m.width)) }
-
-func (m model) clamp(s string) string {
-	if lipgloss.Width(s) <= m.width {
-		return s
-	}
-	return ansi.Truncate(s, m.width, "…")
-}
-
-func (m model) spread(left, right string) string {
-	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right)-1, 1)
-	return left + strings.Repeat(" ", gap) + right + " "
-}
-
-func (m model) renderHeader() string {
-	left := stBrand.Render(" trqsh") + " " + stDim.Render(m.opts.Version)
-	glyph, word, col := m.connState()
-	right := lipgloss.NewStyle().Foreground(col).Render(glyph + " " + word)
-	if meta := m.headerMeta(); meta != "" {
-		right += stDim.Render("  " + meta)
-	}
-	return m.spread(left, right)
-}
-
-func (m model) connState() (glyph, word string, col lipgloss.Color) {
-	switch {
-	case len(m.tunnels) > 0 && m.status.Connected:
-		return "●", "online", colGreen
-	case len(m.tunnels) > 0:
-		return "●", "connecting", colYellow
-	default:
-		return "○", "idle", colDim
-	}
-}
-
-func (m model) headerMeta() string {
-	who := "guest"
-	switch {
-	case m.acct != nil:
-		who = firstNonEmpty(m.acct.Plan, m.acct.Org.Plan, "free") + " plan"
-	case m.authed:
-		who = "signed in"
-	}
-	meta := who + " · " + plural(len(m.tunnels), "tunnel")
-	if m.remoteConnected {
-		meta += " · 📱 paired"
-	}
-	return meta
-}
-
-// plural formats a count with its noun, adding an "s" for anything but 1.
-func plural(n int, noun string) string {
-	if n == 1 {
-		return "1 " + noun
-	}
-	return fmt.Sprintf("%d %ss", n, noun)
-}
-
-// pinnedRows is how many body lines each pinned panel shows — shared so panels
-// in a row share a height and their bottom edges line up.
-const pinnedRows = 4
-
-// renderPinnedBlock lays the pinned panels out as boxes from left to right,
-// wrapping to a new row when they'd overflow the width.
-func (m model) renderPinnedBlock() []string {
-	if len(m.pins) == 0 {
-		return nil
-	}
-	boxes := make([]string, 0, len(m.pins))
-	for _, p := range m.pins {
-		boxes = append(boxes, m.pinBox(p))
-	}
-	return packBoxes(boxes, m.width)
-}
-
-func (m model) pinBox(name string) string {
-	// Cap each panel to the terminal width so it never overflows a narrow window.
-	cap := m.width - 2
-	switch name {
-	case "tunnels":
-		w := min(40, cap)
-		return panelBox(fmt.Sprintf("TUNNELS (%d)", len(m.tunnels)),
-			strings.Join(fitLines(m.tunnelsBody(w-4), pinnedRows, w-4), "\n"), w, colBrand)
-	case "traffic":
-		w := min(54, cap)
-		return panelBox("TRAFFIC",
-			strings.Join(fitLines(m.trafficBody(w-4), pinnedRows, w-4), "\n"), w, colCyan)
-	case "status":
-		w := min(40, cap)
-		return panelBox("STATUS",
-			strings.Join(fitLines(m.statusBody(), pinnedRows, w-4), "\n"), w, colViolet)
-	}
-	return ""
-}
-
-func (m model) tunnelsBody(w int) []string {
-	if len(m.tunnels) == 0 {
-		return []string{stDim.Render("none — /http <port>")}
-	}
-	var out []string
-	for _, t := range m.tunnels {
-		out = append(out, stURL.Render(trunc(t.PublicURL, w-6))+stDim.Render(fmt.Sprintf("  %dr", t.Metrics.Requests)))
-	}
-	return out
-}
-
-func (m model) trafficBody(w int) []string {
-	if len(m.requests) == 0 {
-		return []string{stDim.Render("waiting for requests…")}
-	}
-	start := max(0, len(m.requests)-pinnedRows)
-	var out []string
-	for _, r := range m.requests[start:] {
-		method := methodStyle(r.method).Render(pad(r.method, 6))
-		status := statusStyle(r.status).Render(fmt.Sprintf("%3d", r.status))
-		out = append(out, fmt.Sprintf("%s %s %s", method, status, trunc(r.path, max(4, w-11))))
-	}
-	return out
-}
-
-func (m model) statusBody() []string {
-	glyph, word, col := m.connState()
-	return []string{
-		lipglossFg(col, glyph+" "+word),
-		stDim.Render("edge " + firstNonEmpty(m.status.Edge, "—")),
-		stDim.Render(firstNonEmpty(m.status.Kind, "—") + " · " + plural(len(m.tunnels), "tunnel")),
-	}
-}
-
-// packBoxes joins rendered boxes left-to-right with a one-column gap, wrapping
-// to a new row when the next box wouldn't fit in width.
-func packBoxes(boxes []string, width int) []string {
-	if len(boxes) == 0 {
-		return nil
-	}
-	gap := strings.TrimRight(strings.Repeat(" \n", lipgloss.Height(boxes[0])), "\n") // a full-height 1-col spacer
-	var out, row []string
-	rowW := 0
-	flush := func() {
-		if len(row) > 0 {
-			out = append(out, strings.Split(lipgloss.JoinHorizontal(lipgloss.Top, row...), "\n")...)
-			row, rowW = nil, 0
+// SetWidth/SetHeight do not reposition Bubbles' internal textarea viewport.
+// Populate it first, then reset the scroll origin on resize and restore the
+// cursor. A neutral Update brings the active row into the resized viewport.
+func (m *model) syncInputView(resized bool) {
+	_ = m.input.View()
+	if resized {
+		row := m.input.Line()
+		info := m.input.LineInfo()
+		col := info.StartColumn + info.ColumnOffset
+		for m.input.Line() > 0 {
+			m.input.CursorUp()
 		}
-	}
-	for _, b := range boxes {
-		bw := lipgloss.Width(b)
-		if rowW > 0 && rowW+1+bw > width {
-			flush()
+		m.input.CursorStart()
+		m.input, _ = m.input.Update(nil)
+		for m.input.Line() < row {
+			m.input.CursorDown()
 		}
-		if rowW > 0 {
-			row = append(row, gap)
-			rowW++
-		}
-		row = append(row, b)
-		rowW += bw
+		m.input.SetCursor(col)
 	}
-	flush()
-	return out
+	m.input, _ = m.input.Update(nil)
 }
 
-// --- welcome banner, input box, hints ---
-
-// mascotEyes is the owl's blink cycle — mostly wide awake, with an occasional
-// blink and a narrowed look — which, redrawn on a slow tick, gives it life.
-var mascotEyes = []string{"O,O", "O,O", "O,O", "O,O", "-,-", "O,O", "o,o", "O,O"}
-
-// mascotFrame renders the owl (ASCII, renders in any font) for animation frame
-// f, tinted so it reads as a creature: amber body, bright eyes, a pink beak.
-func mascotFrame(f int) []string {
-	e := []rune(mascotEyes[f%len(mascotEyes)])
-	return []string{
-		stOwl.Render(" ,_,"),
-		stOwl.Render("{") + stOwlEye.Render(string(e[0])) + stOwlBeak.Render(string(e[1])) + stOwlEye.Render(string(e[2])) + stOwl.Render("}"),
-		stOwl.Render("/)_)") + stDim.Render(" "),
-	}
-}
-
-// renderWelcome builds the startup banner: a rounded box (title in its border)
-// with the mascot, the account/status, and — only when the terminal is wide
-// enough — the getting-started tips. On narrow terminals the tips column is
-// dropped so the banner stays readable instead of wrapping into a mess.
-func (m model) renderWelcome() []string {
-	mascot := mascotFrame(m.mascotFrame)
-	acct := m.welcomeLeft()
-	const mascotW = 6
-	innerW := max(16, m.width-4) // content width inside the box borders+padding
-	showTips := m.width >= 82
-
-	rows := max(len(mascot), len(acct))
-	acctW := max(8, innerW-mascotW-2) // account fills the rest when there are no tips
-	var tips []string
-	if showTips {
-		tips = m.welcomeRight()
-		rows = max(rows, len(tips))
-		acctW = 24
-	}
-
-	body := make([]string, 0, rows)
-	for i := range rows {
-		line := padCell(at(mascot, i), mascotW) + "  " + padCell(at(acct, i), acctW)
-		if showTips {
-			line += stDim.Render("│ ") + at(tips, i)
-		}
-		body = append(body, line)
-	}
-	box := roundedBox("trqsh "+m.opts.Version, strings.Join(body, "\n"), m.width-2, colBrand, "")
-	return append(strings.Split(box, "\n"), "")
-}
-
-// at returns sl[i], or "" when out of range — for zipping ragged columns.
-func at(sl []string, i int) string {
-	if i >= 0 && i < len(sl) {
-		return sl[i]
-	}
-	return ""
-}
-
-func (m model) welcomeLeft() []string {
-	glyph, word, col := m.connState()
-	name := "guest"
-	email := stDim.Render("not signed in — /login")
-	plan := ""
-	if m.acct != nil {
-		name = firstNonEmpty(m.acct.User.Name, m.acct.User.Email, "you")
-		email = stDim.Render(m.acct.User.Email)
-		plan = firstNonEmpty(m.acct.Plan, m.acct.Org.Plan, "free") + " plan · "
-	}
-	return []string{
-		stBrand.Render("Welcome, " + name),
-		email,
-		stDim.Render(plan) + lipglossFg(col, glyph+" "+word),
-		"",
-	}
-}
-
-// refreshWelcome re-renders the banner in place so it reflects the account and
-// connection once they load — as long as it's still at the top of the transcript
-// (it won't be after /clear, where welcomeLen is reset to 0).
-func (m *model) refreshWelcome() {
-	if !m.welcomeShown || m.welcomeLen == 0 || len(m.transcript) < m.welcomeLen {
-		return
-	}
-	fresh := m.renderWelcome()
-	m.transcript = append(fresh, m.transcript[m.welcomeLen:]...)
-	m.welcomeLen = len(fresh)
-}
-
-func (m model) welcomeRight() []string {
-	return []string{
-		stTitle.Render("Getting started"),
-		stKey.Render("/") + stDim.Render("            browse all commands"),
-		stKey.Render("/http 3000") + stDim.Render("   expose a local port"),
-		stKey.Render("/qr") + stDim.Render("          pair this console to your phone"),
-	}
-}
-
-// padCell truncates/pads a (possibly styled) string to exactly w display cells.
-func padCell(s string, w int) string {
-	if lipgloss.Width(s) > w {
-		return ansi.Truncate(s, w, "…")
-	}
-	return s + strings.Repeat(" ", w-lipgloss.Width(s))
-}
-
-func (m model) renderInputBox() string {
-	ta := m.input // local copy — styling it here doesn't touch the real model
-	if m.selectAll {
-		ta.FocusedStyle.Text = stMenuSel
-		ta.FocusedStyle.Placeholder = stMenuSel
-	}
-	return inputBox(ta.View(), m.width)
-}
-
-func (m model) renderScrollHint() string {
-	if m.vp.AtBottom() {
-		return ""
-	}
-	return "  " + stWarn.Render("↓ more below") + stDim.Render("  ·  End to jump to latest, PgDn to scroll")
-}
-
-func (m model) renderHint() string {
-	if m.menuOpen() {
-		return "  " + stDim.Render("↑↓ select · tab complete · enter run · esc close")
-	}
-	return "  " + stDim.Render("↑↓ history · / commands · pgup/pgdn scroll · ctrl+c quit")
-}
-
-func (m model) renderMenu() []string {
-	if !m.menuOpen() {
-		return nil
-	}
-	const window = 7
-	start := 0
-	if m.menuIdx >= window {
-		start = m.menuIdx - window + 1
-	}
-	end := min(start+window, len(m.menuItems))
-	var out []string
-	for i := start; i < end; i++ {
-		e := m.menuItems[i]
-		label := pad(e.label, 26)
-		if i == m.menuIdx {
-			row := stMenuSel.Render(" " + label + " ")
-			if e.desc != "" {
-				row += "  " + stDim.Render(e.desc)
-			}
-			out = append(out, "  "+row)
-		} else {
-			row := "  " + stKey.Render(label)
-			if e.desc != "" {
-				row += "  " + stDim.Render(e.desc)
-			}
-			out = append(out, "  "+row)
-		}
-	}
-	return out
-}
-
-// firstNonEmpty returns the first non-blank value, or "".
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
-}
-
-// runtimePlatform is a tiny indirection so /version stays testable/readable.
+// runtimePlatform keeps /version's platform label in one place.
 func runtimePlatform() string { return runtime.GOOS + "/" + runtime.GOARCH }

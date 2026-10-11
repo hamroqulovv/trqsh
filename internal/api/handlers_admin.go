@@ -6,7 +6,10 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"mime"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -34,10 +37,47 @@ func (s *Server) adminEnabled() bool {
 // console answers only there, keeping it off the bare api.<base>.
 func (s *Server) isAdminHost(r *http.Request) bool {
 	host := r.Host
-	if xf := r.Header.Get("X-Forwarded-Host"); xf != "" {
-		host = xf
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
 	}
-	return strings.HasPrefix(strings.ToLower(host), "approve.")
+	return strings.EqualFold(strings.TrimSuffix(host, "."), "approve."+s.cfg.BaseDomain)
+}
+
+func (s *Server) adminCSRF(value string) string {
+	mac := hmac.New(sha256.New, []byte(s.cfg.JWTSecret))
+	mac.Write([]byte("admin-csrf|" + value))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func (s *Server) adminMutationAllowed(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		return true
+	}
+	expected := "http://" + r.Host
+	if r.TLS != nil {
+		expected = "https://" + r.Host
+	}
+	if s.cfg.IsProduction() {
+		if !s.isAdminHost(r) {
+			writeError(w, http.StatusForbidden, "invalid admin host")
+			return false
+		}
+		expected = "https://approve." + s.cfg.BaseDomain
+	}
+	origin := r.Header.Get("Origin")
+	u, err := url.Parse(origin)
+	if (s.cfg.IsProduction() || origin != "") && (err != nil || u.Scheme+"://"+u.Host != expected || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil) {
+		writeError(w, http.StatusForbidden, "invalid admin origin")
+		return false
+	}
+	if r.ContentLength != 0 {
+		kind, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil || kind != "application/json" {
+			writeError(w, http.StatusUnsupportedMediaType, "application/json required")
+			return false
+		}
+	}
+	return true
 }
 
 // handleRoot serves the admin console at the root of approve.<base> so the bare
@@ -87,6 +127,15 @@ func (s *Server) requireAdmin(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "not signed in")
 			return
 		}
+		if !s.adminMutationAllowed(w, r) {
+			return
+		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-CSRF-Token")), []byte(s.adminCSRF(c.Value))) != 1 {
+				writeError(w, http.StatusForbidden, "invalid CSRF token")
+				return
+			}
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -94,6 +143,9 @@ func (s *Server) requireAdmin(next http.Handler) http.Handler {
 func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 	if !s.adminEnabled() {
 		writeError(w, http.StatusNotFound, "admin console is disabled")
+		return
+	}
+	if !s.adminMutationAllowed(w, r) {
 		return
 	}
 	var req struct {
@@ -109,13 +161,14 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
+	value := s.signAdmin(time.Now().Add(adminTTL))
 	// #nosec G124 -- Secure is set below (s.cfg.IsProduction()); gosec's cookie check only recognizes a literal `true`, not a conditional
 	http.SetCookie(w, &http.Cookie{
-		Name: adminCookie, Value: s.signAdmin(time.Now().Add(adminTTL)), Path: "/",
+		Name: adminCookie, Value: value, Path: "/",
 		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode,
 		MaxAge: int(adminTTL.Seconds()),
 	})
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "csrf_token": s.adminCSRF(value)})
 }
 
 func (s *Server) handleAdminLogout(w http.ResponseWriter, r *http.Request) {
@@ -154,7 +207,9 @@ func adminOrgView(u store.User, o store.Org) map[string]any {
 // handleAdminSession is a cheap "am I signed in?" probe for the page (gated by
 // requireAdmin, so reaching it at all means yes).
 func (s *Server) handleAdminSession(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	c, _ := r.Cookie(adminCookie)
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "csrf_token": s.adminCSRF(c.Value)})
 }
 
 func (s *Server) handleAdminLookup(w http.ResponseWriter, r *http.Request) {

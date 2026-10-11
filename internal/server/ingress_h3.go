@@ -116,6 +116,14 @@ func (s *Server) startH3(ctx context.Context) error {
 func (s *Server) routeHTTPS(w http.ResponseWriter, r *http.Request) {
 	const scheme = "https" // h2 and h3 are both TLS-only
 	host := hostOnly(r.Host)
+	if s.isPlatformHost(host) {
+		if up := s.reservedUpstream(host); up != "" {
+			s.proxyToUpstreamH3(w, r, scheme, up)
+			return
+		}
+		http.NotFound(w, r)
+		return
+	}
 
 	bt := s.hub.LookupHost(host)
 	if bt == nil {
@@ -147,6 +155,7 @@ func (s *Server) routeHTTPS(w http.ResponseWriter, r *http.Request) {
 	r.Header.Set("X-Forwarded-Proto", scheme)
 	r.Header.Set("X-Forwarded-Host", host)
 	r.Header.Set("X-Request-Id", rid)
+	setForwardedIP(r.Header, r.RemoteAddr)
 
 	init := &proto.StreamInit{
 		ClientTunnelId: bt.clientTunnelID,
@@ -165,6 +174,10 @@ func (s *Server) routeHTTPS(w http.ResponseWriter, r *http.Request) {
 	// Serialize the request to the agent as HTTP/1.1 (agents speak h1.x on the
 	// data stream) and relay its response back over h3. r.Write streams the body,
 	// so large uploads aren't buffered in memory.
+	requestBody := countBody(r.Body)
+	r.Body = requestBody
+	var responseBytes int64
+	defer func() { s.recordUsage(bt, requestBody.n, responseBytes, 1) }()
 	if err := r.Write(st); err != nil {
 		http.Error(w, "502 tunnel write failed", http.StatusBadGateway)
 		return
@@ -183,9 +196,7 @@ func (s *Server) routeHTTPS(w http.ResponseWriter, r *http.Request) {
 	copyHeader(w.Header(), resp.Header)
 	s.setAltSvc(w.Header())
 	w.WriteHeader(resp.StatusCode)
-	n, _ := io.Copy(w, resp.Body)
-
-	s.recordUsage(bt, max64(r.ContentLength, 0), n, 1)
+	responseBytes, _ = io.Copy(w, resp.Body)
 }
 
 // proxyToUpstreamH3 reverse-proxies one h3 request to an internal reserved-host
@@ -207,11 +218,7 @@ func (s *Server) proxyToUpstreamH3(w http.ResponseWriter, r *http.Request, schem
 	outReq.Header.Set("X-Forwarded-Host", r.Host)
 	// Overwrite XFF with the true peer IP: the edge is the first public hop, so
 	// any inbound XFF is client-supplied and untrusted (matches proxyToUpstream).
-	if ip, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		outReq.Header.Set("X-Forwarded-For", ip)
-	} else if r.RemoteAddr != "" {
-		outReq.Header.Set("X-Forwarded-For", r.RemoteAddr)
-	}
+	setForwardedIP(outReq.Header, r.RemoteAddr)
 
 	resp, err := s.proxyClient.Do(outReq) // #nosec G704 -- upstream is a fixed reserved-host config value (site/dashboard/api, resolved via reservedUpstream), never user input, so this is not attacker-controllable SSRF
 	if err != nil {

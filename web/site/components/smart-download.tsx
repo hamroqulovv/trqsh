@@ -2,17 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Apple, ArrowRight, Download, Monitor, Terminal } from "lucide-react";
-import {
-  OS_DOWNLOADS,
-  OS_LABEL,
-  OS_ORDER,
-  primaryCli,
-  primaryDownload,
-  desktopVersion,
-  type Arch,
-  type OSId,
-} from "@/lib/downloads";
+import { Apple, ArrowRight, ArrowUpRight, Download, Monitor, Terminal, Check } from "lucide-react";
+import { OS_DOWNLOADS, OS_LABEL, OS_ORDER, primaryCli, archiveFor, checksumsUrl, type Arch, type OSId } from "@/lib/downloads";
 import { detectArch, detectOS } from "@/lib/detect";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
@@ -21,195 +12,101 @@ import { buttonVariants } from "./ui/button";
 
 const icons = { macos: Apple, windows: Monitor, linux: Terminal };
 
-export function SmartDownload({
-  variant = "card",
-  className,
-}: {
-  variant?: "hero" | "card";
-  className?: string;
-}) {
+export function SmartDownload({ variant = "card", className }: { variant?: "hero" | "card"; className?: string }) {
   const [os, setOs] = React.useState<OSId>("macos");
-  const [arch, setArch] = React.useState<Arch | null>(null);
-  const [auto, setAuto] = React.useState(true);
-  const [ready, setReady] = React.useState(false);
+  const [arch, setArch] = React.useState<Arch>("arm64");
+  const [method, setMethod] = React.useState("Shell");
+  const [suggested, setSuggested] = React.useState(false);
   const request = React.useRef(0);
   const archId = React.useId();
 
   React.useEffect(() => {
+    const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (mobile) return;
     const platform = detectOS();
     const current = ++request.current;
     setOs(platform);
-    setReady(true);
-    detectArch(platform).then((result) => {
+    setArch(platform === "macos" ? "arm64" : "amd64");
+    setMethod(primaryCli(platform).label);
+    setSuggested(true);
+    detectArch(platform).then(result => {
       if (current === request.current) setArch(result);
     });
-    return () => {
-      request.current++;
-    };
+    return () => { request.current++; };
   }, []);
 
   const selectOS = (platform: OSId) => {
-    const current = ++request.current;
+    request.current++;
     setOs(platform);
-    setArch(null);
-    setAuto(false);
-    detectArch(platform).then((result) => {
-      if (current === request.current) setArch(result);
-    });
+    // Changing the target platform must not reuse the host machine's CPU hint.
+    setArch(platform === "macos" ? "arm64" : "amd64");
+    setMethod(primaryCli(platform).label);
+    setSuggested(false);
   };
+  const platform = OS_DOWNLOADS[os];
+  const install = platform.cli.find(snippet => snippet.label === method) ?? primaryCli(os);
+  const archive = archiveFor(os, arch);
 
-  const primary = primaryDownload(os, arch);
-  const isDesktop = OS_DOWNLOADS[os].desktop.some(
-    (asset) => asset.href === primary.href,
+  if (variant === "hero") return (
+    <div className={cn("flex flex-wrap gap-3", className)}>
+      <Link href="/download" className={buttonVariants({ size: "xl" })}><Terminal size={16} aria-hidden="true" /> Get the CLI</Link>
+      <Link href="/docs/quickstart" className={buttonVariants({ variant: "outline", size: "xl" })}>Quickstart <ArrowRight size={16} aria-hidden="true" /></Link>
+    </div>
   );
-  const cli = primaryCli(os);
-  const architecture =
-    arch === "arm64"
-      ? os === "macos"
-        ? "Apple Silicon"
-        : "ARM64"
-      : arch === "amd64"
-        ? os === "macos"
-          ? "Intel"
-          : "x64"
-        : "";
-  const Icon = icons[os];
-
-  if (variant === "hero")
-    return (
-      <div className={cn("flex flex-wrap gap-3", className)}>
-        <a href={primary.href} className={buttonVariants({ size: "xl" })}>
-          <Download className="h-4 w-4" aria-hidden="true" /> Get trqsh for{" "}
-          {OS_LABEL[os]}
-        </a>
-        <Link
-          href="/download"
-          className={buttonVariants({ variant: "outline", size: "xl" })}
-        >
-          All downloads <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
-      </div>
-    );
 
   return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-xl border border-border bg-page",
-        className,
-      )}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-surface-2 px-5 py-4 sm:px-7">
-        <div
-          className="flex flex-wrap gap-1"
-          role="group"
-          aria-label="Operating system"
-        >
-          {OS_ORDER.map((platform) => {
-            const OsIcon = icons[platform];
-            return (
-              <button
-                key={platform}
-                type="button"
-                aria-pressed={os === platform}
-                onClick={() => selectOS(platform)}
-                className={cn(
-                  "inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
-                  os === platform
-                    ? "bg-page text-foreground shadow-sm"
-                    : "text-muted hover:text-foreground",
-                )}
-              >
-                <OsIcon className="h-4 w-4" aria-hidden="true" />
-                {OS_LABEL[platform]}
-              </button>
-            );
+    <section id="install-cli" aria-label="CLI installer" className={cn("cli-installer", className)}>
+      <div className="cli-platform-bar">
+        <div role="group" aria-label="Operating system" className="flex flex-wrap gap-1">
+          {OS_ORDER.map(id => {
+            const Icon = icons[id];
+            return <button type="button" key={id} aria-pressed={os === id} onClick={() => selectOS(id)} className={cn("cli-platform-button", os === id && "is-selected")}>
+              <Icon size={16} aria-hidden="true" />{OS_LABEL[id]}
+            </button>;
           })}
         </div>
-        <div className="flex items-center gap-3">
-          <label htmlFor={archId} className="text-xs text-muted">
-            Architecture
-          </label>
-          <select
-            id={archId}
-            value={arch ?? ""}
-            onChange={(event) => {
-              request.current++;
-              setArch(event.target.value as Arch);
-              setAuto(false);
-            }}
-            className="h-10 rounded-md border border-border bg-page px-3 text-xs"
-          >
-            {!arch && (
-              <option value="" disabled>
-                Detecting…
-              </option>
-            )}
-            <option value="amd64">{os === "macos" ? "Intel" : "x64"}</option>
-            <option value="arm64">
-              {os === "macos" ? "Apple Silicon" : "ARM64"}
-            </option>
-          </select>
-        </div>
+        <span className="text-xs text-muted">{suggested ? "Suggested platform · change anytime" : "Choose where you will run trqsh"}</span>
       </div>
-      <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-2 lg:gap-14">
-        <div>
-          <div className="mb-5 flex items-center gap-3">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-border">
-              <Icon className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-base font-semibold">
-                trqsh for {OS_LABEL[os]}
-              </p>
-              <p className="mt-0.5 text-xs text-muted">
-                {ready
-                  ? auto
-                    ? "Suggested for your machine"
-                    : "Your selected platform"
-                  : "Choose your platform"}
-                {architecture && ` · ${architecture}`}
-              </p>
-            </div>
-          </div>
-          <p className="mb-5 text-sm leading-relaxed text-secondary">
-            {isDesktop
-              ? "Manage your tunnels from a desktop workspace. Download the installer for your platform."
-              : "Get the CLI binary for this architecture. Unpack it, add it to your PATH, and you’re ready to connect."}
-          </p>
-          <a
-            href={primary.href}
-            className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}
-          >
-            <Download className="h-4 w-4" aria-hidden="true" />
-            {isDesktop ? "Download desktop app" : "Download CLI archive"}
-          </a>
-          <p className="mt-3 text-xs text-muted">
-            {isDesktop
-              ? `Desktop v${desktopVersion} · unsigned preview`
-              : `CLI v${site.version} · ${primary.kind ?? "archive"}`}
-          </p>
-          <p className="mt-1 text-xs text-muted">
-            {primary.label}
-            {primary.kind && isDesktop ? ` · .${primary.kind}` : ""}
-          </p>
-        </div>
+      <div className="cli-install-grid">
         <div className="min-w-0">
-          <p className="mb-2 text-base font-semibold">Prefer the terminal?</p>
-          <p className="mb-5 text-sm leading-relaxed text-secondary">
-            Install the CLI with{" "}
-            {cli.label === "Install script" ? "a single command" : cli.label},
-            then run it from your usual shell.
-          </p>
-          <CodeBlock code={cli.command} label={cli.label} prompt />
-          <Link
-            href="/download#all-platforms"
-            className="text-link mt-4 text-xs"
-          >
-            All downloads & package managers{" "}
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </Link>
+          <div className="mb-4 flex items-center gap-2 text-xs font-medium text-muted"><Terminal size={14} aria-hidden="true" /> INSTALL THE CLI</div>
+          <h2 className="text-2xl font-semibold tracking-tight">One command to get started.</h2>
+          <p className="mt-3 text-sm leading-relaxed text-secondary">Choose an installation method for {platform.name}. Run the command in your terminal.</p>
+          <div className="my-5 flex flex-wrap gap-2" role="group" aria-label="Installation method">
+            {platform.cli.map(snippet => <button key={snippet.label} type="button" onClick={() => setMethod(snippet.label)} aria-pressed={install.label === snippet.label} className={cn("cli-method-button", install.label === snippet.label && "is-selected")}>
+              {snippet.label}{snippet.recommended && <span className="text-[10px] text-muted">Recommended</span>}
+            </button>)}
+          </div>
+          <CodeBlock code={install.command} label={os === "windows" ? "PowerShell · " + install.label : "Terminal · " + install.label} />
+          <p className="mt-4 text-xs font-medium text-foreground">{install.requirement}</p>
+          <p className="mt-2 text-xs leading-relaxed text-secondary">{install.description}</p>
+          {install.label === "Shell" && <a href={site.installShUrl} className="mt-3 inline-flex items-center gap-1 text-xs text-secondary underline underline-offset-4">Read the install script <ArrowUpRight size={12} aria-hidden="true" /></a>}
+          <div className="mt-6 flex items-start gap-2 border-t border-border pt-5 text-xs leading-relaxed text-muted">
+            <Check size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>Already installed? Run <code className="text-foreground">trqsh --version</code>. Package-manager versions may differ from the binary release below.</span>
+          </div>
         </div>
+        <aside className="cli-archive-panel">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted"><Download size={14} aria-hidden="true" /> MANUAL DOWNLOAD</div>
+          <h3 className="mt-4 text-lg font-semibold">Prefer a standalone binary?</h3>
+          <p className="mt-3 text-sm leading-relaxed text-secondary">No Node.js or Python needed. Download the archive, extract it and add the binary to your PATH.</p>
+          <label htmlFor={archId} className="mb-2 mt-6 block text-xs font-medium">Processor architecture</label>
+          <select id={archId} value={arch} onChange={event => { request.current++; setArch(event.target.value as Arch); }} className="h-11 w-full rounded-lg border border-border-strong bg-page px-3 text-sm">
+            <option value="arm64">{os === "macos" ? "Apple Silicon · ARM64" : "ARM64"}</option>
+            <option value="amd64">{os === "macos" ? "Intel · x64" : "Intel / AMD · x64"}</option>
+          </select>
+          <p className="mt-2 text-xs leading-relaxed text-muted">Confirm the architecture of the computer where you’ll run the CLI.</p>
+          <a href={archive.href} className={cn(buttonVariants({ size: "lg" }), "mt-5 w-full")} data-cli-download>
+            <Download size={16} aria-hidden="true" /> Download for {platform.name}
+          </a>
+          <p className="mt-3 text-center font-mono text-[11px] text-muted">CLI v{site.version} · {archive.label} · .{archive.kind}</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-secondary">
+            <a href={checksumsUrl} className="underline underline-offset-4">SHA-256 checksums</a>
+            <Link href="/docs/installation#manual-archive" className="underline underline-offset-4">Manual setup guide</Link>
+          </div>
+        </aside>
       </div>
-    </div>
+    </section>
   );
 }

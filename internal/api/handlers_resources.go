@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/trqsh-uz/trqsh/internal/api/auth"
 	"github.com/trqsh-uz/trqsh/internal/api/store"
+	"github.com/trqsh-uz/trqsh/internal/platform"
 )
 
 func orgOf(r *http.Request) string {
@@ -88,6 +89,10 @@ func (s *Server) handleReserveSubdomain(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid subdomain")
 		return
 	}
+	if platform.ReservedSubdomain(sub) {
+		writeError(w, http.StatusForbidden, "subdomain is reserved for the platform")
+		return
+	}
 	org, err := s.store.GetOrg(r.Context(), orgOf(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -138,6 +143,10 @@ func (s *Server) handleAddDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	domain := strings.ToLower(strings.TrimSpace(req.Domain))
+	if platform.ReservedHost(domain, s.cfg.BaseDomain) {
+		writeError(w, http.StatusForbidden, "domain is reserved for the platform")
+		return
+	}
 	if domain == "" || !strings.Contains(domain, ".") {
 		writeError(w, http.StatusBadRequest, "invalid domain")
 		return

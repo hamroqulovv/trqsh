@@ -8,12 +8,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/trqsh-uz/trqsh/internal/platform"
 	"golang.org/x/net/http2"
 
 	"github.com/trqsh-uz/trqsh/pkg/proto"
@@ -134,6 +136,17 @@ func (s *Server) serveHTTPConn(conn net.Conn, scheme string) {
 			return
 		}
 
+		// Platform hosts take precedence even over legacy tunnel reservations.
+		if s.isPlatformHost(host) {
+			if up := s.reservedUpstream(host); up != "" {
+				if s.proxyToUpstream(conn, req, scheme, up) {
+					continue
+				}
+				return
+			}
+			writeHTTPResponse(conn, http.StatusNotFound, "Not Found", "text/plain", "404 not found\n")
+			return
+		}
 		bt := s.hub.LookupHost(host)
 		if bt == nil {
 			// Reserved control-plane hosts (apex/www → site, app → dashboard,
@@ -191,13 +204,7 @@ func (s *Server) serveHTTPConn(conn net.Conn, scheme string) {
 		// can't spoof its source IP to the tunneled app (bypassing that app's
 		// IP allowlist or poisoning its logs). conn.RemoteAddr is the real
 		// client even across an inter-edge hop (forwardedConn.RemoteAddr).
-		clientIP := conn.RemoteAddr().String()
-		if ip, _, err := net.SplitHostPort(clientIP); err == nil {
-			clientIP = ip
-		}
-		req.Header.Set("X-Forwarded-For", clientIP)
-		req.Header.Set("X-Real-Ip", clientIP)
-		req.Header.Del("Forwarded")
+		setForwardedIP(req.Header, conn.RemoteAddr().String())
 
 		init := &proto.StreamInit{
 			ClientTunnelId: bt.clientTunnelID,
@@ -232,12 +239,16 @@ func (s *Server) serveHTTPConn(conn net.Conn, scheme string) {
 			return
 		}
 
+		requestBody := countBody(req.Body)
+		req.Body = requestBody
 		if err := req.Write(st); err != nil {
+			s.recordUsage(bt, requestBody.n, 0, 1)
 			_ = st.Close()
 			return
 		}
 		resp, err := http.ReadResponse(bufio.NewReader(st), req)
 		if err != nil {
+			s.recordUsage(bt, requestBody.n, 0, 1)
 			_ = st.Close()
 			s.metrics.Errors.WithLabelValues("bad_response").Inc()
 			writeHTTPResponse(conn, http.StatusBadGateway, "Bad Gateway", "text/plain", "502 bad upstream response\n")
@@ -247,7 +258,11 @@ func (s *Server) serveHTTPConn(conn net.Conn, scheme string) {
 		// Advertise HTTP/3 so the browser upgrades subsequent requests off this
 		// HOL-blocking HTTP/1.1 connection (no-op when h3 is disabled).
 		s.setAltSvc(resp.Header)
-		if err := resp.Write(conn); err != nil {
+		responseBody := countBody(resp.Body)
+		resp.Body = responseBody
+		writeErr := resp.Write(conn)
+		s.recordUsage(bt, requestBody.n, responseBody.n, 1)
+		if writeErr != nil {
 			_ = resp.Body.Close()
 			_ = st.Close()
 			return
@@ -255,10 +270,6 @@ func (s *Server) serveHTTPConn(conn net.Conn, scheme string) {
 		_ = resp.Body.Close()
 		_ = st.Close()
 
-		// Both lengths are -1 when unknown (e.g. a chunked request or response with
-		// no Content-Length); clamp to 0 so an unknown length never records negative
-		// bytes into usage/billing. resp was already guarded; req had been missed.
-		s.recordUsage(bt, max64(req.ContentLength, 0), max64(resp.ContentLength, 0), 1)
 		if clientClose {
 			return
 		}
@@ -280,10 +291,46 @@ func hostOnly(hostport string) string {
 	h := strings.ToLower(strings.TrimSpace(hostport))
 	if strings.Contains(h, ":") {
 		if host, _, err := net.SplitHostPort(h); err == nil {
-			return host
+			return strings.TrimSuffix(host, ".")
 		}
 	}
-	return h
+	return strings.TrimSuffix(h, ".")
+}
+
+func (s *Server) isPlatformHost(host string) bool {
+	return platform.ReservedHost(hostOnly(host), s.cfg.BaseDomain)
+}
+
+func setForwardedIP(h http.Header, remote string) {
+	ip := remote
+	if host, _, err := net.SplitHostPort(remote); err == nil {
+		ip = host
+	}
+	h.Del("Forwarded")
+	h.Del("X-Forwarded-For")
+	h.Del("X-Real-IP")
+	if ip != "" {
+		h.Set("X-Forwarded-For", ip)
+		h.Set("X-Real-IP", ip)
+	}
+}
+
+type countingBody struct {
+	io.ReadCloser
+	n int64
+}
+
+func countBody(body io.ReadCloser) *countingBody {
+	if body == nil {
+		body = http.NoBody
+	}
+	return &countingBody{ReadCloser: body}
+}
+
+func (b *countingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	b.n += int64(n)
+	return n, err
 }
 
 // reservedUpstream returns the internal upstream for a reserved control-plane
@@ -393,11 +440,7 @@ func (s *Server) proxyToUpstream(conn net.Conn, req *http.Request, scheme, upstr
 	// public hop, so any inbound XFF is client-supplied and untrusted. Downstream
 	// clientIP() (TRQSH_TRUST_PROXY) reads the first element, so without this every
 	// client collapses to the Docker-bridge IP and shares one rate-limit bucket.
-	if ip, _, err := net.SplitHostPort(conn.RemoteAddr().String()); err == nil {
-		outReq.Header.Set("X-Forwarded-For", ip)
-	} else {
-		outReq.Header.Set("X-Forwarded-For", conn.RemoteAddr().String())
-	}
+	setForwardedIP(outReq.Header, conn.RemoteAddr().String())
 
 	resp, err := s.proxyClient.Do(outReq)
 	if err != nil {
@@ -484,11 +527,4 @@ func writeUnauthorized(conn net.Conn) {
 
 func newRequestID() string {
 	return "req_" + randSubdomain(12)
-}
-
-func max64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
 }

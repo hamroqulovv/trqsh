@@ -8,30 +8,21 @@
 set -eu
 
 # CLI releases publish to their own dedicated repo (source stays in
-# uzcreator/trqsh; see .goreleaser.yaml).
-REPO="${TRQSH_REPO:-uzcreator/trqshcli}"
+# algorithco/trqsh; see .goreleaser.yaml).
+REPO="${TRQSH_REPO:-algorithco/trqshcli}"
 BINDIR="${TRQSH_BINDIR:-}"
-# Fallback only if the version can't be resolved dynamically below (offline,
-# API rate-limited, etc.) — bump occasionally, but going stale here just
-# degrades the fallback, since the common path always resolves the real
-# latest release.
-FALLBACK_VERSION="0.1.5"
 
-say() { printf 'trqsh: %s\n' "$1" >&2; }
-die() { printf 'trqsh: error: %s\n' "$1" >&2; exit 1; }
+say() { printf '  [ok] %s\n' "$1" >&2; }
+die() { printf '  [x] %s\n' "$1" >&2; exit 1; }
+printf '\n  trqsh / install\n  Localhost, online.\n\n' >&2
 
 resolve_latest_version() {
-  # CLI (v*) and desktop GUI (desktop-v*) releases share this repo and
-  # interleave by date, so GitHub's /releases/latest can't be used directly —
-  # it can return a desktop build. List releases and take the newest v* tag
-  # instead. Drafts are already excluded by the public API; prereleases
-  # aren't filtered here (this project doesn't currently tag any) since a
-  # full JSON parse without jq isn't worth it for a shell installer.
-  url="https://api.github.com/repos/${REPO}/releases?per_page=30"
+  # The dedicated CLI repo's latest endpoint excludes prereleases/drafts.
+  url="https://api.github.com/repos/${REPO}/releases/latest"
   if command -v curl >/dev/null 2>&1; then
-    body=$(curl -fsSL "$url" 2>/dev/null) || return 0
+    body=$(curl -fsSL --connect-timeout 15 --max-time 60 "$url" 2>/dev/null) || return 0
   elif command -v wget >/dev/null 2>&1; then
-    body=$(wget -qO- "$url" 2>/dev/null) || return 0
+    body=$(wget --timeout=30 --tries=2 -qO- "$url" 2>/dev/null) || return 0
   else
     return 0
   fi
@@ -45,10 +36,12 @@ VERSION="${TRQSH_VERSION:-}"
 if [ -z "$VERSION" ]; then
   VERSION=$(resolve_latest_version)
   if [ -z "$VERSION" ]; then
-    say "could not resolve the latest version (offline or API rate-limited?) — using ${FALLBACK_VERSION}"
-    VERSION="$FALLBACK_VERSION"
+    die 'Could not resolve latest release. Retry or set TRQSH_VERSION.'
   fi
 fi
+
+VERSION=${VERSION#v}
+case "$VERSION" in ''|*[!0-9A-Za-z.+-]*) die 'Invalid TRQSH_VERSION.' ;; esac
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$os" in
@@ -64,40 +57,58 @@ case "$arch" in
   *) die "unsupported architecture '$arch'" ;;
 esac
 
+say "Platform  $goos / $goarch"
+say "Release  v$VERSION"
 archive="trqsh_${VERSION}_${goos}_${goarch}.tar.gz"
-base="https://github.com/${REPO}/releases/download/v${VERSION}"
+base="${TRQSH_DOWNLOAD_BASE:-https://github.com/${REPO}/releases/download/v${VERSION}}"
 
 tmp=$(mktemp -d 2>/dev/null || mktemp -d -t trqsh)
-trap 'rm -rf "$tmp"' EXIT INT TERM
+staged=''
+cleanup() { [ -z "$staged" ] || rm -f "$staged"; rm -rf "$tmp"; }
+trap cleanup 0
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 download() {
   # download <url> <dest>
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$1" -o "$2"
+    curl -fsSL --connect-timeout 15 --max-time 300 "$1" -o "$2"
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO "$2" "$1"
+    wget --timeout=30 --tries=2 -qO "$2" "$1"
   else
     die "need curl or wget to download"
   fi
 }
 
-say "downloading ${archive} (v${VERSION})..."
-download "${base}/${archive}" "${tmp}/${archive}"
+printf '  [..] Downloading  %s\n' "$archive" >&2
+download "${base}/${archive}" "${tmp}/${archive}" || die 'Download failed. Retry installation.'
+say "Downloaded  $(wc -c < "$tmp/$archive" | tr -d ' ') bytes"
 
-# Best-effort checksum verification.
-if [ "${TRQSH_SKIP_CHECKSUM:-0}" != "1" ] && command -v sha256sum >/dev/null 2>&1; then
-  if download "${base}/checksums.txt" "${tmp}/checksums.txt" 2>/dev/null; then
-    want=$(grep " ${archive}\$" "${tmp}/checksums.txt" 2>/dev/null | awk '{print $1}' || true)
-    if [ -n "${want:-}" ]; then
-      got=$(sha256sum "${tmp}/${archive}" | awk '{print $1}')
-      [ "$want" = "$got" ] || die "checksum mismatch for ${archive}"
-      say "checksum verified"
-    fi
+if [ "${TRQSH_SKIP_CHECKSUM:-0}" = "1" ]; then
+  printf '  [!] Verification skipped  TRQSH_SKIP_CHECKSUM=1\n' >&2
+else
+  download "${base}/checksums.txt" "${tmp}/checksums.txt" || die 'Could not fetch checksums.txt.'
+  want=$(awk -v file="$archive" '{ name=$2; sub(/^\*/, "", name); if (name == file) {print tolower($1); exit} }' "$tmp/checksums.txt")
+  [ -n "$want" ] || die 'Archive missing from checksums.txt.'
+  if command -v sha256sum >/dev/null 2>&1; then
+    got=$(sha256sum "$tmp/$archive" | awk '{print $1}')
+  elif command -v shasum >/dev/null 2>&1; then
+    got=$(shasum -a 256 "$tmp/$archive" | awk '{print $1}')
+  else
+    die 'Need sha256sum or shasum to verify the download.'
   fi
+  [ "$want" = "$got" ] || die "Checksum mismatch for $archive"
+  say 'Verified  SHA-256'
 fi
 
-tar -xzf "${tmp}/${archive}" -C "${tmp}"
+printf '  [..] Installing  Native CLI\n' >&2
+tar -xzf "${tmp}/${archive}" -C "${tmp}" || die 'Could not extract archive.'
 [ -f "${tmp}/trqsh" ] || die "trqsh binary missing from archive"
+[ ! -L "$tmp/trqsh" ] || die 'Expected a regular binary.'
+chmod 0755 "$tmp/trqsh"
+actual=$("$tmp/trqsh" --version) || die 'Downloaded binary could not run.'
+reported=$(printf '%s\n' "$actual" | awk '$1 == "trqsh" {sub(/^v/, "", $2); print $2; exit}')
+[ "$reported" = "$VERSION" ] || die 'Downloaded binary version does not match release.'
 
 # Choose an install dir on PATH that we can write to.
 if [ -z "$BINDIR" ]; then
@@ -109,14 +120,14 @@ if [ -z "$BINDIR" ]; then
 fi
 mkdir -p "$BINDIR"
 
-if install -m 0755 "${tmp}/trqsh" "${BINDIR}/trqsh" 2>/dev/null; then :; else
-  cp "${tmp}/trqsh" "${BINDIR}/trqsh"
-  chmod 0755 "${BINDIR}/trqsh"
-fi
+staged=$(mktemp "$BINDIR/.trqsh-install.XXXXXX") || die 'Install directory is not writable.'
+cp "$tmp/trqsh" "$staged" && chmod 0755 "$staged" || die 'Could not stage binary.'
+mv -f "$staged" "$BINDIR/trqsh" || die 'Could not replace binary.'
+staged=''
 
 say "installed to ${BINDIR}/trqsh"
 case ":${PATH}:" in
   *":${BINDIR}:"*) ;;
   *) say "add ${BINDIR} to your PATH to run 'trqsh' from anywhere" ;;
 esac
-say "run 'trqsh http 3000' to expose localhost:3000"
+printf '\n  Installed successfully. Run: trqsh\n\n' >&2

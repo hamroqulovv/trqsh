@@ -119,7 +119,16 @@ func (d *Dialer) dialTCP(ctx context.Context, addr string) (Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	tlsConn := tls.Client(raw, d.tlsClone())
+	tlsConfig := d.tlsClone()
+	if tlsConfig.ServerName == "" {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			_ = raw.Close()
+			return nil, err
+		}
+		tlsConfig.ServerName = host
+	}
+	tlsConn := tls.Client(raw, tlsConfig)
 	if err := tlsConn.HandshakeContext(dctx); err != nil {
 		_ = raw.Close()
 		return nil, err

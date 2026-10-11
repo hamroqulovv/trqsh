@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -430,6 +432,13 @@ func (m *MemStore) CountCustomDomains(_ context.Context, orgID string) (int, err
 func (m *MemStore) UpsertUsage(_ context.Context, u UsageRecord) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if u.EventID != "" {
+		for _, old := range m.usage {
+			if old.EventID == u.EventID {
+				return nil
+			}
+		}
+	}
 	m.usage = append(m.usage, u)
 	return nil
 }
@@ -446,6 +455,47 @@ func (m *MemStore) UsageForOrg(_ context.Context, orgID string, since time.Time)
 		}
 	}
 	return agg, nil
+}
+
+// Usage windows belong to the interval in which they end: (start, end].
+func (m *MemStore) UsageForOrgWindow(_ context.Context, orgID string, start, end time.Time) (UsageRecord, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	agg := UsageRecord{OrgID: orgID, WindowStart: start, WindowEnd: end}
+	for _, u := range m.usage {
+		if u.OrgID == orgID && u.WindowEnd.After(start) && !u.WindowEnd.After(end) {
+			agg.BytesIn += u.BytesIn
+			agg.BytesOut += u.BytesOut
+			agg.Requests += u.Requests
+		}
+	}
+	return agg, nil
+}
+
+func (m *MemStore) BillingTransaction(ctx context.Context, fn func(Store) error) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Billing mutates orgs, subscriptions, events and the metering queue. Other
+	// data is available for reads while this lock excludes concurrent writers.
+	tx := &MemStore{
+		users: m.users, usersEmail: m.usersEmail, members: m.members,
+		keys: m.keys, keyPrefix: m.keyPrefix, subs: m.subs, subByName: m.subByName,
+		domains: m.domains, domByName: m.domByName, usage: m.usage, tunnels: m.tunnels,
+		orgs: maps.Clone(m.orgs), subsByOrg: maps.Clone(m.subsByOrg), subsByStripe: maps.Clone(m.subsByStripe),
+		events: maps.Clone(m.events), metered: slices.Clone(m.metered), meteredSeq: m.meteredSeq,
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.orgs, m.subsByOrg, m.subsByStripe = tx.orgs, tx.subsByOrg, tx.subsByStripe
+	m.events, m.metered, m.meteredSeq = tx.events, tx.metered, tx.meteredSeq
+	return nil
 }
 
 func (m *MemStore) UsageSeriesForOrg(_ context.Context, orgID string, since time.Time, bucket string) ([]UsageBucket, error) {
@@ -761,11 +811,6 @@ func (m *MemStore) MarkEventProcessed(_ context.Context, eventID, _ string) (boo
 func (m *MemStore) InsertMeteredUsage(_ context.Context, u MeteredUsage) (MeteredUsage, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, e := range m.metered {
-		if e.OrgID == u.OrgID && e.Metric == u.Metric && e.WindowStart.Equal(u.WindowStart) {
-			return MeteredUsage{}, ErrConflict
-		}
-	}
 	m.meteredSeq++
 	u.ID = m.meteredSeq
 	if u.CreatedAt.IsZero() {
@@ -788,6 +833,28 @@ func (m *MemStore) PendingMeteredUsage(_ context.Context, limit int) ([]MeteredU
 		}
 	}
 	return out, nil
+}
+
+func (m *MemStore) MeteredForWindow(_ context.Context, orgID, metric string, start, end time.Time) (int64, time.Time, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var quantity int64
+	lastEnd := start
+	for _, u := range m.metered {
+		if u.OrgID != orgID || u.Metric != metric {
+			continue
+		}
+		if u.WindowStart.Before(end) && u.WindowEnd.After(start) {
+			if u.WindowStart.Before(start) || u.WindowEnd.After(end) {
+				return 0, start, ErrConflict
+			}
+			quantity += u.Quantity
+			if u.WindowEnd.After(lastEnd) {
+				lastEnd = u.WindowEnd
+			}
+		}
+	}
+	return quantity, lastEnd, nil
 }
 
 func (m *MemStore) MarkMeteredUsageReported(_ context.Context, ids []int64, at time.Time) error {

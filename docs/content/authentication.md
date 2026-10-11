@@ -1,49 +1,102 @@
 # Authentication
 
-The agent authenticates to the edge with an **API key**. The dashboard uses JWT
-sessions; you never need those for the CLI.
+The agent uses an **API key** to authenticate to the edge and Control API. Browser dashboard sessions use access and refresh tokens. The local agent also has a separate loopback control token; it is not your cloud API key.
 
-## Interactive login
+## Browser sign-in
 
-```sh
-trqsh login
-```
+Launch `trqsh` in a terminal and enter:
 
-This starts a device-authorization flow: the CLI shows a short code, opens your
-browser, and once you approve, it stores an API key in `~/.trqsh-uz/trqsh.yml`. This is
-the easiest path and works on any machine with a browser.
+~~~text
+/login
+~~~
 
-## API keys
+1. trqsh requests a device code and prints an approval URL.
+2. Open that URL in your browser.
+3. Sign in using the options available on that deployment.
+4. Check the displayed code and approve this device.
+5. Return to the console and run `/whoami`.
 
-API keys look like `tq_live_…`. Create and manage them in the dashboard under
-**API keys**. A key is shown **once** at creation — copy it then. Keys are hashed
-at rest and can be revoked at any time.
+Device approvals expire after **10 minutes**. If the code expires, start `/login` again. OAuth providers appear only when the operator has configured them.
 
-Provide a key without `trqsh login` in any of these ways (highest priority first):
+The local development stack also supports passwordless email sign-in in explicit development mode. That shortcut is a development feature, not a production authentication method.
 
-1. A flag: `trqsh http 3000 --api-key tq_live_…`
-2. An environment variable: `export TRQSH_API_KEY=tq_live_…`
-3. The config file: set `api_key` in `~/.trqsh-uz/trqsh.yml` (see [Configuration](/docs/configuration)).
+## Use an existing API key
 
-Environment variables are ideal for CI, where you'd store the key as a secret.
+Create a key under **API keys** in the dashboard. Copy it immediately: the full value is returned once; later listings show its prefix and metadata.
 
-## Which key for which machine
+Inside the console:
 
-Use a **separate key per machine or CI pipeline** so you can revoke one without
-disrupting the others, and so usage is attributable. Revoking a key immediately
-stops any agent using it — the next bind fails with
-[`ERR_AUTH_INVALID`](/docs/errors#err_auth_invalid).
+~~~text
+/login YOUR_API_KEY
+/whoami
+~~~
 
-## Logging out
+Treat direct-key input as sensitive: it can remain in terminal history or screenshots. An environment variable is preferable when another tool supplies the secret.
 
-```sh
-trqsh logout
-```
+On macOS/Linux, set the key before launching:
 
-This removes the stored key from your config. Revoke the key in the dashboard too
-if the machine is shared or compromised.
+~~~sh
+export TRQSH_API_KEY="YOUR_API_KEY"
+trqsh
+~~~
 
-## Common errors
+On Windows PowerShell:
 
-- [`ERR_AUTH_REQUIRED`](/docs/errors#err_auth_required) — no key was provided.
-- [`ERR_AUTH_INVALID`](/docs/errors#err_auth_invalid) — the key was rejected or revoked.
+~~~powershell
+$env:TRQSH_API_KEY = "YOUR_API_KEY"
+trqsh
+~~~
+
+`YOUR_API_KEY` is a placeholder, not a working credential. There is no root `--api-key` flag in the current console launcher.
+
+## Storage and precedence
+
+The normal config location is:
+
+- macOS/Linux: `~/.trqsh/trqsh.yml`
+- Windows: `%USERPROFILE%\.trqsh\trqsh.yml`
+
+The key is persisted in the YAML `api_key` field, **not an OS keychain**. Config writes use restrictive permissions on Unix; on Windows, protect the user profile using its filesystem permissions.
+
+The loader applies defaults, the config file, then supported environment variables. Root flags override the fields they expose. See [Configuration](/docs/configuration) for the exact list.
+
+For a custom persistent location, set `TRQSH_CONFIG` before launching. Browser/direct-key login persists to that environment-selected path. `--config` alone changes the file read at startup; use `TRQSH_CONFIG` when you also need login persistence at the custom path.
+
+## Check sign-in and connectivity
+
+~~~text
+/whoami
+/status
+~~~
+
+`/whoami` checks your account and effective plan through the Control API. `/status` shows the agent connection to the edge. The agent connects to the edge when a tunnel starts, so an idle agent may be signed in while its edge status is disconnected.
+
+A key from one self-hosted deployment does not authenticate to another. Configure both `api_base` and `server` for the same deployment.
+
+## Rotate or revoke a key
+
+Create a separate key for each computer or automation. To rotate one:
+
+1. Create a replacement key in the dashboard.
+2. Update that computer's environment/config or sign in with the replacement.
+3. Restart the agent if it was already running.
+4. Verify a new tunnel works.
+5. Revoke the old key in the dashboard.
+
+Revocation rejects subsequent API authentication and tunnel bind checks. Do not assume it forcibly disconnects every already-established stream immediately.
+
+## Sign out
+
+~~~text
+/logout
+~~~
+
+The logout action stops the local agent's tunnels and clears the stored key. It does not revoke the cloud key. Revoke that key separately if you no longer trust the machine.
+
+If `TRQSH_API_KEY` remains set, a later agent launch loads it again. Remove the environment variable as well when signing out completely.
+
+## Common failures
+
+- [ERR_AUTH_REQUIRED](/docs/errors#err_auth_required): supply a key or complete device approval.
+- [ERR_AUTH_INVALID](/docs/errors#err_auth_invalid): check the key, its revocation state and the selected deployment.
+- Browser sign-in works but tunneling fails: verify the edge address/port in [Troubleshooting](/docs/troubleshooting).

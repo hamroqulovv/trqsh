@@ -9,17 +9,17 @@ export default function DocsLayout({
 }) {
   return (
     <>
-      <div className="shell">
-        <div className="lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-12">
+      <div className="docs-shell">
+        <div className="docs-layout">
           {/* Desktop sidebar */}
-          <aside className="sticky top-[72px] hidden max-h-[calc(100vh-72px)] self-start overflow-y-auto py-10 pr-2 lg:block">
+          <aside className="docs-sidebar-rail">
             <DocsSidebar />
           </aside>
 
           {/* Mobile disclosure nav */}
           <DocsMobileNav />
 
-          <main id="main-content" tabIndex={-1} className="min-w-0">
+          <main id="main-content" tabIndex={-1} className="docs-main min-w-0">
             {children}
           </main>
         </div>

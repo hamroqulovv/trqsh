@@ -12,6 +12,7 @@ import {
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
+import { Tilt } from "./tilt";
 
 const examples = {
   HTTP: {
@@ -41,113 +42,158 @@ const examples = {
 } as const;
 type Protocol = keyof typeof examples;
 
+function TunnelConnection({ port }: { port: string }) {
+  return (
+    <div className="connection-diagram relative px-4 pb-5 pt-6 sm:px-6">
+      <svg
+        className="connection-track"
+        viewBox="0 0 360 48"
+        fill="none"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path d="M 60 24 H 300" className="connection-line" />
+        <path
+          d="M 60 24 H 300"
+          pathLength="100"
+          className="connection-packet"
+        />
+      </svg>
+      <div className="relative grid grid-cols-3 gap-2 text-center">
+        <div className="flex min-w-0 flex-col items-center">
+          <span className="connection-node">
+            <Laptop className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <p className="mt-3 text-[11px] font-medium">Your machine</p>
+          <p className="mt-1 font-mono text-[9px] text-muted sm:text-[10px]">
+            localhost:{port}
+          </p>
+        </div>
+        <div className="flex min-w-0 flex-col items-center">
+          <span className="connection-node connection-node-center">
+            <Terminal className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <p className="mt-3 text-[11px] font-medium">trqsh</p>
+          <p className="mt-1 text-[10px] text-muted">Encrypted tunnel</p>
+        </div>
+        <div className="flex min-w-0 flex-col items-center">
+          <span className="connection-node">
+            <Globe className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <p className="mt-3 text-[11px] font-medium">The internet</p>
+          <p className="mt-1 text-[10px] text-muted">A public endpoint</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TunnelPreview() {
   const [protocol, setProtocol] = React.useState<Protocol>("HTTP");
   const example = examples[protocol];
 
   return (
-    <div className="min-w-0">
-      <div className="overflow-hidden rounded-xl border border-border bg-page shadow-[0_18px_60px_-25px_rgb(0_0_0/0.16)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-secondary">
-            <Terminal className="h-4 w-4" aria-hidden="true" /> Your next tunnel
-          </div>
-          <span className="rounded border border-border px-2 py-1 font-mono text-[10px] text-muted">
-            INTERACTIVE EXAMPLE
-          </span>
-        </div>
-        <div className="border-t border-border px-5 py-3">
-          <div
-            className="inline-flex gap-1 rounded-lg bg-surface-2 p-1"
-            role="group"
-            aria-label="Tunnel protocol"
-          >
-            {(Object.keys(examples) as Protocol[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setProtocol(item)}
-                aria-pressed={protocol === item}
-                className={cn(
-                  "min-h-9 rounded-md px-5 text-xs font-medium transition-colors",
-                  protocol === item
-                    ? "bg-page text-foreground shadow-sm"
-                    : "text-muted hover:text-foreground",
-                )}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="product-terminal px-5 py-6 sm:px-6">
-          <div className="mb-7 flex items-center gap-1.5" aria-hidden="true">
-            <span className="h-2 w-2 rounded-full bg-white/30" />
-            <span className="h-2 w-2 rounded-full bg-white/20" />
-            <span className="h-2 w-2 rounded-full bg-white/10" />
-            <span className="ml-2 font-mono text-[10px] text-muted">
-              terminal
+    <div className="tunnel-preview min-w-0">
+      <div className="tunnel-frame">
+        <Tilt
+          max={3}
+          className="tunnel-card overflow-hidden rounded-2xl border border-border-strong bg-surface"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-secondary">
+              <Terminal className="h-4 w-4" aria-hidden="true" /> Your next
+              tunnel
+            </div>
+            <span className="flex items-center gap-1.5 rounded border border-border px-2 py-1 font-mono text-[9px] tracking-wide text-muted">
+              <span
+                className="h-1 w-1 rounded-full bg-secondary"
+                aria-hidden="true"
+              />{" "}
+              INTERACTIVE DEMO
             </span>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <code className="text-[13px] sm:text-sm">
-              <span className="mr-2 text-muted" aria-hidden="true">
-                $
-              </span>
-              {example.command}
-            </code>
-            <CopyButton key={protocol} value={example.command} />
-          </div>
-          <div
-            className="mt-7 space-y-2 font-mono text-xs leading-6 text-secondary"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <p>
-              <span className="mr-2 text-foreground" aria-hidden="true">
-                ●
-              </span>
-              session online{" "}
-              <span className="ml-2 text-muted">transport quic</span>
-            </p>
-            <p className="text-muted">Forwarding to {example.local}</p>
-            <p className="break-all text-sm text-foreground">
-              {example.remote}
-            </p>
-          </div>
-          <div className="mt-7 border-t border-border pt-3 font-mono text-[10px] text-muted">
-            Sample output · run the command to create your own URL
-          </div>
-        </div>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-5 py-5">
-          <div className="flex items-center gap-2.5">
-            <Laptop
-              className="h-4 w-4 shrink-0 text-secondary"
-              aria-hidden="true"
-            />
-            <div>
-              <p className="text-xs font-medium">Your machine</p>
-              <p className="mt-0.5 font-mono text-[10px] text-muted">
-                localhost:{example.port}
-              </p>
+          <div className="border-t border-border px-5 py-3">
+            <div
+              className="protocol-selector relative isolate grid grid-cols-3 rounded-lg border border-border bg-surface-2 p-1"
+              style={
+                {
+                  "--protocol-index": Object.keys(examples).indexOf(protocol),
+                } as React.CSSProperties
+              }
+              role="group"
+              aria-label="Tunnel protocol"
+            >
+              <span className="protocol-indicator" aria-hidden="true" />
+              {(Object.keys(examples) as Protocol[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setProtocol(item)}
+                  aria-pressed={protocol === item}
+                  className={cn(
+                    "relative min-h-9 rounded-md px-5 text-xs font-medium transition-colors",
+                    protocol === item
+                      ? "text-foreground"
+                      : "text-muted hover:text-foreground",
+                  )}
+                >
+                  {item}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="flex items-center text-muted" aria-hidden="true">
-            <span className="h-px w-5 bg-border" />
-            <ArrowRight className="h-3.5 w-3.5" />
-            <span className="h-px w-5 bg-border" />
-          </div>
-          <div className="flex items-center justify-end gap-2.5">
-            <Globe
-              className="h-4 w-4 shrink-0 text-secondary"
-              aria-hidden="true"
-            />
-            <div>
-              <p className="text-xs font-medium">The internet</p>
-              <p className="mt-0.5 text-[10px] text-muted">A public endpoint</p>
+          <div className="product-terminal px-5 py-6 sm:px-6">
+            <div className="mb-7 flex items-center gap-1.5" aria-hidden="true">
+              <span className="h-2 w-2 rounded-full bg-white/30" />
+              <span className="h-2 w-2 rounded-full bg-white/20" />
+              <span className="h-2 w-2 rounded-full bg-white/10" />
+              <span className="ml-2 font-mono text-[10px] text-muted">
+                terminal
+              </span>
+            </div>
+            <div className="flex min-h-8 items-center justify-between gap-2">
+              <code className="min-w-0 text-[13px] sm:text-sm">
+                <span className="mr-2 text-muted" aria-hidden="true">
+                  $
+                </span>
+                <span key={protocol} className="terminal-command">
+                  {example.command}
+                </span>
+                <span className="terminal-caret" aria-hidden="true">
+                  ▍
+                </span>
+              </code>
+              <CopyButton key={protocol} value={example.command} />
+            </div>
+            <div
+              className="mt-7 space-y-2 font-mono text-xs leading-6 text-secondary"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <div key={protocol} className="space-y-2">
+                <p className="terminal-row flex flex-wrap items-center gap-x-2">
+                  <span className="terminal-status-dot" aria-hidden="true" />
+                  session online
+                  <span className="text-muted">· transport quic</span>
+                </p>
+                <p className="terminal-row text-muted">
+                  Forwarding to {example.local}
+                </p>
+                <p className="terminal-row terminal-url break-all rounded-md border border-white/10 bg-white/[0.035] px-3 py-2 text-xs text-foreground sm:text-sm">
+                  <ArrowRight
+                    className="mr-2 inline h-3.5 w-3.5 text-muted"
+                    aria-hidden="true"
+                  />
+                  {example.remote}
+                </p>
+              </div>
+            </div>
+            <div className="mt-7 border-t border-border pt-3 font-mono text-[10px] text-muted">
+              Sample output · run the command to create your own URL
             </div>
           </div>
-        </div>
+          <TunnelConnection port={example.port} />
+        </Tilt>
       </div>
       <div className="mt-4 flex items-start justify-between gap-4 px-1 text-xs text-muted">
         <p>{example.detail}</p>

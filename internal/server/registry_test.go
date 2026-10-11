@@ -43,7 +43,7 @@ func TestInMemoryRegistryBindLookupUnbind(t *testing.T) {
 	if got != bind {
 		t.Errorf("Lookup = %+v, want %+v", got, bind)
 	}
-	if err := reg.Unbind(ctx, route); err != nil {
+	if err := reg.Unbind(ctx, route, bind); err != nil {
 		t.Fatalf("Unbind: %v", err)
 	}
 	if _, ok, _ := reg.Lookup(ctx, route); ok {

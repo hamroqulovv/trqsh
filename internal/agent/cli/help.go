@@ -36,6 +36,7 @@ var rootExamples = []string{
 	"trqsh http 3000              expose port 3000, then keep working",
 	"trqsh http 8080 --subdomain myapp",
 	"trqsh login                  sign in",
+	"trqsh setup                  open the welcome guide",
 }
 
 // nameColWidth is the padded width of the command-name column in help listings.

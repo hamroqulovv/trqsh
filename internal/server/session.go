@@ -143,7 +143,10 @@ func (s *Server) heartbeat(ctx context.Context, a *agentSession) {
 
 // teardownSession removes a dead session and releases all its tunnels.
 func (s *Server) teardownSession(ctx context.Context, a *agentSession) {
+	a.bindMu.Lock()
+	defer a.bindMu.Unlock()
 	a.mu.Lock()
+	a.closed = true
 	tunnels := make([]*boundTunnel, 0, len(a.tunnels))
 	for _, bt := range a.tunnels {
 		tunnels = append(tunnels, bt)

@@ -1,4 +1,5 @@
 import { SiteFooter } from "@/components/site-footer";
+import { PageTransition } from "@/components/page-transition";
 
 export default function MarketingLayout({
   children,
@@ -8,7 +9,7 @@ export default function MarketingLayout({
   return (
     <>
       <main id="main-content" tabIndex={-1}>
-        {children}
+        <PageTransition>{children}</PageTransition>
       </main>
       <SiteFooter />
     </>

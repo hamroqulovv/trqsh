@@ -186,16 +186,18 @@ const adminPageHTML = `<!doctype html>
 
 <script>
   var $ = function(id){return document.getElementById(id)};
+  var csrfToken = '';
   function api(method, path, body){
     return fetch(path, {
       method: method,
-      headers: body ? {'Content-Type':'application/json'} : {},
+      headers: Object.assign(body ? {'Content-Type':'application/json'} : {}, csrfToken ? {'X-CSRF-Token':csrfToken} : {}),
       body: body ? JSON.stringify(body) : undefined,
       credentials: 'same-origin'
     }).then(function(r){
       return r.text().then(function(t){
         var j = {}; try{ j = t ? JSON.parse(t) : {} }catch(e){}
         if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        if(j.csrf_token) csrfToken = j.csrf_token;
         return j;
       });
     });

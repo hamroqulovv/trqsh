@@ -23,9 +23,16 @@ export function Tilt({
   const [enabled, setEnabled] = React.useState(false);
 
   React.useEffect(() => {
-    const fine = window.matchMedia("(pointer: fine)").matches;
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    setEnabled(fine && !still);
+    const fine = window.matchMedia("(pointer: fine)");
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setEnabled(fine.matches && !still.matches);
+    update();
+    fine.addEventListener("change", update);
+    still.addEventListener("change", update);
+    return () => {
+      fine.removeEventListener("change", update);
+      still.removeEventListener("change", update);
+    };
   }, []);
 
   const onMove = React.useCallback(
@@ -43,7 +50,7 @@ export function Tilt({
         el.style.setProperty("--glare", "0.9");
       }
     },
-    [max, glare]
+    [max, glare],
   );
 
   const reset = React.useCallback(() => {

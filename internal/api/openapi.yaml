@@ -5,7 +5,8 @@ info:
   description: >
     Control plane for trqsh: accounts, API keys, reserved subdomains, custom
     domains, usage, and plans. Authenticated with a Bearer JWT (dashboard) or an
-    API key (programmatic). See plan/05-control-api.md.
+    API key (programmatic). These endpoints manage cloud resources; starting or
+    stopping a local tunnel uses the separate loopback agent API.
 servers:
   - url: https://api.trqsh.uz/v1
   - url: http://localhost:8080/v1
@@ -15,6 +16,7 @@ paths:
   /auth/signup:
     post:
       summary: Create an account (dev/email flow)
+      description: Available only when development authentication is enabled. Production deployments use configured OAuth providers.
       security: []
       requestBody:
         required: true
@@ -27,6 +29,7 @@ paths:
   /auth/login:
     post:
       summary: Log in (dev/email flow)
+      description: Passwordless development-only email login. Disabled in production; use OAuth or device approval.
       security: []
       requestBody:
         required: true
@@ -36,6 +39,21 @@ paths:
       responses:
         "200": { description: Tokens, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
         "401": { description: No such user }
+        "403": { description: Development authentication is disabled }
+  /auth/logout:
+    post:
+      summary: Clear browser session cookies and revoke the supplied refresh token
+      description: Reads the refresh token from the browser cookie or JSON body. Existing short-lived access tokens expire normally. Does not revoke API keys.
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string, description: "Refresh token to revoke; optional when the browser cookie is present" }
+      responses:
+        "200": { description: Signed out, content: { application/json: { schema: { type: object, properties: { status: { type: string, enum: [ok] } } } } } }
   /auth/refresh:
     post:
       summary: Exchange a refresh token for a new token pair
@@ -92,8 +110,29 @@ paths:
   /account:
     get:
       summary: The authenticated user and their orgs
+      description: User profile for a dashboard JWT. API-key callers should use /me because they identify an organization rather than a user subject.
       responses:
         "200": { description: Account }
+        "404": { description: User profile not found for this principal }
+  /me:
+    get:
+      summary: Profile, organization, effective plan and usage for a JWT or API key
+      description: API-key callers receive the organization owner's profile. Expired paid grants use the effective Free plan.
+      responses:
+        "200":
+          description: Account snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { type: object }
+                  org: { type: object }
+                  plan: { type: string }
+                  plan_expires_at: { type: [string, "null"], format: date-time }
+                  via_api_key: { type: boolean }
+                  usage: { type: object }
+                  limits: { type: object }
   /api-keys:
     get:
       summary: List API keys (prefixes only)
@@ -152,19 +191,21 @@ paths:
   /orgs:
     get: { summary: Orgs the caller belongs to, responses: { "200": { description: OK } } }
   /tunnels:
-    get: { summary: Live (active) tunnels for the org, responses: { "200": { description: OK } } }
+    get:
+      summary: Live (active) tunnel sessions for the organization
+      description: Read-only list reported by the edge, capped at 200 sessions. This endpoint does not create or stop a local tunnel.
+      responses: { "200": { description: OK } }
   /tunnels/history:
     get:
       summary: Paginated tunnel-session history for the org (active + closed)
       parameters:
-        - { name: active, in: query, schema: { type: boolean } }
-        - { name: limit, in: query, schema: { type: integer } }
-        - { name: offset, in: query, schema: { type: integer } }
+        - { name: active, in: query, description: "Use true to return active sessions only", schema: { type: boolean } }
+        - { name: limit, in: query, description: "Page size, capped at 200", schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, description: "Number of sessions to skip", schema: { type: integer, minimum: 0, default: 0 } }
       responses: { "200": { description: OK } }
   /plans:
     get:
       summary: The plan/quota catalog
-      security: []
       responses: { "200": { description: OK } }
   /plans/public:
     get:
@@ -187,7 +228,7 @@ paths:
     post:
       summary: Start a /qr remote-control pairing session (CLI console, authenticated)
       responses:
-        "200":
+        "201":
           description: Pairing code + viewer URL
           content: { application/json: { schema: { $ref: '#/components/schemas/RemoteSession' } } }
   /remote/sessions/{code}/agent:
@@ -245,6 +286,7 @@ paths:
   /billing/checkout:
     post:
       summary: Create a Stripe Checkout Session to subscribe to / change plan (Part 07)
+      description: Optional operator-enabled Stripe integration. The hosted website may use a manual contact-based upgrade flow instead.
       requestBody:
         required: true
         content:

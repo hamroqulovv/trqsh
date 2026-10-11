@@ -8,7 +8,7 @@ across all of it.
 
 Prerequisites (pinned in [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md)):
 
-- **Go 1.25+**
+- **Go 1.25.8+** (see `go.mod`)
 - **Node 24 + pnpm 10** (frontends)
 - **Docker** (local stack, image builds)
 
@@ -25,7 +25,7 @@ Run a public URL against a local server, no cloud needed:
 # terminal 1 — edge (in-memory registry, stub entitlements)
 TRQSH_ENTITLEMENTS=stub TRQSH_BASE_DOMAIN=lvh.me go run ./cmd/trqshd
 # terminal 2 — agent
-go run ./cmd/trqsh http 3000 --server 127.0.0.1:4443 --insecure
+TRQSH_API_KEY=local-dev-key go run ./cmd/trqsh --server 127.0.0.1:4443 --insecure http 3000
 curl -H 'Host: <sub>.lvh.me' http://127.0.0.1
 ```
 
@@ -43,9 +43,10 @@ cd desktop       && pnpm install && pnpm tauri dev  # native desktop app (Tauri 
   (wire protocol, transport API, `authz.Entitlements`, config schema, error taxonomy, plan catalog)
   change only by editing that file first. Don't drift them.
 - **Generated code stays in sync.** After editing the plan catalog run `make site-plans`; after
-  editing the OpenAPI run `make openapi-sync` (backend's embedded copy) and `make site-openapi`
-  (the site's local copy — both fetch from a live control API, see `web/site/scripts/`). CI fails
-  on drift.
+  editing OpenAPI, sync `docs/openapi.yaml` to the backend and site's contract copies as
+  described in [docs/README.md](docs/README.md). `make openapi-sync` copies the backend
+  file; `make site-openapi` fetches a running API's contract, so use a server built from
+  the same source revision. Do not overwrite a new contract with an older deployed one.
 - **Match the surrounding style.** Go is `gofmt`/`goimports`-clean; TS mirrors Go JSON tags in
   **snake_case** (the Go APIs marshal with `encoding/json`, so the TS shapes track the Go field tags).
 
