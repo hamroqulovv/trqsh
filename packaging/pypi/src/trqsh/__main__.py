@@ -10,7 +10,11 @@ from ._runtime import ensure_binary
 
 
 def main() -> None:
-    binary = str(ensure_binary())
+    try:
+        binary = str(ensure_binary())
+    except (OSError, ValueError) as exc:
+        print(f"trqsh: install failed: {exc}", file=sys.stderr)
+        sys.exit(1)
     args = [binary, *sys.argv[1:]]
     if os.name == "nt":
         # os.execv on Windows doesn't preserve the console cleanly; use subprocess.

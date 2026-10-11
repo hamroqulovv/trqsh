@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="title desc">
+  <title id="title">trqsh — Localhost, online.</title>
+  <desc id="desc">A monochrome trqsh wordmark with a dotted tunnel and the labels HTTP, TCP and UDP.</desc>
+  <defs>
+    <linearGradient id="surface" x2="1" y2="1">
+      <stop stop-color="#17171b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#a1a1aa" opacity=".13"/>
+    </pattern>
+    <linearGradient id="fade">
+      <stop stop-color="#09090b" stop-opacity="0"/>
+      <stop offset=".55" stop-color="#09090b" stop-opacity="0"/>
+      <stop offset="1" stop-color="#09090b" stop-opacity=".5"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="1198" height="298" rx="20" fill="url(#surface)" stroke="#303036"/>
+  <rect x="660" y="24" width="510" height="252" fill="url(#dots)"/>
+  <g fill="none" stroke="#71717a" transform="translate(920 150)">
+    <ellipse rx="200" ry="119" opacity=".18"/>
+    <ellipse rx="157" ry="93" opacity=".25"/>
+    <ellipse rx="117" ry="68" opacity=".35"/>
+    <ellipse rx="81" ry="45" opacity=".48"/>
+    <ellipse rx="49" ry="26" opacity=".65"/>
+    <path d="M-200 0H-49M49 0H200M0-119V-26M0 26V119" stroke-dasharray="2 7" opacity=".35"/>
+  </g>
+  <circle cx="920" cy="150" r="5" fill="#fafafa"/>
+  <rect x="650" y="2" width="528" height="296" fill="url(#fade)"/>
+  <text x="56" y="58" fill="#a1a1aa" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing="3">DEVELOPER TUNNELS</text>
+  <text x="52" y="157" fill="#fafafa" font-family="Arial, Helvetica, sans-serif" font-size="92" font-weight="700" letter-spacing="-5">trqsh</text>
+  <text x="57" y="204" fill="#d4d4d8" font-family="Arial, Helvetica, sans-serif" font-size="25" letter-spacing="-.4">Localhost, online.</text>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="700" letter-spacing="1" text-anchor="middle">
+    <rect x="57" y="235" width="67" height="26" rx="6" fill="#202024" stroke="#3f3f46"/>
+    <text x="90" y="252" fill="#d4d4d8">HTTP</text>
+    <rect x="132" y="235" width="61" height="26" rx="6" fill="#202024" stroke="#3f3f46"/>
+    <text x="162" y="252" fill="#d4d4d8">TCP</text>
+    <rect x="201" y="235" width="61" height="26" rx="6" fill="#202024" stroke="#3f3f46"/>
+    <text x="231" y="252" fill="#d4d4d8">UDP</text>
+  </g>
+</svg>

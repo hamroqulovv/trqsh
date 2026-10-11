@@ -6,35 +6,45 @@
 // skipped (npm --ignore-scripts). No third-party dependencies.
 
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const http = require("http");
 const https = require("https");
 const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 const C = require("./common");
+const makeUI = require("./ui");
 
-function fetch(url, redirects = 0) {
+function fetch(url, redirects = 0, progress) {
   return new Promise((resolve, reject) => {
     if (redirects > 10) return reject(new Error("too many redirects"));
     // https by default; http only for an explicit TRQSH_DOWNLOAD_BASE mirror.
     const transport = url.startsWith("http://") ? http : https;
-    transport
+    const request = transport
       .get(url, { headers: { "User-Agent": "trqsh-npm-installer" } }, (res) => {
         const { statusCode, headers } = res;
         if ([301, 302, 303, 307, 308].includes(statusCode) && headers.location) {
           res.resume();
-          return resolve(fetch(new URL(headers.location, url).toString(), redirects + 1));
+          return resolve(fetch(new URL(headers.location, url).toString(), redirects + 1, progress));
         }
         if (statusCode !== 200) {
           res.resume();
           return reject(new Error(`HTTP ${statusCode} for ${url}`));
         }
         const chunks = [];
-        res.on("data", (c) => chunks.push(c));
+        let received = 0;
+        res.on("data", (c) => {
+          chunks.push(c);
+          received += c.length;
+          if (progress) progress(received, Number(headers["content-length"]) || 0);
+        });
+        res.on("error", reject);
+        res.on("aborted", () => reject(new Error("download interrupted; retry installation")));
         res.on("end", () => resolve(Buffer.concat(chunks)));
       })
       .on("error", reject);
+    request.setTimeout(30000, () => request.destroy(new Error("download timed out; retry installation")));
+    const deadline = setTimeout(() => request.destroy(new Error("download exceeded 5 minutes; retry installation")), 300000);
+    request.on("close", () => clearTimeout(deadline));
   });
 }
 
@@ -56,15 +66,13 @@ async function verifyChecksum(buf, archive) {
   try {
     sums = (await fetch(C.checksumsUrl)).toString("utf8");
   } catch (e) {
-    process.stderr.write(`trqsh: warning — could not fetch checksums.txt (${e.message}); skipping verify\n`);
-    return;
+    throw new Error(`could not fetch checksums.txt: ${e.message}; retry installation`);
   }
   const line = sums
     .split(/\r?\n/)
     .find((l) => l.trim().split(/\s+/).pop() === archive || l.trim().endsWith(`*${archive}`));
   if (!line) {
-    process.stderr.write(`trqsh: warning — ${archive} absent from checksums.txt; skipping verify\n`);
-    return;
+    throw new Error(`${archive} absent from checksums.txt`);
   }
   const want = line.trim().split(/\s+/)[0].toLowerCase();
   const got = crypto.createHash("sha256").update(buf).digest("hex");
@@ -125,7 +133,7 @@ function ensureOnPath() {
     const out = execFileSync(
       "powershell",
       ["-NoProfile", "-NonInteractive", "-Command", PATH_FIX_SCRIPT],
-      { encoding: "utf8", env: { ...process.env, TRQSH_PATH_DIR: dir } }
+      { encoding: "utf8", env: { ...process.env, TRQSH_PATH_DIR: dir }, timeout: 15000, windowsHide: true }
     );
     if (out.includes("ADDED")) {
       process.stderr.write(`trqsh: added ${dir} to your PATH — open a new terminal to use the trqsh command\n`);
@@ -138,27 +146,37 @@ function ensureOnPath() {
 }
 
 async function install() {
-  if (fs.existsSync(C.binPath)) {
+  if (cachedBinaryOK()) {
     ensureOnPath();
     return C.binPath;
   }
 
-  const { archive } = C.target();
+  const ui = makeUI();
+  const { archive, goos, goarch } = C.target();
   const url = C.archiveUrl(archive);
-  process.stderr.write(`trqsh: downloading ${archive} (v${C.VERSION})...\n`);
+  ui.title(C.VERSION, `${goos} / ${goarch}`);
+  ui.step("Downloading", archive, "..");
 
-  const buf = await fetch(url);
+  let buf;
+  try { buf = await fetch(url, 0, ui.progress); } finally { ui.end(); }
+  ui.step("Downloaded", `${buf.length} bytes`);
   if (process.env.TRQSH_SKIP_CHECKSUM !== "1") {
     await verifyChecksum(buf, archive);
+    ui.step("Verified", "SHA-256");
+  } else {
+    ui.step("Verification skipped", "TRQSH_SKIP_CHECKSUM=1", "!");
   }
 
   fs.mkdirSync(C.vendorDir, { recursive: true });
   // mkdtempSync (not a predictable pid-based name) avoids a symlink/TOCTOU race
   // in the shared, world-writable system temp dir.
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trqsh-"));
+  const tmpDir = fs.mkdtempSync(path.join(C.vendorDir, ".install-"));
+  const extractDir = path.join(tmpDir, "unpacked");
   const tmp = path.join(tmpDir, archive);
-  fs.writeFileSync(tmp, buf);
   try {
+    fs.mkdirSync(extractDir);
+    fs.writeFileSync(tmp, buf);
+    ui.step("Installing", "Native CLI", "..");
     if (process.platform === "win32") {
       // PowerShell ships with Windows; more reliable than tar for .zip.
       //
@@ -173,31 +191,43 @@ async function install() {
       // with no command text built from them at all.
       execFileSync(
         "powershell",
-        ["-NoProfile", "-NonInteractive", "-Command", "Expand-Archive -LiteralPath $env:TRQSH_INSTALL_SRC -DestinationPath $env:TRQSH_INSTALL_DEST -Force"],
-        { stdio: "ignore", env: { ...process.env, TRQSH_INSTALL_SRC: tmp, TRQSH_INSTALL_DEST: C.vendorDir } }
+        ["-NoProfile", "-NonInteractive", "-Command", "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory($env:TRQSH_INSTALL_SRC, $env:TRQSH_INSTALL_DEST)"],
+        { stdio: "ignore", env: { ...process.env, TRQSH_INSTALL_SRC: tmp, TRQSH_INSTALL_DEST: extractDir }, timeout: 60000, windowsHide: true }
       );
     } else {
-      execFileSync("tar", ["-xzf", tmp, "-C", C.vendorDir], { stdio: "ignore" });
+      execFileSync("tar", ["-xzf", tmp, "-C", extractDir], { stdio: "ignore", timeout: 60000 });
     }
+    const found = findBinary(extractDir, C.binName);
+    if (!found) throw new Error("trqsh binary not found after extraction");
+    if (process.platform !== "win32") fs.chmodSync(found, 0o755);
+    const version = binaryVersion(found);
+    if (version !== C.VERSION.replace(/^v/, "")) throw new Error("downloaded binary version does not match release");
+    fs.renameSync(found, C.binPath);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 
-  if (!fs.existsSync(C.binPath)) {
-    const found = findBinary(C.vendorDir, C.binName);
-    if (found && found !== C.binPath) fs.renameSync(found, C.binPath);
-  }
-  if (!fs.existsSync(C.binPath)) {
-    throw new Error("trqsh binary not found after extraction");
-  }
-  if (process.platform !== "win32") fs.chmodSync(C.binPath, 0o755);
-
-  process.stderr.write("trqsh: installed ✓\n");
   ensureOnPath();
+  ui.finish(C.binPath);
   return C.binPath;
 }
 
-module.exports = { install };
+function binaryVersion(file) {
+  try {
+    const output = execFileSync(file, ["--version"], { encoding: "utf8", timeout: 10000, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    const match = output.match(/\btrqsh\s+v?(\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?)/);
+    return match && match[1];
+  } catch { return null; }
+}
+
+function cachedBinaryOK() {
+  if (!fs.existsSync(C.binPath)) return false;
+  const version = binaryVersion(C.binPath);
+  // A self-updated binary is valid unless the caller explicitly pins a version.
+  return !!version && (!process.env.TRQSH_VERSION || version === C.VERSION.replace(/^v/, ""));
+}
+
+module.exports = { install, fetch, verifyChecksum, cachedBinaryOK };
 
 if (require.main === module) {
   install().catch((err) => {
