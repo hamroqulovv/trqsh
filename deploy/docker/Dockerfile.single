@@ -1,0 +1,86 @@
+# Complete local platform in one container, including persistent Postgres/Redis.
+# docker compose -f deploy/docker-compose.single.yml up -d --build --wait
+FROM golang:1.26-alpine AS go-build
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-trimpath
+WORKDIR /src
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go install github.com/pressly/goose/v3/cmd/goose@v3.24.1
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+ARG VERSION=0.2.4
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/trqshapi ./cmd/trqshapi && \
+    go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/trqshd ./cmd/trqshd && \
+    go build -ldflags "-s -w -X github.com/trqsh-uz/trqsh/internal/agent.Version=${VERSION}" -o /out/trqsh ./cmd/trqsh
+
+FROM node:22-bookworm-slim AS web-build
+RUN npm install -g pnpm@9
+ENV NEXT_TELEMETRY_DISABLED=1 TRQSH_BUILD_CPUS=2
+WORKDIR /build/dashboard
+COPY web/dashboard/package.json web/dashboard/pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+COPY web/dashboard/ ./
+RUN rm -f pnpm-workspace.yaml
+ARG TRQSH_PUBLIC_URL=https://tunnel.trqsh.uz
+ARG TRQSH_BASE_DOMAIN=tunnel.trqsh.uz
+ENV TRQSH_API_URL=$TRQSH_PUBLIC_URL \
+    NEXT_PUBLIC_TRQSH_SITE_URL=$TRQSH_PUBLIC_URL \
+    NEXT_PUBLIC_TRQSH_BASE_DOMAIN=$TRQSH_BASE_DOMAIN \
+    NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH=/dashboard
+RUN pnpm build
+
+WORKDIR /build/site
+COPY web/site/package.json web/site/pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+COPY web/site/ ./
+COPY docs/content ./content
+ENV TRQSH_DOCS_CONTENT_DIR=/build/site/content \
+    TRQSH_DASHBOARD_URL=${TRQSH_PUBLIC_URL}/dashboard \
+    TRQSH_SITE_URL=$TRQSH_PUBLIC_URL \
+    TRQSH_BASE_DOMAIN=$TRQSH_BASE_DOMAIN \
+    TRQSH_GITHUB_REPO=trqsh-tunnel/trqsh \
+    TRQSH_CLI_GITHUB_REPO=trqsh-tunnel/trqsh \
+    TRQSH_LATEST_VERSION=0.2.4 \
+    TRQSH_AGENT_INTERNAL_URL=http://127.0.0.1:4445 \
+    TRQSH_DASHBOARD_INTERNAL_URL=http://127.0.0.1:3001 \
+    TRQSH_API_INTERNAL_URL=http://127.0.0.1:8080
+RUN pnpm build
+
+FROM postgres:16-bookworm AS runtime
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates curl libstdc++6 openssl redis-server supervisor && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --system --uid 10001 --user-group --home-dir /app app
+COPY --from=web-build /usr/local/bin/node /usr/local/bin/node
+COPY --from=go-build /out/ /usr/local/bin/
+COPY --from=go-build /go/bin/goose /usr/local/bin/goose
+COPY internal/api/db/migrations /migrations
+WORKDIR /app/site
+COPY --from=web-build --chown=app:app /build/site/.next/standalone ./
+COPY --from=web-build --chown=app:app /build/site/.next/static ./.next/static
+COPY --from=web-build --chown=app:app /build/site/public ./public
+COPY --from=web-build --chown=app:app /build/site/content ./content
+WORKDIR /app/dashboard
+COPY --from=web-build --chown=app:app /build/dashboard/.next/standalone ./
+COPY --from=web-build --chown=app:app /build/dashboard/.next/static ./.next/static
+COPY --from=web-build --chown=app:app /build/dashboard/public ./public
+COPY deploy/docker/single/entrypoint.sh /usr/local/bin/trqsh-single-entrypoint
+COPY deploy/docker/single/service.sh /usr/local/bin/trqsh-single-service
+COPY deploy/docker/single/healthcheck.sh /usr/local/bin/trqsh-single-healthcheck
+COPY deploy/docker/single/supervisord.conf /etc/supervisor/supervisord.conf
+RUN chmod +x /usr/local/bin/trqsh-single-* && chown app:app /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 \
+    PGDATA=/data/postgres POSTGRES_USER=trqsh POSTGRES_DB=trqsh \
+    TRQSH_DOCS_CONTENT_DIR=/app/site/content
+VOLUME ["/data"]
+EXPOSE 3000/tcp 8082/tcp 8443/tcp 4443/tcp 4443/udp
+HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=3 \
+    CMD ["/usr/local/bin/trqsh-single-healthcheck"]
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/usr/local/bin/trqsh-single-entrypoint"]

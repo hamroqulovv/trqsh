@@ -14,6 +14,7 @@ permissions:
 jobs:
   # CLI + edge binaries, archives, checksums, Homebrew tap, deb/rpm.
   cli:
+    if: ${{ !startsWith(github.ref_name, 'package-v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write # create releases + upload assets
@@ -39,11 +40,44 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
+  # Dispatch this workflow on package-vX.Y.Z to release only CLI dependencies
+  # plus npm/PyPI. The prefix does not trigger the v* image/desktop pipelines.
+  cli_packages:
+    name: CLI package binaries
+    if: startsWith(github.ref_name, 'package-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26" }
+      - uses: sigstore/cosign-installer@v3
+      - name: Check release repository access
+        run: gh api repos/trqsh-tunnel/trqshcli --jq '.permissions.push' | grep -qx true
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN }}
+      - name: Test transports and CLI
+        run: go test ./pkg/tunnel ./internal/agent/... ./internal/server/... -race -count=1
+      - name: Build CLI archives
+        run: bash packaging/release-cli.sh
+      - name: Sign checksums
+        run: cosign sign-blob --yes --new-bundle-format --bundle dist/checksums.txt.sigstore.json dist/checksums.txt
+      - name: Publish CLI download dependencies
+        run: |
+          version="${GITHUB_REF_NAME#package-v}"
+          gh release create "v${version}" --repo trqsh-tunnel/trqshcli --target main \
+            --title "trqsh CLI v${version}" --notes-file "packaging/RELEASE-NOTES-${version}.md" dist/*
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN }}
+
   # Publish the npm wrapper (npx trqsh / npm i -g trqsh). Runs after the release
   # exists so the binary + checksums are downloadable. Skips cleanly if NPM_TOKEN
   # isn't configured, so it never blocks a binary release.
   npm:
-    needs: cli
+    needs: [cli, cli_packages]
+    if: ${{ always() && !cancelled() && (needs.cli.result == 'success' || needs.cli_packages.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +91,8 @@ jobs:
           if [ -z "${NODE_AUTH_TOKEN}" ]; then
             echo "NPM_TOKEN secret not set — skipping npm publish."; exit 0
           fi
-          VER="${GITHUB_REF_NAME#v}"
+          VER="${GITHUB_REF_NAME#package-}"
+          VER="${VER#v}"
           npm version "$VER" --no-git-tag-version --allow-same-version
           npm publish --access public
         env:
@@ -66,7 +101,8 @@ jobs:
   # Publish the PyPI wrapper (pip install trqsh). Skips cleanly if PYPI_TOKEN
   # isn't configured.
   pypi:
-    needs: cli
+    needs: [cli, cli_packages]
+    if: ${{ always() && !cancelled() && (needs.cli.result == 'success' || needs.cli_packages.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,7 +114,8 @@ jobs:
           if [ -z "${TWINE_PASSWORD}" ]; then
             echo "PYPI_TOKEN secret not set — skipping PyPI publish."; exit 0
           fi
-          VER="${GITHUB_REF_NAME#v}"
+          VER="${GITHUB_REF_NAME#package-}"
+          VER="${VER#v}"
           python -m pip install --upgrade build twine
           sed -i -E "s/^version = \".*\"/version = \"$VER\"/" pyproject.toml
           sed -i -E "s/^__version__ = \".*\"/__version__ = \"$VER\"/" src/trqsh/__init__.py

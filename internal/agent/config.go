@@ -129,6 +129,8 @@ func (c Config) forcedTransport() string {
 	switch strings.ToLower(c.Transport) {
 	case "quic":
 		return "quic"
+	case "websocket":
+		return "websocket"
 	case "tcp":
 		return "tcp"
 	default:

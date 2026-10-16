@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: "standalone",
+  ...(process.env.TRQSH_BUILD_CPUS
+    ? { experimental: { cpus: Number(process.env.TRQSH_BUILD_CPUS) } }
+    : {}),
   basePath: process.env.NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH || "",
   // The control-plane API base (Part 05). Server-only; the browser never calls
   // it directly — reads go through Server Components and writes through Server

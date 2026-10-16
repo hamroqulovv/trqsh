@@ -24,7 +24,7 @@ import (
 //
 // releaseCertIdentityRegexp is a var (not const) so a test can swap in a
 // mismatched identity to prove verifySigstoreBundle actually enforces it.
-var releaseCertIdentityRegexp = "^https://github[.]com/(uzcreator|algorithco)/trqsh/[.]github/workflows/release[.]yml@refs/tags/v[^/]+$"
+var releaseCertIdentityRegexp = "^https://github[.]com/(uzcreator|algorithco|trqsh-tunnel)/trqsh/[.]github/workflows/release[.]yml@refs/tags/(package-)?v[^/]+$"
 
 const releaseCertOIDCIssuer = "https://token.actions.githubusercontent.com"
 

@@ -33,7 +33,7 @@ export const site = {
   cliGithubRepo,
   cliGithubUrl: `https://github.com/${cliGithubRepo}`,
   // Public wildcard where tunnels appear (Part 00 §1); shown in examples.
-  tunnelDomain: "trqsh.uz",
+  tunnelDomain: process.env.TRQSH_BASE_DOMAIN || "trqsh.uz",
   // curl|sh installer served from the marketing origin (Part 08 release/install.sh).
   installShUrl: `${siteUrl}/install.sh`,
   // Sales/upgrade contact (manual, Telegram-only — no Stripe).

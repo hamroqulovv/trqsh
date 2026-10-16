@@ -13,9 +13,9 @@ var (
 // trqsh edge so a freshly downloaded CLI works out of the box; override it at
 // build time with -ldflags "-X .../internal/agent.DefaultServer=host:port" for
 // self-hosted or local-dev builds.
-var DefaultServer = "trqsh.uz:4443"
+var DefaultServer = "wss://tunnel.trqsh.uz/_trqsh/agent"
 
 // DefaultAPIBase is the control-plane API the desktop app reaches (through the
 // agent) for account/plan/usage/keys/domains and OAuth device login. Overridable
 // via TRQSH_API_URL or -ldflags "-X .../internal/agent.DefaultAPIBase=https://…".
-var DefaultAPIBase = "https://trqsh.uz"
+var DefaultAPIBase = "https://tunnel.trqsh.uz"

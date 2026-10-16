@@ -198,6 +198,8 @@ func New(cfg Config, log *slog.Logger) *Agent {
 		a.dialer.ForceKind = tunnel.KindQUIC
 	case "tcp":
 		a.dialer.ForceKind = tunnel.KindTCP
+	case "websocket":
+		a.dialer.ForceKind = tunnel.KindWebSocket
 	}
 	return a
 }

@@ -40,7 +40,7 @@ const (
 	// source repo instead, so unlike before, this repo's releases are always
 	// CLI-only — the desktop-v* skip in latestCLIVersion is now just a
 	// defensive no-op, not load-bearing.
-	updateRepo     = "algorithco/trqshcli"
+	updateRepo     = "trqsh-tunnel/trqshcli"
 	updateMaxBytes = 200 << 20 // generous cap; real archives are a few tens of MB
 )
 

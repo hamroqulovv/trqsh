@@ -1,4 +1,4 @@
-![trqsh — Localhost, online.](https://raw.githubusercontent.com/algorithco/trqsh/main/packaging/assets/readme-banner.svg)
+![trqsh — Localhost, online.](https://raw.githubusercontent.com/trqsh-tunnel/trqsh/main/packaging/assets/readme-banner.svg)
 
 # trqsh · npm
 
@@ -6,9 +6,14 @@
 
 Share development servers, receive webhooks and inspect traffic from an interactive terminal. This package installs the native CLI; the desktop app is a separate download.
 
+CLI 0.2.4 connects to `https://tunnel.trqsh.uz` and uses authenticated WebSocket
+transport through `wss://tunnel.trqsh.uz/_trqsh/agent`. Direct QUIC/TCP connections
+remain available with `--server host:port`. Public tunnel URLs need wildcard
+DNS/TLS and edge ingress in addition to the control-plane hostname.
+
 [![npm](https://img.shields.io/npm/v/%40trqsh-uz%2Ftrqsh?style=flat-square&color=18181b)](https://www.npmjs.com/package/@trqsh-uz/trqsh)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-52525b?style=flat-square)](#requirements)
-[![License](https://img.shields.io/badge/license-Apache--2.0-52525b?style=flat-square)](https://github.com/algorithco/trqsh/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-52525b?style=flat-square)](https://github.com/trqsh-tunnel/trqsh/blob/main/LICENSE)
 
 [Quick start](#quick-start) · [First launch](#first-launch) · [Commands](#everyday-commands) · [Configuration](#configuration) · [Troubleshooting](#troubleshooting)
 
@@ -98,14 +103,14 @@ Localhost, online.
 
 The wrapper detects your platform, downloads the native archive, verifies SHA-256, stages the binary and reports its location. Suitable terminals show measured byte progress; CI and redirected output receive plain lines. Package installation never asks for credentials or starts a tunnel.
 
-Missing or mismatched checksums stop installation by default. Interrupted downloads and extraction leave an existing binary intact. Archive integrity and release-origin verification are separate: see the [Sigstore verification instructions](https://github.com/algorithco/trqsh/blob/main/packaging/README.md#release-verification) for the latter.
+Missing or mismatched checksums stop installation by default. Interrupted downloads and extraction leave an existing binary intact. Archive integrity and release-origin verification are separate: see the [Sigstore verification instructions](https://github.com/trqsh-tunnel/trqsh/blob/main/packaging/README.md#release-verification) for the latter.
 
 ## Configuration
 
 | Variable | Behavior |
 | --- | --- |
 | `TRQSH_VERSION` | Pin a native release; otherwise the package version selects the initial download. |
-| `TRQSH_REPO` | Override the release repository; default: `algorithco/trqshcli`. |
+| `TRQSH_REPO` | Override the release repository; default: `trqsh-tunnel/trqshcli`. |
 | `TRQSH_DOWNLOAD_BASE` | Base URL of a mirror containing the archive and `checksums.txt`. |
 | `NO_COLOR` / `TRQSH_NO_COLOR` | Disable animated installer output when set to a nonempty value. |
 | `TRQSH_SKIP_CHECKSUM=1` | Explicitly bypass integrity verification; prints a verification-skipped warning. |
@@ -161,6 +166,6 @@ vendor/         Downloaded native binary
 
 ---
 
-[Documentation](https://trqsh.uz/docs) · [CLI releases](https://github.com/algorithco/trqshcli/releases) · [Report an issue](https://github.com/algorithco/trqsh/issues) · [Source](https://github.com/algorithco/trqsh)
+[Documentation](https://trqsh.uz/docs) · [CLI releases](https://github.com/trqsh-tunnel/trqshcli/releases) · [Report an issue](https://github.com/trqsh-tunnel/trqsh/issues) · [Source](https://github.com/trqsh-tunnel/trqsh)
 
-Created by [Otabek Hamroqulov](https://github.com/Hamroqulovv). Licensed under [Apache-2.0](https://github.com/algorithco/trqsh/blob/main/LICENSE).
+Created by [Otabek Hamroqulov](https://github.com/Hamroqulovv). Licensed under [Apache-2.0](https://github.com/trqsh-tunnel/trqsh/blob/main/LICENSE).

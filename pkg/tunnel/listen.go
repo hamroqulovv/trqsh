@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"net/http"
 	"sync"
 
 	"github.com/hashicorp/yamux"
@@ -17,10 +18,19 @@ import (
 // same tlsConf backs both; its ALPN is forced to the trqsh protocol token when
 // the caller leaves NextProtos empty.
 func Listen(quicAddr, tcpAddr string, tlsConf *tls.Config) (Listener, error) {
-	if quicAddr == "" && tcpAddr == "" {
+	return ListenWithWebSocket(quicAddr, tcpAddr, "", tlsConf)
+}
+
+// ListenWithWebSocket adds an optional internal HTTP WebSocket listener while
+// preserving the original QUIC/TCP listener API and wire protocol.
+func ListenWithWebSocket(quicAddr, tcpAddr, wsAddr string, tlsConf *tls.Config) (Listener, error) {
+	if quicAddr == "" && tcpAddr == "" && wsAddr == "" {
 		return nil, errors.New("tunnel: Listen requires at least one of quicAddr/tcpAddr")
 	}
-	conf := tlsConf.Clone()
+	conf := &tls.Config{MinVersion: tls.VersionTLS12}
+	if tlsConf != nil {
+		conf = tlsConf.Clone()
+	}
 	if len(conf.NextProtos) == 0 {
 		conf.NextProtos = []string{ALPNProto}
 	}
@@ -56,6 +66,12 @@ func Listen(quicAddr, tcpAddr string, tlsConf *tls.Config) (Listener, error) {
 		go m.acceptTCP(tl)
 	}
 
+	if wsAddr != "" {
+		if err := m.startWebSocket(wsAddr); err != nil {
+			_ = m.Close()
+			return nil, err
+		}
+	}
 	return m, nil
 }
 
@@ -65,9 +81,11 @@ type acceptResult struct {
 }
 
 type multiListener struct {
-	conf   *tls.Config
-	quicLn *quic.Listener
-	tcpLn  net.Listener
+	conf     *tls.Config
+	quicLn   *quic.Listener
+	tcpLn    net.Listener
+	wsLn     net.Listener
+	wsServer *http.Server
 
 	accepts chan acceptResult
 	ctx     context.Context
@@ -145,13 +163,21 @@ func (m *multiListener) Addr() net.Addr {
 	if m.quicLn != nil {
 		return m.quicLn.Addr()
 	}
-	return m.tcpLn.Addr()
+	if m.tcpLn != nil {
+		return m.tcpLn.Addr()
+	}
+	return m.wsLn.Addr()
 }
 
 func (m *multiListener) Close() error {
 	var err error
 	m.once.Do(func() {
 		m.cancel()
+		if m.wsServer != nil {
+			if e := m.wsServer.Close(); e != nil {
+				err = e
+			}
+		}
 		if m.quicLn != nil {
 			if e := m.quicLn.Close(); e != nil {
 				err = e

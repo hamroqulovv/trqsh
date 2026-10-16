@@ -19,8 +19,9 @@ type Config struct {
 	// Agent-facing listeners (Part 01 transport). NOTE: for the MVP these are a
 	// dedicated port set, distinct from the public :443, because pkg/tunnel owns
 	// its own socket. Sharing :443 via ALPN demux is a documented follow-up.
-	QUICAddr string // TRQSH_QUIC_ADDR, e.g. ":4443" (UDP)
-	TCPAddr  string // TRQSH_TCP_ADDR,  e.g. ":4443" (TCP fallback)
+	QUICAddr      string // TRQSH_QUIC_ADDR, e.g. ":4443" (UDP)
+	TCPAddr       string // TRQSH_TCP_ADDR,  e.g. ":4443" (TCP fallback)
+	WebSocketAddr string // TRQSH_WEBSOCKET_ADDR; internal HTTP listener behind an HTTPS proxy
 
 	// Public ingress.
 	HTTPAddr  string // TRQSH_HTTP_ADDR,  e.g. ":80"
@@ -141,6 +142,7 @@ func LoadConfig() (Config, error) {
 	envStr(&c.Env, "TRQSH_ENV")
 	envStr(&c.QUICAddr, "TRQSH_QUIC_ADDR")
 	envStr(&c.TCPAddr, "TRQSH_TCP_ADDR")
+	envStr(&c.WebSocketAddr, "TRQSH_WEBSOCKET_ADDR")
 	envStr(&c.HTTPAddr, "TRQSH_HTTP_ADDR")
 	envStr(&c.HTTPSAddr, "TRQSH_HTTPS_ADDR")
 	envStr(&c.H3Addr, "TRQSH_H3_ADDR")

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/yamux"
@@ -31,6 +32,15 @@ type Dialer struct {
 // Dial connects to addr, returning a live Session. Unless ForceKind pins a
 // transport, a failed QUIC attempt falls back to TCP+yamux (and vice-versa).
 func (d *Dialer) Dial(ctx context.Context, addr string) (Session, error) {
+	if strings.HasPrefix(addr, "ws://") || strings.HasPrefix(addr, "wss://") {
+		if d.ForceKind != "" && d.ForceKind != KindWebSocket {
+			return nil, fmt.Errorf("tunnel: a WebSocket URL requires auto or websocket transport")
+		}
+		return d.dialWebSocket(ctx, addr)
+	}
+	if d.ForceKind == KindWebSocket {
+		return d.dialWebSocket(ctx, "wss://"+addr+WebSocketPath)
+	}
 	order := d.attemptOrder()
 	var errs []error
 	for _, k := range order {
