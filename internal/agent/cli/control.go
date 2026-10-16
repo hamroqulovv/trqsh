@@ -33,7 +33,11 @@ func controlAddr(cfg agent.Config) string {
 // ensureDaemon returns once a daemon is reachable at addr, spawning a detached
 // `trqsh daemon` if none is running yet.
 func ensureDaemon(cmd *cobra.Command, g *globalFlags, addr string) error {
-	if daemonAlive(addr) {
+	ready, err := reuseDaemon(addr, agent.Version)
+	if err != nil {
+		return err
+	}
+	if ready {
 		return nil
 	}
 	// Create the shared loopback token up front so the CLI and the daemon it
@@ -72,6 +76,44 @@ func ensureDaemon(cmd *cobra.Command, g *globalFlags, addr string) error {
 		time.Sleep(200 * time.Millisecond)
 	}
 	return fmt.Errorf("daemon did not become ready at %s (see %s)", addr, logPath)
+}
+
+// A new console must not silently keep using an older daemon's endpoints and
+// transport. Older releases omit version/managed; their authenticated session
+// response still identifies the agent, and /shutdown safely asks it to exit.
+func reuseDaemon(addr, version string) (bool, error) {
+	if !daemonAlive(addr) {
+		return false, nil
+	}
+	var session struct {
+		Authed  *bool         `json:"authed"`
+		Status  *agent.Status `json:"status"`
+		Version string        `json:"version"`
+		Managed *bool         `json:"managed"`
+	}
+	if err := controlRequest(addr, http.MethodGet, "/session", nil, &session); err != nil {
+		return false, fmt.Errorf("identify background agent: %w", err)
+	}
+	if session.Authed == nil || session.Status == nil {
+		return false, errors.New("control address is occupied by an unrecognized service")
+	}
+	if session.Version == version {
+		return true, nil
+	}
+	if cmp, ok := compareVersions(session.Version, version); ok && cmp > 0 {
+		return true, nil // never downgrade a newer running agent
+	}
+	if session.Managed != nil && !*session.Managed {
+		return false, errors.New("restart the trqsh desktop app to update its background agent")
+	}
+	if err := controlPOST(addr, "/shutdown", nil, nil); err != nil {
+		return false, fmt.Errorf("stop older background agent: %w", err)
+	}
+	waitDaemonExit(addr, 5*time.Second)
+	if daemonAlive(addr) {
+		return false, errors.New("older background agent is still running; close the trqsh desktop app and retry")
+	}
+	return false, nil
 }
 
 // daemonPassthroughFlags forwards the global flags the user set on the CLI to the
@@ -139,6 +181,10 @@ func waitDaemonExit(addr string, timeout time.Duration) {
 // controlPOST posts JSON to the daemon's control API, attaching the loopback
 // token, and decodes a 2xx body into out (when non-nil).
 func controlPOST(addr, path string, in, out any) error {
+	return controlRequest(addr, http.MethodPost, path, in, out)
+}
+
+func controlRequest(addr, method, path string, in, out any) error {
 	var body io.Reader
 	if in != nil {
 		b, err := json.Marshal(in)
@@ -147,7 +193,7 @@ func controlPOST(addr, path string, in, out any) error {
 		}
 		body = bytes.NewReader(b)
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "http://"+addr+path, body)
+	req, err := http.NewRequestWithContext(context.Background(), method, "http://"+addr+path, body)
 	if err != nil {
 		return err
 	}

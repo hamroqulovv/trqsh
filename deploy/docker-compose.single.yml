@@ -1,0 +1,46 @@
+name: trqsh
+
+services:
+  trqsh:
+    image: trqsh:local
+    container_name: trqsh
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.single
+      args:
+        TRQSH_PUBLIC_URL: https://tunnel.trqsh.uz
+        TRQSH_BASE_DOMAIN: tunnel.trqsh.uz
+    restart: unless-stopped
+    stop_grace_period: 90s
+    environment:
+      TRQSH_ENV: development
+      TRQSH_DEV_AUTH: ${TRQSH_DEV_AUTH:-1}
+      TRQSH_BASE_DOMAIN: tunnel.trqsh.uz
+      TRQSH_API_PUBLIC_URL: https://tunnel.trqsh.uz
+      TRQSH_SITE_URL: https://tunnel.trqsh.uz
+      TRQSH_ACME_STAGING: "1"
+      TRQSH_REGION: local
+      TRQSH_EDGE_ID: trqsh-local
+      TRQSH_WEBSOCKET_ADDR: "127.0.0.1:4445"
+      TRQSH_HTTP_ADDR: ":8082"
+      TRQSH_HTTPS_ADDR: ":8443"
+      TRQSH_PORT_MIN: "20000"
+      TRQSH_PORT_MAX: "20009"
+      TRQSH_REGIONS: '[{"code":"local","name":"Local Docker","continent":"AS","endpoint":"wss://tunnel.trqsh.uz/_trqsh/agent","default":true}]'
+      TRQSH_GITHUB_CLIENT_ID: ${TRQSH_GITHUB_CLIENT_ID:-}
+      TRQSH_GITHUB_CLIENT_SECRET: ${TRQSH_GITHUB_CLIENT_SECRET:-}
+      TRQSH_GOOGLE_CLIENT_ID: ${TRQSH_GOOGLE_CLIENT_ID:-}
+      TRQSH_GOOGLE_CLIENT_SECRET: ${TRQSH_GOOGLE_CLIENT_SECRET:-}
+    ports:
+      - "127.0.0.1:3004:3000"
+      - "127.0.0.1:80:8082"
+      - "127.0.0.1:443:8443"
+      - "127.0.0.1:4443:4443/tcp"
+      - "127.0.0.1:4443:4443/udp"
+      - "127.0.0.1:20000-20009:20000-20009/tcp"
+      - "127.0.0.1:20000-20009:20000-20009/udp"
+    volumes:
+      - trqsh_data:/data
+
+volumes:
+  trqsh_data:

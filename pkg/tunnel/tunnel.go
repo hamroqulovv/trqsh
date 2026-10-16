@@ -10,8 +10,9 @@ import (
 type Kind string
 
 const (
-	KindQUIC Kind = "quic"
-	KindTCP  Kind = "tcp"
+	KindQUIC      Kind = "quic"
+	KindTCP       Kind = "tcp"
+	KindWebSocket Kind = "websocket"
 )
 
 // ALPNProto is the ALPN token negotiated for both QUIC and TLS-TCP sessions,
@@ -32,11 +33,11 @@ const (
 // concurrent streams, and the small windows throttle the throughput ramp on a
 // real edge↔agent internet link. Raising them keeps one session fast under load.
 const (
-	quicInitialStreamWindow = 4 << 20   // 4 MB
-	quicMaxStreamWindow     = 16 << 20  // 16 MB
-	quicInitialConnWindow   = 8 << 20   // 8 MB
-	quicMaxConnWindow       = 64 << 20  // 64 MB
-	quicMaxIncomingStreams  = 4096      // concurrent data streams per session
+	quicInitialStreamWindow = 4 << 20  // 4 MB
+	quicMaxStreamWindow     = 16 << 20 // 16 MB
+	quicInitialConnWindow   = 8 << 20  // 8 MB
+	quicMaxConnWindow       = 64 << 20 // 64 MB
+	quicMaxIncomingStreams  = 4096     // concurrent data streams per session
 )
 
 // Stream is one multiplexed, bidirectional channel within a Session. It behaves

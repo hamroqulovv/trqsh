@@ -28,11 +28,16 @@ type yamuxSession struct {
 	sess   *yamux.Session
 	ctx    context.Context
 	cancel context.CancelFunc
+	kind   Kind
 }
 
 func newYamuxSession(sess *yamux.Session) *yamuxSession {
+	return newYamuxSessionKind(sess, KindTCP)
+}
+
+func newYamuxSessionKind(sess *yamux.Session, kind Kind) *yamuxSession {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &yamuxSession{sess: sess, ctx: ctx, cancel: cancel}
+	s := &yamuxSession{sess: sess, ctx: ctx, cancel: cancel, kind: kind}
 	// Cancel the session context once the underlying mux closes.
 	go func() {
 		<-sess.CloseChan()
@@ -57,7 +62,7 @@ func (s *yamuxSession) AcceptStream(ctx context.Context) (Stream, error) {
 	return &yamuxStream{Stream: st}, nil
 }
 
-func (s *yamuxSession) Kind() Kind               { return KindTCP }
+func (s *yamuxSession) Kind() Kind               { return s.kind }
 func (s *yamuxSession) RemoteAddr() net.Addr     { return s.sess.RemoteAddr() }
 func (s *yamuxSession) Context() context.Context { return s.ctx }
 

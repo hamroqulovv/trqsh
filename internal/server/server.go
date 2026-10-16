@@ -189,12 +189,12 @@ func (s *Server) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ln, err := tunnel.Listen(s.cfg.QUICAddr, s.cfg.TCPAddr, agentTLS)
+	ln, err := tunnel.ListenWithWebSocket(s.cfg.QUICAddr, s.cfg.TCPAddr, s.cfg.WebSocketAddr, agentTLS)
 	if err != nil {
 		return fmt.Errorf("server: agent listen: %w", err)
 	}
 	s.agentLn = ln
-	s.log.Info("agent listener up", "quic", s.cfg.QUICAddr, "tcp", s.cfg.TCPAddr)
+	s.log.Info("agent listener up", "quic", s.cfg.QUICAddr, "tcp", s.cfg.TCPAddr, "websocket", s.cfg.WebSocketAddr)
 
 	// Public ingress.
 	if err := s.startHTTP(ctx); err != nil {

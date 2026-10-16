@@ -9,7 +9,7 @@ const pkg = require("../package.json");
 
 // CLI releases publish to their own dedicated repo (source stays in
 // algorithco/trqsh; see .goreleaser.yaml).
-const REPO = process.env.TRQSH_REPO || "algorithco/trqshcli";
+const REPO = process.env.TRQSH_REPO || "trqsh-tunnel/trqshcli";
 const VERSION = (process.env.TRQSH_VERSION || pkg.version).replace(/^v/, "");
 if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(VERSION)) {
   throw new Error("invalid TRQSH_VERSION; use a release version such as 0.2.2");

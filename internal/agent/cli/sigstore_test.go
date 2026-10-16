@@ -13,6 +13,8 @@ func TestReleaseCertificateIdentity(t *testing.T) {
 		want bool
 	}{
 		{"current owner", "https://github.com/algorithco/trqsh/.github/workflows/release.yml@refs/tags/v0.2.2", true},
+		{"new owner", "https://github.com/trqsh-tunnel/trqsh/.github/workflows/release.yml@refs/tags/v0.2.4", true},
+		{"CLI packages", "https://github.com/trqsh-tunnel/trqsh/.github/workflows/release.yml@refs/tags/package-v0.2.4", true},
 		{"previous owner", "https://github.com/uzcreator/trqsh/.github/workflows/release.yml@refs/tags/v0.2.1", true},
 		{"different owner", "https://github.com/other/trqsh/.github/workflows/release.yml@refs/tags/v0.2.2", false},
 		{"artifact repo", "https://github.com/algorithco/trqshcli/.github/workflows/release.yml@refs/tags/v0.2.2", false},

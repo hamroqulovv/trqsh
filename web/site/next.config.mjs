@@ -3,6 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   // Self-contained server build for Docker (.next/standalone/server.js).
   output: "standalone",
+  ...(process.env.TRQSH_BUILD_CPUS
+    ? { experimental: { cpus: Number(process.env.TRQSH_BUILD_CPUS) } }
+    : {}),
   // Public deploy-time configuration. These are inlined at build so both Server
   // and Client Components can read them. Local Compose passes explicit overrides.
   env: {
@@ -16,6 +19,7 @@ const nextConfig = {
     TRQSH_CLI_GITHUB_REPO: process.env.TRQSH_CLI_GITHUB_REPO || "algorithco/trqshcli",
     // Canonical public origin (sitemap, robots, Open Graph, docs links).
     TRQSH_SITE_URL: process.env.TRQSH_SITE_URL || "https://trqsh.uz",
+    TRQSH_BASE_DOMAIN: process.env.TRQSH_BASE_DOMAIN || "trqsh.uz",
     // Latest published version — drives download filenames (matches goreleaser
     // `trqsh_<version>_<os>_<arch>` archive names).
     TRQSH_LATEST_VERSION: process.env.TRQSH_LATEST_VERSION || "0.2.2",
@@ -29,8 +33,10 @@ const nextConfig = {
   async rewrites() {
     const dashboard = process.env.TRQSH_DASHBOARD_INTERNAL_URL?.replace(/\/$/, "");
     const api = process.env.TRQSH_API_INTERNAL_URL?.replace(/\/$/, "");
+    const agent = process.env.TRQSH_AGENT_INTERNAL_URL?.replace(/\/$/, "");
     return {
       beforeFiles: [
+        ...(agent ? [{ source: "/_trqsh/agent", destination: `${agent}/_trqsh/agent` }] : []),
         ...(dashboard
           ? [
               { source: "/dashboard", destination: `${dashboard}/dashboard` },

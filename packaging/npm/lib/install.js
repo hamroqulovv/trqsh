@@ -126,6 +126,14 @@ function ensureOnPath() {
   if (!dir) return;
 
   const norm = (p) => p.replace(/\\+$/, "").toLowerCase();
+  const shadow = findShadowingCommand(dir);
+  if (shadow) {
+    process.stderr.write(
+      `trqsh: another installation appears before npm on PATH: ${shadow}\n` +
+      `Remove that older trqsh installation or put ${dir} first on PATH.\n` +
+      "To run this npm release directly: npx @trqsh-uz/trqsh@latest\n"
+    );
+  }
   const already = (process.env.PATH || "").split(path.delimiter).some((p) => p && norm(p) === norm(dir));
   if (already) return;
 
@@ -143,6 +151,20 @@ function ensureOnPath() {
       `trqsh: warning — couldn't update PATH automatically (${e.message}); if 'trqsh' isn't found, add ${dir} to your PATH manually\n`
     );
   }
+}
+
+function findShadowingCommand(binDir, entries = (process.env.PATH || "").split(path.delimiter)) {
+  const normalize = (p) => path.resolve(p).toLowerCase();
+  for (const entry of entries) {
+    const dir = entry.trim().replace(/^"(.*)"$/, "$1");
+    if (!dir) continue;
+    if (normalize(dir) === normalize(binDir)) return null;
+    for (const name of ["trqsh.exe", "trqsh.cmd", "trqsh.bat", "trqsh.ps1", "trqsh"]) {
+      const file = path.join(dir, name);
+      try { if (fs.statSync(file).isFile()) return file; } catch { /* absent or inaccessible */ }
+    }
+  }
+  return null;
 }
 
 async function install() {
@@ -223,11 +245,37 @@ function binaryVersion(file) {
 function cachedBinaryOK() {
   if (!fs.existsSync(C.binPath)) return false;
   const version = binaryVersion(C.binPath);
-  // A self-updated binary is valid unless the caller explicitly pins a version.
-  return !!version && (!process.env.TRQSH_VERSION || version === C.VERSION.replace(/^v/, ""));
+  // Preserve newer self-updates, but never accept a binary older than this
+  // package. An explicit pin always requires that exact release.
+  return !!version && (process.env.TRQSH_VERSION ? version === C.VERSION : versionAtLeast(version, C.VERSION));
 }
 
-module.exports = { install, fetch, verifyChecksum, cachedBinaryOK };
+function versionAtLeast(current, required) {
+  const parse = (v) => {
+    const match = v.match(/^(\d+)\.(\d+)\.(\d+)(?:-([\w.-]+))?(?:\+[\w.-]+)?$/);
+    return match && { core: match.slice(1, 4).map(BigInt), pre: match[4] && match[4].split(".") };
+  };
+  const a = parse(current), b = parse(required);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) {
+    if (a.core[i] !== b.core[i]) return a.core[i] > b.core[i];
+  }
+  if (!a.pre || !b.pre) return !a.pre || !!b.pre;
+  for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
+    const x = a.pre[i], y = b.pre[i];
+    if (x === y) continue;
+    if (x === undefined || y === undefined) return y === undefined;
+    const xn = /^\d+$/.test(x), yn = /^\d+$/.test(y);
+    if (xn && yn) {
+      if (BigInt(x) !== BigInt(y)) return BigInt(x) > BigInt(y);
+      continue;
+    }
+    return xn !== yn ? !xn : x > y;
+  }
+  return true;
+}
+
+module.exports = { install, fetch, verifyChecksum, cachedBinaryOK, versionAtLeast, findShadowingCommand };
 
 if (require.main === module) {
   install().catch((err) => {

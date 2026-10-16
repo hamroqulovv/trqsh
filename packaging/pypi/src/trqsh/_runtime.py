@@ -28,7 +28,7 @@ from ._ui import InstallUI
 
 # CLI releases publish to their own dedicated repo (source stays in
 # algorithco/trqsh; see .goreleaser.yaml).
-REPO = os.environ.get("TRQSH_REPO", "algorithco/trqshcli")
+REPO = os.environ.get("TRQSH_REPO", "trqsh-tunnel/trqshcli")
 VERSION = os.environ.get("TRQSH_VERSION", __version__).lstrip("v")
 if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[\w.-]+)?(?:\+[\w.-]+)?", VERSION):
     raise SystemExit("trqsh: invalid TRQSH_VERSION; use a release version such as 0.2.2")
@@ -240,12 +240,22 @@ def _binary_version(target: Path):
         return None
 
 
+def _version_key(version: str):
+    """Semver precedence, ignoring build metadata and ordering numeric IDs."""
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-([\w.-]+))?(?:\+[\w.-]+)?", version)
+    if not match:
+        return (-1, -1, -1, ())
+    prerelease = match.group(4)
+    ids = tuple((0, int(p)) if p.isdigit() else (1, p) for p in prerelease.split(".")) if prerelease else ((2, ""),)
+    return (*map(int, match.group(1, 2, 3)), ids)
+
+
 def ensure_binary() -> Path:
     """Return the path to the trqsh binary, downloading it once if needed."""
     _ensure_on_path()
     target = bin_path()
     cached = _binary_version(target) if target.exists() else None
-    if cached and (not os.environ.get("TRQSH_VERSION") or cached == VERSION.lstrip("v")):
+    if cached and (cached == VERSION if os.environ.get("TRQSH_VERSION") else _version_key(cached) >= _version_key(VERSION)):
         return target
 
     goos, goarch, ext = _target()

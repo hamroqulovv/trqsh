@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"net"
+	"net/url"
 	"strings"
 
 	"github.com/trqsh-uz/trqsh/internal/agent"
@@ -31,8 +33,12 @@ func firstNonEmpty(a, b string) string {
 // server address, for showing reserved subdomains as full hosts in the console.
 func baseDomainOf(cfg agent.Config) string {
 	h := strings.TrimSpace(cfg.Server)
-	if i := strings.LastIndex(h, ":"); i > 0 {
-		h = h[:i]
+	if strings.Contains(h, "://") {
+		if u, err := url.Parse(h); err == nil {
+			h = u.Hostname()
+		}
+	} else if host, _, err := net.SplitHostPort(h); err == nil {
+		h = host
 	}
 	if h == "" {
 		return "trqsh.uz"

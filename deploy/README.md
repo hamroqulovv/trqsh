@@ -3,6 +3,9 @@
 Everything needed to run trqsh **locally**, ship it to the **cloud**, **release** it
 to users, and **observe** it.
 
+For the whole local platform in **one container named `trqsh`**, with public URLs
+set to `https://tunnel.trqsh.uz`, see [SINGLE-CONTAINER.md](SINGLE-CONTAINER.md).
+
 ```
 deploy/
 ├── docker-compose.dev.yml   full local M1 stack (+ web / observability profiles)

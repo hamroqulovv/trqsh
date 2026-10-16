@@ -85,6 +85,15 @@ func Load(path string) (Config, error) {
 	} else if !os.IsNotExist(err) {
 		return c, fmt.Errorf("agent: read %s: %w", path, err)
 	}
+	// Previous releases persisted the hosted defaults. Migrate those exact
+	// endpoints before applying explicit environment/CLI overrides; leave
+	// self-hosted endpoints and the user's credentials and tunnels intact.
+	if strings.TrimRight(c.APIBase, "/") == "https://api.trqsh.uz" {
+		c.APIBase = DefaultAPIBase
+	}
+	if c.Server == "trqsh.uz:4443" {
+		c.Server = DefaultServer
+	}
 	c.applyEnv()
 	if c.Tunnels == nil {
 		c.Tunnels = map[string]TunnelConfig{}
@@ -129,6 +138,8 @@ func (c Config) forcedTransport() string {
 	switch strings.ToLower(c.Transport) {
 	case "quic":
 		return "quic"
+	case "websocket":
+		return "websocket"
 	case "tcp":
 		return "tcp"
 	default:
