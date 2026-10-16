@@ -62,6 +62,14 @@ test("installer verifies, stages, retries and honors explicit pins", async()=>{
   await installer.install();
   assert.equal(fs.readFileSync(C.binPath,"utf8"),`fixture:${C.VERSION}`);
   assert.deepEqual(fs.readdirSync(C.vendorDir),[C.binName]);
+  fs.writeFileSync(C.binPath,"fixture:0.2.1");
+  assert.equal(installer.cachedBinaryOK(),false,"older cached binary must be replaced");
+  checksumMode="bad";
+  await assert.rejects(installer.install(), /checksum mismatch/);
+  assert.equal(fs.readFileSync(C.binPath,"utf8"),"fixture:0.2.1","failed upgrade preserves the old binary");
+  checksumMode="ok";
+  await installer.install();
+  assert.equal(fs.readFileSync(C.binPath,"utf8"),`fixture:${C.VERSION}`,"upgrade replaces old binary without an explicit pin");
   fs.writeFileSync(C.binPath,"fixture:99.0.0");
   assert.equal(installer.cachedBinaryOK(),true,"self-update preserved");
   const oldPin=process.env.TRQSH_VERSION;
@@ -72,6 +80,24 @@ test("installer verifies, stages, retries and honors explicit pins", async()=>{
   assert.equal(fs.readFileSync(C.binPath,"utf8"),"fixture:99.0.0","old binary intact");
   checksumMode="ok"; await installer.install();
   if(oldPin===undefined) delete process.env.TRQSH_VERSION; else process.env.TRQSH_VERSION=oldPin;
+});
+
+test("cached versions use semantic ordering",()=>{
+  for (const [current, required, want] of [
+    ["0.2.1", "0.2.5", false], ["0.2.10", "0.2.9", true],
+    ["0.2.5-beta.10", "0.2.5-beta.2", true], ["0.2.5-beta", "0.2.5", false],
+    ["0.2.5", "0.2.5-beta", true], ["0.2.5+build", "0.2.5", true],
+    ["0.2.5-1", "0.2.5-beta", false], ["broken", "0.2.5", false],
+  ]) assert.equal(installer.versionAtLeast(current, required),want,`${current} >= ${required}`);
+});
+
+test("global PATH check detects an earlier Python launcher",()=>{
+  const python = path.join(temp,"python-scripts"), npm = path.join(temp,"npm-bin");
+  fs.mkdirSync(python); fs.mkdirSync(npm);
+  const old = path.join(python,"trqsh.exe"); fs.writeFileSync(old,"old launcher");
+  assert.equal(installer.findShadowingCommand(npm,[python,npm]),old);
+  assert.equal(installer.findShadowingCommand(npm,[npm,python]),null);
+  assert.equal(installer.findShadowingCommand(npm,[source,npm]),path.join(source,C.binName));
 });
 
 test("plain installer output has no animation or false global-install claim",()=>{

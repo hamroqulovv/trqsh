@@ -91,21 +91,31 @@ func (l *LocalAPI) Serve(ctx context.Context, addr string) error {
 // sessionInfo tells the desktop app whether an API key is stored (signed in) and
 // the live transport status, without polluting the frozen Status wire type.
 type sessionInfo struct {
-	Authed bool   `json:"authed"`
-	Status Status `json:"status"`
+	Authed  bool   `json:"authed"`
+	Status  Status `json:"status"`
+	Version string `json:"version"`
+	Managed bool   `json:"managed"`
+}
+
+func (l *LocalAPI) sessionInfo() sessionInfo {
+	return sessionInfo{
+		Authed: storedAPIKey() != "", Status: l.core.Status(),
+		Version: Version, Managed: l.onShutdown != nil,
+	}
 }
 
 // Handler returns the control API routes.
 func (l *LocalAPI) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Trqsh-Version", Version)
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
 		apiWriteJSON(w, http.StatusOK, l.core.Status())
 	})
 	mux.HandleFunc("GET /session", func(w http.ResponseWriter, _ *http.Request) {
-		apiWriteJSON(w, http.StatusOK, sessionInfo{Authed: storedAPIKey() != "", Status: l.core.Status()})
+		apiWriteJSON(w, http.StatusOK, l.sessionInfo())
 	})
 	mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -124,7 +134,7 @@ func (l *LocalAPI) Handler() http.Handler {
 			apiWriteJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
-		apiWriteJSON(w, http.StatusOK, sessionInfo{Authed: true, Status: l.core.Status()})
+		apiWriteJSON(w, http.StatusOK, l.sessionInfo())
 	})
 	mux.HandleFunc("POST /logout", func(w http.ResponseWriter, r *http.Request) {
 		if err := l.core.Logout(r.Context()); err != nil {

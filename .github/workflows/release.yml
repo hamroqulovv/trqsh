@@ -93,6 +93,7 @@ jobs:
           fi
           VER="${GITHUB_REF_NAME#package-}"
           VER="${VER#v}"
+          node --test test/install.test.js
           npm version "$VER" --no-git-tag-version --allow-same-version
           npm publish --access public
         env:
@@ -116,6 +117,7 @@ jobs:
           fi
           VER="${GITHUB_REF_NAME#package-}"
           VER="${VER#v}"
+          python -m unittest test_runtime.py
           python -m pip install --upgrade build twine
           sed -i -E "s/^version = \".*\"/version = \"$VER\"/" pyproject.toml
           sed -i -E "s/^__version__ = \".*\"/__version__ = \"$VER\"/" src/trqsh/__init__.py

@@ -6,7 +6,7 @@
 
 Share development servers, receive webhooks and inspect traffic from an interactive terminal. This package installs the native CLI; the desktop app is a separate download.
 
-CLI 0.2.4 connects to `https://tunnel.trqsh.uz` and uses authenticated WebSocket
+CLI 0.2.5 connects to `https://tunnel.trqsh.uz` and uses authenticated WebSocket
 transport through `wss://tunnel.trqsh.uz/_trqsh/agent`. Direct QUIC/TCP connections
 remain available with `--server host:port`. Public tunnel URLs need wildcard
 DNS/TLS and edge ingress in addition to the control-plane hostname.
@@ -125,7 +125,9 @@ Update through npm to keep package records aligned:
 npm install -g @trqsh-uz/trqsh@latest --foreground-scripts
 ```
 
-The console also supports `/update check` and `/update`. Restart after a successful update. A usable self-updated binary is retained unless `TRQSH_VERSION` explicitly requests another version.
+The console also supports `/update check` and `/update`. Restart after a successful update. Cached binaries older than the package are replaced; newer self-updated binaries are retained unless `TRQSH_VERSION` explicitly pins another release. Opening the updated console automatically restarts an older CLI daemon. Saved hosted endpoints from earlier releases migrate to `tunnel.trqsh.uz`; custom endpoints and credentials are preserved.
+
+If `trqsh --version` still shows an old version, check `where.exe trqsh` on Windows or `command -v trqsh` on macOS/Linux. An earlier pip installation can take precedence over npm. To switch from pip to npm, remove the Python launcher with `python -m pip uninstall trqsh`, then run the npm update command above. Package removal preserves agent configuration and credentials. A local `npm install` does not replace a global command; use `-g` or run `npx @trqsh-uz/trqsh@latest`.
 
 ## Uninstall
 

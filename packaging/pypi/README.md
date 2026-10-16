@@ -6,7 +6,7 @@
 
 Share development servers, receive webhooks and inspect traffic from an interactive terminal. This package installs the native CLI; the desktop app is a separate download.
 
-CLI 0.2.4 connects to `https://tunnel.trqsh.uz` and uses authenticated WebSocket
+CLI 0.2.5 connects to `https://tunnel.trqsh.uz` and uses authenticated WebSocket
 transport through `wss://tunnel.trqsh.uz/_trqsh/agent`. Direct QUIC/TCP connections
 remain available with `--server host:port`. Public tunnel URLs need wildcard
 DNS/TLS and edge ingress in addition to the control-plane hostname.
@@ -132,7 +132,9 @@ pipx upgrade trqsh
 python -m pip install --upgrade trqsh
 ```
 
-The console also supports `/update check` and `/update`. Restart after a successful update. An explicit `TRQSH_VERSION` takes precedence over a self-updated cached binary.
+The console also supports `/update check` and `/update`. Restart after a successful update. Cached binaries older than the package are replaced; newer self-updates are retained unless `TRQSH_VERSION` explicitly pins another release. Opening the updated console restarts an older CLI daemon. Saved hosted endpoints migrate to `tunnel.trqsh.uz`; custom endpoints, credentials and tunnel definitions are preserved.
+
+Use one package manager for the global command. When switching from npm to pip, remove the npm launcher with `npm uninstall -g @trqsh-uz/trqsh`. Check `where.exe trqsh` on Windows or `command -v trqsh` on macOS/Linux if an older installation still appears. `python -m trqsh --version` explicitly selects the current Python environment's package.
 
 ## Uninstall
 
