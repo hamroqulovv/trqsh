@@ -2,11 +2,32 @@
 set -Eeuo pipefail
 umask 077
 
+# An explicit --user 0 --prepare-data run migrates volumes from the original
+# root-supervised image. Normal startup and every service run as app (10001).
+if [ "$(id -u)" = 0 ]; then
+    mkdir -p /data/postgres /data/redis /data/tls /data/usage /run/trqsh
+    chown -R app:app /data /run/trqsh /var/run/postgresql
+    if [ "${1:-}" = --prepare-data ]; then
+        exit 0
+    fi
+    exec gosu app "$0" "$@"
+fi
+
+if [ ! -w /data ] || { [ -f /data/runtime.env ] && [ ! -r /data/runtime.env ]; }; then
+    printf 'Data volume needs ownership migration. See deploy/SINGLE-CONTAINER.md: Upgrading an existing volume.\n' >&2
+    exit 1
+fi
 mkdir -p /data/postgres /data/redis /data/tls /data/usage /run/trqsh
-chown postgres:postgres /data/postgres
+for directory in /data/postgres /data/redis /data/tls /data/usage; do
+    if [ ! -w "$directory" ]; then
+        printf 'Data volume needs ownership migration. See deploy/SINGLE-CONTAINER.md: Upgrading an existing volume.\n' >&2
+        exit 1
+    fi
+done
 chmod 700 /data/postgres
-chown redis:redis /data/redis
-chown app:app /data/tls /data/usage
+if [ "${1:-}" = --prepare-data ]; then
+    exit 0
+fi
 
 # Keep generated credentials with the database, including across image rebuilds.
 if [ ! -f /data/runtime.env ]; then

@@ -18,11 +18,11 @@ case "${1:-}" in
         wait_for pg_isready -q -h 127.0.0.1 -U trqsh -d trqsh
         wait_for redis-cli -h 127.0.0.1 ping
         goose up
-        exec gosu app /usr/local/bin/trqshapi
+        exec /usr/local/bin/trqshapi
         ;;
     edge)
         wait_for curl --max-time 2 -fsS http://127.0.0.1:8080/healthz
-        exec gosu app /usr/local/bin/trqshd
+        exec /usr/local/bin/trqshd
         ;;
     *)
         printf 'Unknown service: %s\n' "${1:-}" >&2

@@ -18,7 +18,7 @@ func TestWebSocketThroughTLSProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	echoServer(t, ln)
 	upstream, _ := url.Parse("http://" + ln.Addr().String())
 	proxy := httptest.NewTLSServer(httputil.NewSingleHostReverseProxy(upstream))
@@ -28,7 +28,7 @@ func TestWebSocketThroughTLSProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sess.CloseWithError(0, "test finished")
+	defer func() { _ = sess.CloseWithError(0, "test finished") }()
 	if sess.Kind() != KindWebSocket {
 		t.Fatalf("kind = %s", sess.Kind())
 	}
@@ -38,7 +38,7 @@ func TestWebSocketThroughTLSProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	_ = stream.SetDeadline(time.Now().Add(5 * time.Second))
 	payload := bytes.Repeat([]byte("forwarded-through-https"), 32000)
 	written := make(chan error, 1)
@@ -78,13 +78,13 @@ func TestWebSocketRejectsCrossOriginAndWrongPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	base := "http://" + ln.Addr().String()
 	response, err := http.Get(base + "/other")
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusNotFound {
 		t.Fatalf("wrong path: %d", response.StatusCode)
 	}
@@ -98,7 +98,7 @@ func TestWebSocketRejectsCrossOriginAndWrongPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusForbidden {
 		t.Fatalf("cross origin: %d", response.StatusCode)
 	}

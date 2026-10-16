@@ -74,7 +74,10 @@ COPY deploy/docker/single/entrypoint.sh /usr/local/bin/trqsh-single-entrypoint
 COPY deploy/docker/single/service.sh /usr/local/bin/trqsh-single-service
 COPY deploy/docker/single/healthcheck.sh /usr/local/bin/trqsh-single-healthcheck
 COPY deploy/docker/single/supervisord.conf /etc/supervisor/supervisord.conf
-RUN chmod +x /usr/local/bin/trqsh-single-* && chown app:app /app
+RUN chmod +x /usr/local/bin/trqsh-single-* && chown app:app /app && \
+    install -d -o app -g app -m 0700 \
+      /data /data/postgres /data/redis /data/tls /data/usage /run/trqsh && \
+    chown app:app /var/run/postgresql
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 \
     PGDATA=/data/postgres POSTGRES_USER=trqsh POSTGRES_DB=trqsh \
     TRQSH_DOCS_CONTENT_DIR=/app/site/content
@@ -83,4 +86,5 @@ EXPOSE 3000/tcp 8082/tcp 8443/tcp 4443/tcp 4443/udp
 HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=3 \
     CMD ["/usr/local/bin/trqsh-single-healthcheck"]
 STOPSIGNAL SIGTERM
+USER app
 ENTRYPOINT ["/usr/local/bin/trqsh-single-entrypoint"]

@@ -11,7 +11,8 @@ control API, edge, PostgreSQL 16 and Redis under Supervisor. Migrations run befo
 the API starts. Database data, Redis AOF, generated secrets, certificates and
 pending usage survive container restarts/rebuilds in the `trqsh_trqsh_data` volume.
 Internal database/API/metrics ports are not published. All host ports bind only
-to `127.0.0.1`.
+to `127.0.0.1`. The supervisor and all services run as the unprivileged `app`
+user (UID 10001).
 
 | Route | Local origin | Public URL after your Cloudflare connection |
 | --- | --- | --- |
@@ -25,6 +26,9 @@ device/QR links use `https://tunnel.trqsh.uz`. Site and dashboard assets are bui
 into the image; no host Node/Go installations are needed.
 
 ## Cloudflare Zero Trust
+
+For dashboard fields, wildcard DNS, HTTPS certificates and troubleshooting,
+follow [the detailed Cloudflare setup guide](CLOUDFLARE.md).
 
 You manage the Cloudflare connector. For the hostname `tunnel.trqsh.uz`, use
 service type **HTTP** and URL **localhost:3004** when cloudflared runs on Windows.
@@ -64,3 +68,20 @@ docker compose -f deploy/docker-compose.single.yml down
 ```
 
 `down` keeps the data volume. Do not add `-v` unless you intend to erase it.
+
+## Upgrading an existing volume
+
+The first image used separate service users and a root supervisor. When
+upgrading that image to the non-root image, migrate file ownership once while
+the services are stopped. Database contents, Redis data and runtime secrets
+stay in the existing volume:
+
+```powershell
+docker compose -f deploy/docker-compose.single.yml build trqsh
+docker compose -f deploy/docker-compose.single.yml stop trqsh
+docker compose -f deploy/docker-compose.single.yml run --rm --no-deps --user 0 trqsh --prepare-data
+docker compose -f deploy/docker-compose.single.yml up -d --wait --wait-timeout 180
+```
+
+Only the explicit preparation command runs as root to change volume ownership.
+Normal startup uses UID 10001. Fresh volumes need no preparation command.
