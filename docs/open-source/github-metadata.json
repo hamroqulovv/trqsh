@@ -1,0 +1,24 @@
+{
+  "status": "draft_not_applied",
+  "repository": {
+    "name": "trqsh-tunnel/trqsh",
+    "description": "Expose localhost over authenticated HTTP, TCP and UDP tunnels. QUIC-first with TCP/WebSocket fallbacks, a CLI, desktop app and self-hosted control plane.",
+    "homepage_proposal": "https://tunnel.trqsh.uz",
+    "homepage_requires_live_verification_before_applying": true,
+    "topics": ["tunneling", "developer-tools", "localhost", "self-hosted", "golang", "quic", "websocket", "reverse-proxy", "ngrok-alternative", "nextjs", "tauri"]
+  },
+  "organization": {
+    "login": "trqsh-tunnel",
+    "display_name": "trqsh",
+    "description": "Open-source tunneling tools for developers. QUIC-first transport, self-hosting and a shared control plane.",
+    "profile_readme_destination": "trqsh-tunnel/.github:profile/README.md",
+    "pinned_repository_proposals": ["trqsh", "trqshcli"]
+  },
+  "license_transition": {
+    "current": "Apache-2.0",
+    "planned": "AGPL-3.0-only",
+    "effective": false,
+    "commercial_use_allowed": true,
+    "requires_dedicated_license_and_metadata_release": true
+  }
+}
