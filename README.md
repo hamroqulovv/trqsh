@@ -1,16 +1,20 @@
 <div align="center">
 
+<img src="assets/brand/trqsh-logo-rounded.svg" width="160" height="160" alt="trqsh logo" />
+
 # trqsh
 
 **Your localhost, live on the internet.** Expose local HTTP, TCP and UDP services through
 an authenticated agent with QUIC-first transport and TCP fallback. Use the interactive
 console or desktop app, inspect HTTP traffic locally, or self-host the full platform.
 
-[![CI](https://github.com/uzcreator/trqsh/actions/workflows/ci.yml/badge.svg)](https://github.com/uzcreator/trqsh/actions/workflows/ci.yml)
-[![Security](https://github.com/uzcreator/trqsh/actions/workflows/security.yml/badge.svg)](https://github.com/uzcreator/trqsh/actions/workflows/security.yml)
-[![CodeQL](https://github.com/uzcreator/trqsh/actions/workflows/codeql.yml/badge.svg)](https://github.com/uzcreator/trqsh/actions/workflows/codeql.yml)
+[![CI](https://github.com/trqsh-tunnel/trqsh/actions/workflows/ci.yml/badge.svg)](https://github.com/trqsh-tunnel/trqsh/actions/workflows/ci.yml)
+[![Security](https://github.com/trqsh-tunnel/trqsh/actions/workflows/security.yml/badge.svg)](https://github.com/trqsh-tunnel/trqsh/actions/workflows/security.yml)
+[![CodeQL](https://github.com/trqsh-tunnel/trqsh/actions/workflows/codeql.yml/badge.svg)](https://github.com/trqsh-tunnel/trqsh/actions/workflows/codeql.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8)](https://go.dev)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
+
+[CLI releases](https://github.com/trqsh-tunnel/trqshcli/releases) · [Documentation](docs/README.md) · [Self-hosting](docs/content/self-hosting.md) · [Contributing](CONTRIBUTING.md)
 
 **Created and maintained by [Otabek Hamroqulov](https://github.com/Hamroqulovv)**
 
@@ -91,7 +95,12 @@ manager, for example `npm uninstall -g @trqsh-uz/trqsh` or `python -m pip uninst
 
 ## Local development
 
-For the persistent complete stack, including both frontends:
+Choose one local deployment mode; both use ports 80/443 and must not be started in parallel.
+
+- **Single container:** [the existing `trqsh` stack](deploy/SINGLE-CONTAINER.md) serves the site, dashboard and API through `http://localhost:3004`. Its frontend origins are built for `https://tunnel.trqsh.uz`; check that guide before changing public URLs or authentication.
+- **Separate services:** the persistent local stack below serves the site on `:3004`, dashboard on `:3005`, and API on `:8081`.
+
+For the separate-service mode, including both frontends:
 
 ```bash
 docker compose -p trqsh-local -f deploy/docker-compose.dev.yml -f deploy/docker-compose.local.yml --profile web up -d --build --wait
@@ -164,5 +173,7 @@ trqsh is created and maintained by **Otabek Hamroqulov** — GitHub [@Hamroqulov
 
 ## License
 
-trqsh is **open source** under **[Apache-2.0](./LICENSE)** — the whole stack: the agent/CLI, the
+A future release is planned to use **GNU AGPLv3**, with commercial use allowed and Corresponding Source obligations for modified network-interactive covered versions. See the [licensing transition plan](docs/open-source/LICENSING.md). The transition is not effective until the license and release metadata are updated together.
+
+The current source and published releases remain **open source** under **[Apache-2.0](./LICENSE)** — the whole stack: the agent/CLI, the
 edge, the control plane, and billing. Run it as a service, self-host it, fork it, or build on it.
