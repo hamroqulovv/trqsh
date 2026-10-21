@@ -1,16 +1,15 @@
-## CLI 0.2.6 — TRQSH.UZ deployment candidate
+## CLI 0.2.6 — trqsh.uz
 
-This version is prepared in source and is not published by this PR.
-
-- Use `https://api.trqsh.uz` for account and OAuth device APIs.
-- Connect to `trqsh.uz:4443` with QUIC and TCP fallback; customer tunnel URLs
-  are under `*.trqsh.uz`.
-- Migrate the previous `tunnel.trqsh.uz` hosted defaults while preserving
-  custom endpoints, explicit overrides, API keys and saved tunnels.
-- Point homepage/docs links at `https://trqsh.uz`, dashboard links at
+- Uses `https://api.trqsh.uz` for account and OAuth device sign-in. Sign-in is
+  GitHub or Google only, at `https://app.trqsh.uz`.
+- Connects to `trqsh.uz:4443` with QUIC and TCP fallback; tunnel URLs are
+  `https://<name>.trqsh.uz`.
+- Migrates the previous `tunnel.trqsh.uz` hosted defaults automatically while
+  preserving custom endpoints, explicit overrides, API keys and saved tunnels.
+- Homepage and docs links point at `https://trqsh.uz`, dashboard links at
   `https://app.trqsh.uz`, and release downloads at `trqsh-tunnel/trqshcli`.
-- Keep existing npm, PyPI and Go module names compatible.
+- Windows has a PowerShell installer: `irm https://trqsh.uz/install.ps1 | iex`.
+- npm (`@trqsh-uz/trqsh`), PyPI (`trqsh`) and Go module names are unchanged.
 
-Publish the tested native assets and matching npm/PyPI 0.2.6 wrappers only after
-the new domain, trusted TLS and GitHub/Google sign-in are ready. See
-[the deployment guide](../deploy/DOMAIN-AUTH.md).
+Update with `trqsh update`, your package manager, or the installers at
+https://trqsh.uz/docs/installation.

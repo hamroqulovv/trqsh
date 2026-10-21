@@ -8,12 +8,13 @@
 
 ## Status
 
-These files are **templates awaiting release preparation**. They reference
-version `0.1.0`, legacy URLs and placeholder `InstallerSha256` values. They are
-not ready for installation or catalog submission as checked in.
+These manifests describe the published CLI **0.2.6** release, with its asset URLs
+and SHA-256 values from `checksums.txt`. They have not been submitted to the
+`microsoft/winget-pkgs` catalog yet, so `winget install trqsh.trqsh` does not
+work until that submission is accepted.
 
-Use the [npm](../npm/README.md) or [Python](../pypi/README.md) wrapper while
-preparing this channel.
+Until then, use `irm https://trqsh.uz/install.ps1 | iex`, the
+[npm](../npm/README.md) wrapper, or the [Python](../pypi/README.md) wrapper.
 
 ## Manifest set
 

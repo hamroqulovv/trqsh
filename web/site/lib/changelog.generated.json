@@ -1,11 +1,24 @@
 {
   "schemaVersion": 1,
-  "checkedOn": "2026-10-20",
+  "checkedOn": "2026-10-21",
   "sources": [
     "https://github.com/trqsh-tunnel/trqshcli/releases",
     "https://github.com/trqsh-tunnel/trqsh/releases"
   ],
   "releases": [
+    {
+      "id": "cli-0.2.6",
+      "product": "cli",
+      "version": "0.2.6",
+      "tag": "v0.2.6",
+      "name": "trqsh CLI v0.2.6",
+      "publishedAt": "2026-10-21T12:31:10Z",
+      "url": "https://github.com/trqsh-tunnel/trqshcli/releases/tag/v0.2.6",
+      "repository": "trqsh-tunnel/trqshcli",
+      "prerelease": false,
+      "preview": false,
+      "body": "## CLI 0.2.6 — trqsh.uz\n\n- Uses `https://api.trqsh.uz` for account and OAuth device sign-in. Sign-in is\n  GitHub or Google only, at `https://app.trqsh.uz`.\n- Connects to `trqsh.uz:4443` with QUIC and TCP fallback; tunnel URLs are\n  `https://<name>.trqsh.uz`.\n- Migrates the previous `tunnel.trqsh.uz` hosted defaults automatically while\n  preserving custom endpoints, explicit overrides, API keys and saved tunnels.\n- Homepage and docs links point at `https://trqsh.uz`, dashboard links at\n  `https://app.trqsh.uz`, and release downloads at `trqsh-tunnel/trqshcli`.\n- Windows has a PowerShell installer: `irm https://trqsh.uz/install.ps1 | iex`.\n- npm (`@trqsh-uz/trqsh`), PyPI (`trqsh`) and Go module names are unchanged.\n\nUpdate with `trqsh update`, your package manager, or the installers at\nhttps://trqsh.uz/docs/installation."
+    },
     {
       "id": "cli-0.2.5",
       "product": "cli",

@@ -22,7 +22,9 @@ var extraReserved = sync.OnceValue(func() map[string]bool {
 
 func controlPlaneSubdomain(sub string) bool {
 	switch sub {
-	case "api", "app", "approve", "qr", "www":
+	// tunnel: CLI 0.2.5 migrated hosted configs to tunnel.<base> and still
+	// sends its API key there; a tunnel with that name could harvest keys.
+	case "api", "app", "approve", "qr", "tunnel", "www":
 		return true
 	}
 	return false
