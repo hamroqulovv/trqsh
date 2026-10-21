@@ -1,0 +1,10 @@
+cmd/trqshd
+internal/entitlerpc
+internal/platform
+internal/server
+pkg
+go.mod
+go.sum
+deploy/docker/Dockerfile.edge
+deploy/docker-compose.prod.yml
+deploy/docker-compose.shared-host.yml

@@ -144,6 +144,9 @@ func (s *Server) tlsDecision(ctx context.Context, name string) error {
 
 func (s *Server) allowTLSName(ctx context.Context, name string) bool {
 	name = strings.ToLower(strings.TrimSuffix(name, "."))
+	if _, ok := s.cfg.Passthrough[name]; ok {
+		return false // its backend holds the certificate
+	}
 	base := strings.ToLower(s.cfg.BaseDomain)
 	if name == base || strings.HasSuffix(name, "."+base) {
 		return true // our own zone (also covered by the wildcard)
