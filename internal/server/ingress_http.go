@@ -50,9 +50,13 @@ func (s *Server) startHTTPS(ctx context.Context) error {
 		tlsConf.NextProtos = append([]string{"h2"}, tlsConf.NextProtos...)
 		s.h2Server = &http2.Server{IdleTimeout: httpIdleTimeout}
 	}
-	tlsLn := tls.NewListener(raw, tlsConf)
-	s.log.Info("https ingress up", "addr", s.cfg.HTTPSAddr, "h2", s.cfg.EnableH2)
+	s.log.Info("https ingress up", "addr", s.cfg.HTTPSAddr, "h2", s.cfg.EnableH2, "passthrough_hosts", len(s.cfg.Passthrough))
 	s.wg.Add(1)
+	if len(s.cfg.Passthrough) > 0 {
+		go func() { defer s.wg.Done(); s.acceptHTTPSPassthrough(ctx, raw, tlsConf) }()
+		return nil
+	}
+	tlsLn := tls.NewListener(raw, tlsConf)
 	go func() { defer s.wg.Done(); s.acceptHTTP(ctx, tlsLn, "https") }()
 	return nil
 }
@@ -69,12 +73,16 @@ func (s *Server) acceptHTTP(ctx context.Context, ln net.Listener, scheme string)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			if s.cfg.EnableH2 {
-				s.serveMaybeH2(ctx, c, scheme)
-			} else {
-				s.serveHTTPConn(c, scheme)
-			}
+			s.serveIngressConn(ctx, c, scheme)
 		}()
+	}
+}
+
+func (s *Server) serveIngressConn(ctx context.Context, c net.Conn, scheme string) {
+	if s.cfg.EnableH2 {
+		s.serveMaybeH2(ctx, c, scheme)
+	} else {
+		s.serveHTTPConn(c, scheme)
 	}
 }
 
@@ -126,6 +134,17 @@ func (s *Server) serveHTTPConn(conn net.Conn, scheme string) {
 		_ = conn.SetReadDeadline(time.Time{})
 
 		host := hostOnly(req.Host)
+
+		// A passthrough host's TLS belongs to its own backend; plain HTTP only
+		// ever needs sending there.
+		if _, ok := s.passthroughFor(host); ok {
+			if scheme == "http" {
+				redirectToHTTPS(conn, host, req)
+			} else {
+				writeHTTPResponse(conn, http.StatusMisdirectedRequest, "Misdirected Request", "text/plain", "421 misdirected request\n")
+			}
+			return
+		}
 
 		// Force HTTPS for our own control-plane hosts (marketing site, dashboard,
 		// API) so a fresh device that typed "trqsh.uz" never stays on an insecure

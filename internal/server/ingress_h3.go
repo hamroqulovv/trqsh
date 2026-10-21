@@ -116,6 +116,11 @@ func (s *Server) startH3(ctx context.Context) error {
 func (s *Server) routeHTTPS(w http.ResponseWriter, r *http.Request) {
 	const scheme = "https" // h2 and h3 are both TLS-only
 	host := hostOnly(r.Host)
+	if _, ok := s.passthroughFor(host); ok {
+		// Its TLS is terminated by its own backend, never by the edge.
+		http.Error(w, "421 misdirected request", http.StatusMisdirectedRequest)
+		return
+	}
 	if s.isPlatformHost(host) {
 		if up := s.reservedUpstream(host); up != "" {
 			s.proxyToUpstreamH3(w, r, scheme, up)
