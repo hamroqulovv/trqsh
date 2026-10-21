@@ -47,6 +47,22 @@ python -m trqsh
 
 The Python wrapper downloads the native CLI on first use. If `trqsh` is not on PATH, the `python -m trqsh` form still works with the same Python environment.
 
+## PowerShell installer: Windows
+
+In PowerShell:
+
+~~~powershell
+irm https://trqsh.uz/install.ps1 | iex
+~~~
+
+From Command Prompt (`cmd.exe`), where `sh` is not available:
+
+~~~bat
+powershell -c "irm https://trqsh.uz/install.ps1 | iex"
+~~~
+
+The script downloads the Windows release for your processor, verifies its SHA-256 against `checksums.txt`, installs `trqsh.exe` to `%LOCALAPPDATA%\Programs\trqsh` and adds that directory to your user PATH. Open a new terminal afterwards. Set `TRQSH_VERSION`, `TRQSH_BINDIR` or `TRQSH_NO_MODIFY_PATH=1` before running it to pick a release, a directory, or to leave PATH unchanged.
+
 ## Shell installer: macOS and Linux
 
 ~~~sh

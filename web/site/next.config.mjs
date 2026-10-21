@@ -27,6 +27,11 @@ const nextConfig = {
     // /upgrade page (there is no self-serve checkout).
     TRQSH_TELEGRAM: process.env.TRQSH_TELEGRAM || "hamroqulovv",
   },
+  // Installers are piped into a shell, so serve them as readable UTF-8 text.
+  async headers() {
+    const text = [{ key: "Content-Type", value: "text/plain; charset=utf-8" }];
+    return ["/install", "/install.sh", "/install.ps1"].map((source) => ({ source, headers: text }));
+  },
   // A single Cloudflare hostname can serve the site, dashboard and public API.
   // Only documented public API routes are forwarded; internal RPC/metrics stay
   // on the Docker network. The dashboard is built with basePath=/dashboard.
@@ -36,6 +41,8 @@ const nextConfig = {
     const agent = process.env.TRQSH_AGENT_INTERNAL_URL?.replace(/\/$/, "");
     return {
       beforeFiles: [
+        // Short installer URLs: `curl -fsSL https://trqsh.uz/install | sh`.
+        { source: "/install", destination: "/install.sh" },
         ...(agent ? [{ source: "/_trqsh/agent", destination: `${agent}/_trqsh/agent` }] : []),
         ...(dashboard
           ? [
