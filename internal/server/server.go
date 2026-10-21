@@ -47,7 +47,7 @@ type Server struct {
 	httpLn    net.Listener
 	httpsLn   net.Listener
 	h3        *h3Ingress    // optional HTTP/3 (QUIC) public ingress (nil when TRQSH_H3_ADDR is unset)
-	h2Server  *http2.Server // shared HTTP/2 server for the TCP ingress (nil unless TRQSH_ENABLE_H2)
+	h2Server  *http2.Server //nolint:staticcheck // SA1019: shared HTTP/2 server for the TCP ingress (nil unless TRQSH_ENABLE_H2)
 	forwardLn net.Listener  // internal inter-edge forwarding listener (nil in single-edge mode)
 	fwdAddr   string        // address advertised to peers for this edge
 	opsSrv    *http.Server

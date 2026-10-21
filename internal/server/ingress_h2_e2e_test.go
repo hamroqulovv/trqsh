@@ -52,6 +52,7 @@ func startEdgeH2(t *testing.T) *server.Server {
 // dialing 127.0.0.1:port.
 func h2Client(t *testing.T, edge net.Addr) (*http.Client, func()) {
 	t.Helper()
+	//nolint:staticcheck // SA1019: forces h2 against the edge's x/net server
 	tr := &http2.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"h2"}},
 		DialTLSContext: func(ctx context.Context, _, addr string, cfg *tls.Config) (net.Conn, error) {
@@ -61,7 +62,7 @@ func h2Client(t *testing.T, edge net.Addr) (*http.Client, func()) {
 			return (&tls.Dialer{Config: c}).DialContext(ctx, "tcp", edge.String())
 		},
 	}
-	return &http.Client{Transport: tr, Timeout: 10 * time.Second}, tr.CloseIdleConnections
+	return &http.Client{Transport: tr, Timeout: 10 * time.Second}, tr.CloseIdleConnections //nolint:staticcheck // SA1019: as above
 }
 
 // h2GetWithRetry issues a GET over HTTP/2, retrying briefly to absorb the
