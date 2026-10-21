@@ -130,6 +130,10 @@ func (l *LocalAPI) Handler() http.Handler {
 			http.Error(w, "missing token", http.StatusBadRequest)
 			return
 		}
+		if err := verifyAPIKey(r.Context(), body.Token); err != nil {
+			apiWriteJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
+			return
+		}
 		if err := l.core.Login(r.Context(), body.Token); err != nil {
 			apiWriteJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return

@@ -17,7 +17,8 @@ const protocolVersion = "1"
 // serveSession runs the full lifecycle of one agent session: control-stream
 // handshake, authentication, then the control loop until the session dies.
 func (s *Server) serveSession(ctx context.Context, sess tunnel.Session) {
-	defer func() { _ = sess.CloseWithError(0, "session closed") }()
+	closeReason := "session closed"
+	defer func() { _ = sess.CloseWithError(0, closeReason) }()
 
 	// The agent opens the control stream first.
 	hsCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -34,7 +35,7 @@ func (s *Server) serveSession(ctx context.Context, sess tunnel.Session) {
 		return
 	}
 	if hello.ProtocolVersion != "" && hello.ProtocolVersion != protocolVersion {
-		writeAuthErr(control, proto.CodeVersionUnsupported, "unsupported protocol version")
+		closeReason = rejectSession(control, proto.CodeVersionUnsupported, "unsupported protocol version")
 		return
 	}
 
@@ -44,7 +45,9 @@ func (s *Server) serveSession(ctx context.Context, sess tunnel.Session) {
 		if hello.ApiKey == "" {
 			code = proto.CodeAuthRequired
 		}
-		writeAuthErr(control, code, "authentication failed")
+		s.metrics.Errors.WithLabelValues("auth_failed").Inc()
+		s.log.Info("agent auth failed", "code", code, "agent_version", hello.AgentVersion)
+		closeReason = rejectSession(control, code, "authentication failed")
 		return
 	}
 
@@ -172,6 +175,18 @@ func readHello(r tunnel.Stream) (*proto.Hello, error) {
 		return nil, errors.New("server: first control message was not Hello")
 	}
 	return hello, nil
+}
+
+// rejectSession answers a failed handshake and lingers until the agent hangs up
+// (at most 2s): closing a QUIC connection at once discards unsent stream data,
+// leaving the agent with only "session closed" instead of the reason. The
+// returned close reason carries the code for agents that still miss the reply.
+func rejectSession(control tunnel.Stream, code, msg string) string {
+	writeAuthErr(control, code, msg)
+	_ = control.Close()
+	_ = control.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, _ = io.Copy(io.Discard, control)
+	return code + ": " + msg
 }
 
 func writeAuthErr(w io.Writer, code, msg string) {
