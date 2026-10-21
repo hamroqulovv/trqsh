@@ -66,7 +66,12 @@ export default async function OverviewPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <Step n={1} title="Install the agent">
-              <CodeLine text="curl -fsSL https://trqsh.uz/install | sh" />
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-muted">macOS / Linux</p>
+                <CodeLine text="curl -fsSL https://trqsh.uz/install.sh | sh" />
+                <p className="text-xs text-muted">Windows (PowerShell)</p>
+                <CodeLine text="irm https://trqsh.uz/install.ps1 | iex" />
+              </div>
             </Step>
             <Step n={2} title="Authenticate">
               <CodeLine text="trqsh login" />
