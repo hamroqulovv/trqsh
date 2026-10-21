@@ -32,7 +32,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        # trivy:ignore:AVD-KSV-0125 -- pulled exclusively from our own registry (values.yaml image.registry: ghcr.io/uzcreator)
+        # trivy:ignore:AVD-KSV-0125 -- pulled exclusively from our own registry (values.yaml image.registry: ghcr.io/trqsh-tunnel)
         - name: api
           image: {{ include "trqsh.image" (dict "root" . "repo" .Values.api.repository) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}

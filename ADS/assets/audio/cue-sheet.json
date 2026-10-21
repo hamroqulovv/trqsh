@@ -1,0 +1,149 @@
+{
+  "revision": 3,
+  "backgroundMusic": false,
+  "pitchedSynthesis": false,
+  "duration": 32,
+  "sample_rate": 48000,
+  "channels": 2,
+  "silentFraction": 0.7478125,
+  "outsideCuesPeak": 0.0,
+  "sources": [
+    {
+      "id": 166,
+      "title": "Fast small sweep transition",
+      "url": "https://assets.mixkit.co/active_storage/sfx/166/166.wav",
+      "sha256": "ca5a0206a7e6b12893a5727cb98a9d43ab02893153465eb21d43fb7b9e6616c3"
+    },
+    {
+      "id": 1113,
+      "title": "Mouse click close",
+      "url": "https://assets.mixkit.co/active_storage/sfx/1113/1113.wav",
+      "sha256": "fe535fd085fe27f4397e2e6ab2e5798f66636f1d7244b559018aed85fa99348b"
+    },
+    {
+      "id": 2531,
+      "title": "Typing on a laptop keyboard",
+      "url": "https://assets.mixkit.co/active_storage/sfx/2531/2531.wav",
+      "sha256": "0e9e5026be70c13195c2496151205f237c2858193d24d9ec7648a1a0ff55e2a6"
+    }
+  ],
+  "license": "Mixkit Sound Effects Free License",
+  "license_url": "https://mixkit.co/license/#sfxFree",
+  "local_license": "reference/mixkit-sfx-license.html",
+  "events": [
+    {
+      "time": 0.55,
+      "duration": 0.48,
+      "sound": "sweep",
+      "peak_dbfs": -17
+    },
+    {
+      "time": 4.1,
+      "duration": 0.72,
+      "sound": "sweep",
+      "peak_dbfs": -13
+    },
+    {
+      "time": 4.82,
+      "duration": 0.48,
+      "sound": "sweep",
+      "peak_dbfs": -19
+    },
+    {
+      "time": 8.05,
+      "duration": 0.68,
+      "sound": "sweep",
+      "peak_dbfs": -14
+    },
+    {
+      "time": 14.08,
+      "duration": 0.68,
+      "sound": "sweep",
+      "peak_dbfs": -15
+    },
+    {
+      "time": 14.48,
+      "duration": 0.4,
+      "sound": "sweep",
+      "peak_dbfs": -20
+    },
+    {
+      "time": 14.96,
+      "duration": 0.4,
+      "sound": "sweep",
+      "peak_dbfs": -20
+    },
+    {
+      "time": 15.44,
+      "duration": 0.4,
+      "sound": "sweep",
+      "peak_dbfs": -20
+    },
+    {
+      "time": 20.05,
+      "duration": 0.72,
+      "sound": "sweep",
+      "peak_dbfs": -14
+    },
+    {
+      "time": 26.05,
+      "duration": 1.0,
+      "sound": "sweep",
+      "peak_dbfs": -13
+    },
+    {
+      "time": 28.12,
+      "duration": 0.5,
+      "sound": "sweep",
+      "peak_dbfs": -20
+    },
+    {
+      "time": 9.2,
+      "duration": 1.05,
+      "sound": "keyboard",
+      "peak_dbfs": -18
+    },
+    {
+      "time": 10.68,
+      "duration": 0.13,
+      "sound": "click",
+      "peak_dbfs": -17
+    },
+    {
+      "time": 21.1,
+      "duration": 0.13,
+      "sound": "click",
+      "peak_dbfs": -22
+    },
+    {
+      "time": 21.28,
+      "duration": 0.13,
+      "sound": "click",
+      "peak_dbfs": -22
+    },
+    {
+      "time": 21.46,
+      "duration": 0.13,
+      "sound": "click",
+      "peak_dbfs": -22
+    },
+    {
+      "time": 23.7,
+      "duration": 0.13,
+      "sound": "click",
+      "peak_dbfs": -14
+    },
+    {
+      "time": 24.25,
+      "duration": 0.13,
+      "sound": "click",
+      "peak_dbfs": -19
+    },
+    {
+      "time": 28.55,
+      "duration": 0.13,
+      "sound": "click",
+      "peak_dbfs": -21
+    }
+  ]
+}

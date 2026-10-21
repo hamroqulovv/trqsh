@@ -48,7 +48,7 @@ func (s *Server) startHTTPS(ctx context.Context) error {
 		// WebSockets over http/1.1 — see serveMaybeH2.
 		tlsConf = tlsConf.Clone()
 		tlsConf.NextProtos = append([]string{"h2"}, tlsConf.NextProtos...)
-		s.h2Server = &http2.Server{IdleTimeout: httpIdleTimeout}
+		s.h2Server = &http2.Server{IdleTimeout: httpIdleTimeout} //nolint:staticcheck // SA1019: ServeConn on a pre-handshaken conn has no net/http equivalent yet
 	}
 	s.log.Info("https ingress up", "addr", s.cfg.HTTPSAddr, "h2", s.cfg.EnableH2, "passthrough_hosts", len(s.cfg.Passthrough))
 	s.wg.Add(1)
@@ -107,6 +107,7 @@ func (s *Server) serveMaybeH2(ctx context.Context, c net.Conn, scheme string) {
 	}
 	if tc.ConnectionState().NegotiatedProtocol == "h2" {
 		defer func() { _ = c.Close() }()
+		//nolint:staticcheck // SA1019: see h2Server in startHTTPS
 		s.h2Server.ServeConn(tc, &http2.ServeConnOpts{
 			Context: ctx,
 			Handler: http.HandlerFunc(s.routeHTTPS),

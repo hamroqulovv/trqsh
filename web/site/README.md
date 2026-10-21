@@ -1,5 +1,7 @@
 ![trqsh — Localhost, online.](../../packaging/assets/readme-banner.svg)
 
+Production now uses `trqsh.uz`, `app.trqsh.uz` and `api.trqsh.uz` with GitHub/Google-only sign-in. See [domain and OAuth setup](../../deploy/DOMAIN-AUTH.md). The single-origin `/dashboard` examples below describe the previous deployment.
+
 # trqsh · Website & documentation
 
 **The public product experience: discover, download and learn.**
@@ -49,6 +51,22 @@ explicit platform and architecture selection, falling back to a matching CLI
 archive when a desktop build is unavailable. CLI and desktop versions are shown
 separately. The docs sidebar filters guides locally with an empty state.
 
+The `/changelog` timeline includes all published CLI and desktop release records,
+product filters, full-text search, stable version permalinks, and expandable
+original notes. Editorial summaries link back to their sources; desktop builds
+whose original notes say “preview” remain labeled as previews even when GitHub's
+prerelease flag is false. All releases render on the server and remain readable
+without JavaScript. The orbit graphic and entry animations respect reduced motion.
+
+`/privacy`, `/terms`, `/cookies`, and `/acceptable-use` share a policy layout with
+section navigation, concise summaries, and the confirmed contact `hello@trqsh.uz`.
+Policy dates are explicit content revision dates, not the current build year.
+Keep the claims in `lib/policies.tsx` aligned with the implementation: local
+captures are bounded in-memory records, QR relay sessions are temporary, usage
+and tunnel history are server-side records, and public upgrades are manual.
+Do not infer production hosting locations or retention schedules from optional
+deployment templates, or promise account export/deletion controls that do not exist.
+
 ## Quick start
 
 Run from the repository root, with Node.js and pnpm installed:
@@ -96,6 +114,27 @@ CI compares the OpenAPI copies to this revision's canonical `docs/openapi.yaml`.
 Pricing regeneration uses the configured live API and checks for a diff when reachable.
 Docs pages render from Markdown in [`docs/content/`](../../docs/content).
 
+The changelog has a separate checked-in snapshot, `lib/changelog.generated.json`,
+from the official `trqsh-tunnel/trqshcli` and `trqsh-tunnel/trqsh` GitHub release
+APIs. Builds do not call GitHub. Refresh it from `web/site` after a release:
+
+```bash
+node scripts/gen-changelog.mjs
+# Or use an existing authenticated GitHub CLI session:
+node scripts/gen-changelog.mjs --github-cli
+```
+
+The generator paginates both repositories, excludes drafts, deduplicates migrated
+CLI releases, and preserves the original notes and publication timestamps. It
+supports `GITHUB_TOKEN` through the environment when needed; credentials are
+never included in the snapshot. Review the snapshot and add an editorial
+description in `lib/changelog.ts` where useful. New releases have a fallback
+description until one is written. Update the CLI download default in `lib/site.ts`
+and `next.config.mjs` when a new stable CLI release is published.
+The direct download list currently matches CLI 0.2.5's six native archives;
+that release does not publish Debian or RPM packages. Verify actual release
+assets before adding package links.
+
 ## Documentation editing
 
 The docs include 18 Markdown guides plus the Control API and stable edge-error
@@ -127,8 +166,8 @@ with the commands in [Self-hosting](../../docs/content/self-hosting.md).
 | ------------------------------ | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `TRQSH_DASHBOARD_URL`          | `https://app.trqsh.uz` | Sign-up / login CTAs                                                                                        |
 | `TRQSH_API_URL`                | `https://api.trqsh.uz` | OAuth deep-links + build-time content fetch                                                                 |
-| `TRQSH_GITHUB_REPO`            | `uzcreator/trqsh`      | Source code / desktop GUI release links                                                                     |
-| `TRQSH_CLI_GITHUB_REPO`        | `uzcreator/trqshcli`   | CLI release / download links                                                                                |
+| `TRQSH_GITHUB_REPO`            | `trqsh-tunnel/trqsh`   | Source code / desktop GUI release links                                                                     |
+| `TRQSH_CLI_GITHUB_REPO`        | `trqsh-tunnel/trqshcli` | CLI release / download links                                                                               |
 | `TRQSH_SITE_URL`               | `https://trqsh.uz`     | Canonical origin, sitemap, OG                                                                               |
 | `TRQSH_LATEST_VERSION`         | see `lib/site.ts`      | Download artifact filenames                                                                                 |
 | `TRQSH_DESKTOP_VERSION`        | see `lib/downloads.ts` | Desktop release version; independent of the CLI version                                                      |
@@ -143,11 +182,11 @@ root. It builds public links to `https://trqsh.uz/dashboard` and
 ## Project layout
 
 ```text
-app/(marketing)/       Landing, pricing and download pages
+app/(marketing)/       Landing, pricing, downloads, changelog and policies
 app/docs/              Markdown guides and API/error references
 components/            Navigation, motion, download and UI components
 lib/                   Site configuration, docs navigation and generated data
-scripts/               Plan catalog and OpenAPI generators
+scripts/               Plan catalog, OpenAPI and release-history generators
 public/install.sh      Public copy of the shell installer
 ../../docs/content/    Source Markdown guides
 ```
@@ -161,9 +200,8 @@ Next.js standalone server) and published to `ghcr.io/<repository-owner>/site` by
 [`deploy/`](../../deploy) for how it runs behind the edge, which reverse-proxies the apex
 domain to it.
 
-Repository URL defaults still use the `uzcreator` owner in site configuration.
-Review `TRQSH_GITHUB_REPO` and `TRQSH_CLI_GITHUB_REPO` for the deployment being
-built; package wrappers use `algorithco/trqshcli` by default.
+Repository URL defaults use the current `trqsh-tunnel` owner. Review
+`TRQSH_GITHUB_REPO` and `TRQSH_CLI_GITHUB_REPO` for deployments that override them.
 
 ## Troubleshooting
 

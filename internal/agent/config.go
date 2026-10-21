@@ -88,10 +88,10 @@ func Load(path string) (Config, error) {
 	// Previous releases persisted the hosted defaults. Migrate those exact
 	// endpoints before applying explicit environment/CLI overrides; leave
 	// self-hosted endpoints and the user's credentials and tunnels intact.
-	if strings.TrimRight(c.APIBase, "/") == "https://api.trqsh.uz" {
+	if strings.TrimRight(c.APIBase, "/") == "https://tunnel.trqsh.uz" {
 		c.APIBase = DefaultAPIBase
 	}
-	if c.Server == "trqsh.uz:4443" {
+	if c.Server == "wss://tunnel.trqsh.uz/_trqsh/agent" || c.Server == "tunnel.trqsh.uz:4443" {
 		c.Server = DefaultServer
 	}
 	c.applyEnv()

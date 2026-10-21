@@ -96,13 +96,13 @@ func New(cfg Config, log *slog.Logger) (*Server, error) {
 	// dependency today.
 	s.remote = newRemoteHub()
 
-	if cfg.GitHubClientID != "" {
+	if cfg.GitHubClientID != "" && cfg.GitHubClientSecret != "" {
 		s.providers["github"] = auth.GitHubProvider(cfg.GitHubClientID, cfg.GitHubClientSecret,
-			cfg.PublicURL+"/v1/auth/oauth/github/callback")
+			strings.TrimRight(cfg.PublicURL, "/")+"/v1/auth/oauth/github/callback")
 	}
-	if cfg.GoogleClientID != "" {
+	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
 		s.providers["google"] = auth.GoogleProvider(cfg.GoogleClientID, cfg.GoogleClientSecret,
-			cfg.PublicURL+"/v1/auth/oauth/google/callback")
+			strings.TrimRight(cfg.PublicURL, "/")+"/v1/auth/oauth/google/callback")
 	}
 
 	// Shared Redis client (optional): when TRQSH_REDIS_URL is set, the rate limiters
@@ -200,6 +200,7 @@ func (s *Server) Router() http.Handler {
 		// region before authenticating (see internal/geo).
 		r.Get("/regions", s.handleListRegions)
 		r.Get("/geo", s.handleGeo)
+		r.Get("/auth/providers", s.handleOAuthProviders)
 
 		// Public auth endpoints — stricter per-IP limit (brute-force / account spam).
 		r.Group(func(r chi.Router) {

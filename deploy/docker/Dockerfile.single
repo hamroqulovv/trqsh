@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-ARG VERSION=0.2.4
+ARG VERSION=0.2.6
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/trqshapi ./cmd/trqshapi && \
@@ -25,12 +25,15 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 COPY web/dashboard/ ./
 RUN rm -f pnpm-workspace.yaml
-ARG TRQSH_PUBLIC_URL=https://tunnel.trqsh.uz
-ARG TRQSH_BASE_DOMAIN=tunnel.trqsh.uz
-ENV TRQSH_API_URL=$TRQSH_PUBLIC_URL \
+ARG TRQSH_PUBLIC_URL=https://trqsh.uz
+ARG TRQSH_API_PUBLIC_URL=https://api.trqsh.uz
+ARG TRQSH_APP_URL=https://app.trqsh.uz
+ARG TRQSH_BASE_DOMAIN=trqsh.uz
+ARG TRQSH_LATEST_VERSION=0.2.5
+ENV TRQSH_API_URL=$TRQSH_API_PUBLIC_URL \
     NEXT_PUBLIC_TRQSH_SITE_URL=$TRQSH_PUBLIC_URL \
     NEXT_PUBLIC_TRQSH_BASE_DOMAIN=$TRQSH_BASE_DOMAIN \
-    NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH=/dashboard
+    NEXT_PUBLIC_TRQSH_DASHBOARD_BASE_PATH=""
 RUN pnpm build
 
 WORKDIR /build/site
@@ -40,15 +43,15 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 COPY web/site/ ./
 COPY docs/content ./content
 ENV TRQSH_DOCS_CONTENT_DIR=/build/site/content \
-    TRQSH_DASHBOARD_URL=${TRQSH_PUBLIC_URL}/dashboard \
+    TRQSH_DASHBOARD_URL=$TRQSH_APP_URL \
     TRQSH_SITE_URL=$TRQSH_PUBLIC_URL \
     TRQSH_BASE_DOMAIN=$TRQSH_BASE_DOMAIN \
     TRQSH_GITHUB_REPO=trqsh-tunnel/trqsh \
-    TRQSH_CLI_GITHUB_REPO=trqsh-tunnel/trqsh \
-    TRQSH_LATEST_VERSION=0.2.4 \
+    TRQSH_CLI_GITHUB_REPO=trqsh-tunnel/trqshcli \
+    TRQSH_LATEST_VERSION=$TRQSH_LATEST_VERSION \
     TRQSH_AGENT_INTERNAL_URL=http://127.0.0.1:4445 \
-    TRQSH_DASHBOARD_INTERNAL_URL=http://127.0.0.1:3001 \
-    TRQSH_API_INTERNAL_URL=http://127.0.0.1:8080
+    TRQSH_DASHBOARD_INTERNAL_URL="" \
+    TRQSH_API_INTERNAL_URL=""
 RUN pnpm build
 
 FROM postgres:16-bookworm AS runtime

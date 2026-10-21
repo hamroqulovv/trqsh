@@ -8,16 +8,20 @@ services:
       context: ..
       dockerfile: deploy/docker/Dockerfile.single
       args:
-        TRQSH_PUBLIC_URL: https://tunnel.trqsh.uz
-        TRQSH_BASE_DOMAIN: tunnel.trqsh.uz
+        TRQSH_PUBLIC_URL: ${TRQSH_SITE_URL:-https://trqsh.uz}
+        TRQSH_API_PUBLIC_URL: ${TRQSH_API_PUBLIC_URL:-https://api.trqsh.uz}
+        TRQSH_APP_URL: ${TRQSH_APP_URL:-https://app.trqsh.uz}
+        TRQSH_BASE_DOMAIN: ${TRQSH_BASE_DOMAIN:-trqsh.uz}
     restart: unless-stopped
     stop_grace_period: 90s
     environment:
-      TRQSH_ENV: development
-      TRQSH_DEV_AUTH: ${TRQSH_DEV_AUTH:-1}
-      TRQSH_BASE_DOMAIN: tunnel.trqsh.uz
-      TRQSH_API_PUBLIC_URL: https://tunnel.trqsh.uz
-      TRQSH_SITE_URL: https://tunnel.trqsh.uz
+      TRQSH_ENV: ${TRQSH_ENV:-production}
+      TRQSH_DEV_AUTH: "0"
+      TRQSH_BASE_DOMAIN: ${TRQSH_BASE_DOMAIN:-trqsh.uz}
+      TRQSH_API_PUBLIC_URL: ${TRQSH_API_PUBLIC_URL:-https://api.trqsh.uz}
+      TRQSH_APP_URL: ${TRQSH_APP_URL:-https://app.trqsh.uz}
+      TRQSH_QR_URL: ${TRQSH_QR_URL:-https://qr.trqsh.uz}
+      TRQSH_SITE_URL: ${TRQSH_SITE_URL:-https://trqsh.uz}
       TRQSH_ACME_STAGING: "1"
       TRQSH_REGION: local
       TRQSH_EDGE_ID: trqsh-local
@@ -26,13 +30,15 @@ services:
       TRQSH_HTTPS_ADDR: ":8443"
       TRQSH_PORT_MIN: "20000"
       TRQSH_PORT_MAX: "20009"
-      TRQSH_REGIONS: '[{"code":"local","name":"Local Docker","continent":"AS","endpoint":"wss://tunnel.trqsh.uz/_trqsh/agent","default":true}]'
+      TRQSH_REGIONS: '[{"code":"local","name":"Local Docker","continent":"AS","endpoint":"trqsh.uz:4443","default":true}]'
       TRQSH_GITHUB_CLIENT_ID: ${TRQSH_GITHUB_CLIENT_ID:-}
       TRQSH_GITHUB_CLIENT_SECRET: ${TRQSH_GITHUB_CLIENT_SECRET:-}
       TRQSH_GOOGLE_CLIENT_ID: ${TRQSH_GOOGLE_CLIENT_ID:-}
       TRQSH_GOOGLE_CLIENT_SECRET: ${TRQSH_GOOGLE_CLIENT_SECRET:-}
     ports:
       - "127.0.0.1:3004:3000"
+      - "127.0.0.1:3005:3001"
+      - "127.0.0.1:8081:8080"
       - "127.0.0.1:80:8082"
       - "127.0.0.1:443:8443"
       - "127.0.0.1:4443:4443/tcp"

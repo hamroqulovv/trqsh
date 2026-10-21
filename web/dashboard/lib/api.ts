@@ -200,35 +200,15 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
 export async function getOAuthProviders(): Promise<string[]> {
   try {
-    const response = await fetch(`${BASE}/status`, { cache: "no-store" });
+    const response = await fetch(`${BASE}/v1/auth/providers`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok) return [];
     const status = await response.json();
-    return Array.isArray(status.oauth_providers)
-      ? status.oauth_providers.filter((provider: string) => provider === "github" || provider === "google")
+    return Array.isArray(status.providers)
+      ? status.providers.filter((provider: string) => provider === "github" || provider === "google")
       : [];
   } catch {
     return [];
   }
-}
-
-export async function login(email: string, password?: string): Promise<{ user: User; org: Org; tokens: Tokens }> {
-  const res = await fetch(`${BASE}/v1/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-    cache: "no-store",
-  });
-  return parse(res);
-}
-
-export async function signup(email: string, name: string): Promise<{ user: User; org: Org; tokens: Tokens }> {
-  const res = await fetch(`${BASE}/v1/auth/signup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, name }),
-    cache: "no-store",
-  });
-  return parse(res);
 }
 
 // ---- Typed resource methods ----

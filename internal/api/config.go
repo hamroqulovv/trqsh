@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -81,7 +82,7 @@ func DefaultConfig() Config {
 		PublicURL:      "http://localhost:8080",
 		JWTSecret:      devJWTSecret,
 		InternalToken:  devInternalToken,
-		DevAuth:        true,
+		DevAuth:        false,
 		DBMaxOpenConns: 20,
 		DBMaxIdleConns: 20,
 	}
@@ -114,7 +115,7 @@ func LoadConfig() (Config, error) {
 	envInt(&c.DBMaxOpenConns, "TRQSH_DB_MAX_OPEN_CONNS")
 	envInt(&c.DBMaxIdleConns, "TRQSH_DB_MAX_IDLE_CONNS")
 
-	// DevAuth defaults on in dev, off in production, unless explicitly set.
+	// Password-less test auth is always opt-in, including in development.
 	if v, ok := os.LookupEnv("TRQSH_DEV_AUTH"); ok {
 		c.DevAuth = truthy(v)
 	} else if c.IsProduction() {
@@ -139,6 +140,9 @@ func LoadConfig() (Config, error) {
 // validate enforces the security invariants. Development is permissive; a
 // production deployment must not run on any dev default or weak secret.
 func (c Config) validate() error {
+	if !strings.EqualFold(c.Env, "development") && !c.IsProduction() {
+		return fmt.Errorf("api: TRQSH_ENV must be development or production")
+	}
 	if c.JWTSecret == "" {
 		return fmt.Errorf("api: TRQSH_JWT_SECRET must be set")
 	}
@@ -153,7 +157,7 @@ func (c Config) validate() error {
 	if len(c.JWTSecret) < minJWTSecretLen {
 		problems = append(problems, fmt.Sprintf("TRQSH_JWT_SECRET must be at least %d characters", minJWTSecretLen))
 	}
-	if c.InternalToken == "" || c.InternalToken == devInternalToken {
+	if c.InternalToken == "" || c.InternalToken == devInternalToken || len(c.InternalToken) < minJWTSecretLen {
 		problems = append(problems, "TRQSH_INTERNAL_TOKEN must be set to a strong non-default value")
 	}
 	if c.DevAuth {
@@ -162,13 +166,33 @@ func (c Config) validate() error {
 	if c.DatabaseURL == "" {
 		problems = append(problems, "TRQSH_DATABASE_URL must be set — the in-memory store is dev-only")
 	}
-	if !strings.HasPrefix(c.PublicURL, "https://") {
-		problems = append(problems, "TRQSH_API_PUBLIC_URL must use https:// in production")
+	if !validPublicOrigin(c.PublicURL) {
+		problems = append(problems, "TRQSH_API_PUBLIC_URL must be an HTTPS origin without credentials, a path, query or fragment")
+	}
+	if !validPublicOrigin(c.AppURL) {
+		problems = append(problems, "TRQSH_APP_URL must be an HTTPS dashboard origin without credentials, a path, query or fragment")
+	}
+	if c.BaseDomain == "localhost" || c.BaseDomain == "lvh.me" || !strings.Contains(c.BaseDomain, ".") || strings.ContainsAny(c.BaseDomain, "/*:@\\ \t\r\n") {
+		problems = append(problems, "TRQSH_BASE_DOMAIN must be the public base hostname, without a wildcard or URL scheme")
+	}
+	githubConfigured := c.GitHubClientID != "" && c.GitHubClientSecret != ""
+	googleConfigured := c.GoogleClientID != "" && c.GoogleClientSecret != ""
+	if !githubConfigured && !googleConfigured {
+		problems = append(problems, "configure GitHub or Google OAuth credentials — public email-only auth is disabled")
+	}
+	if (c.GitHubClientID == "") != (c.GitHubClientSecret == "") || (c.GoogleClientID == "") != (c.GoogleClientSecret == "") {
+		problems = append(problems, "each OAuth provider needs both its client ID and client secret")
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("api: insecure production configuration:\n  - %s", strings.Join(problems, "\n  - "))
 	}
 	return nil
+}
+
+func validPublicOrigin(value string) bool {
+	u, err := url.Parse(value)
+	return err == nil && u.Scheme == "https" && u.Hostname() != "" && !strings.Contains(u.Hostname(), "*") &&
+		u.User == nil && (u.Path == "" || u.Path == "/") && u.RawQuery == "" && u.Fragment == "" && !u.ForceQuery
 }
 
 func env(dst *string, key string) {

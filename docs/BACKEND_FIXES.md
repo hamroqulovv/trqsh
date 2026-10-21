@@ -35,7 +35,7 @@ Do not blindly roll back migration 00005 after collecting new deltas. Its Down m
 
 ## Verification
 
-Run from the repository root with Go 1.25.8 or newer:
+Run from the repository root with Go 1.26 or newer:
 
 ```sh
 go test ./... -race -count=1 -timeout=180s

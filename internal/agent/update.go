@@ -21,13 +21,13 @@ type UpdateInfo struct {
 }
 
 const (
-	// Desktop releases now share the main repo (uzcreator/trqsh) but carry a
+	// Desktop releases now share the main repo (trqsh-tunnel/trqsh) but carry a
 	// `desktop-v*` tag prefix so they don't collide with the CLI's `v*` tags.
 	// /releases/latest can't filter by prefix, so we list releases via the API and
 	// pick the newest desktop-tagged one; the hourly cache below keeps this well
 	// under the 60 req/h unauthenticated rate limit.
-	releasesAPIURL  = "https://api.github.com/repos/uzcreator/trqsh/releases?per_page=30"
-	downloadBaseURL = "https://github.com/uzcreator/trqsh/releases/download"
+	releasesAPIURL  = "https://api.github.com/repos/trqsh-tunnel/trqsh/releases?per_page=30"
+	downloadBaseURL = "https://github.com/trqsh-tunnel/trqsh/releases/download"
 )
 
 var (
@@ -84,7 +84,7 @@ func latestRelease(ctx context.Context) (UpdateInfo, error) {
 	}
 	version := strings.TrimPrefix(tag, "desktop-v")
 
-	info := UpdateInfo{Version: version, Notes: notes, URL: "https://github.com/uzcreator/trqsh/releases/tag/" + tag}
+	info := UpdateInfo{Version: version, Notes: notes, URL: "https://github.com/trqsh-tunnel/trqsh/releases/tag/" + tag}
 	// Point straight at this OS's installer (asset names follow Tauri's bundler
 	// convention, matching what CI publishes and the website links).
 	if asset := assetName(version, runtime.GOOS); asset != "" {

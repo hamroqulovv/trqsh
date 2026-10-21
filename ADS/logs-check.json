@@ -1,0 +1,507 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 7,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "timeline_track_too_dense",
+        "severity": "warning",
+        "message": "Track 1 has 5 timed elements in this HTML file. Smaller sub-compositions keep timelines easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\hamro\\OneDrive\\Desktop\\trqsh\\ADS\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move coherent scene groups into separate .html files under compositions/ and mount them from the parent with data-composition-src so the timeline stays easier to inspect, revise, and validate."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"intro\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#intro",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\hamro\\OneDrive\\Desktop\\trqsh\\ADS\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"intro\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"reveal\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#reveal",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\hamro\\OneDrive\\Desktop\\trqsh\\ADS\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"reveal\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"command\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#command",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\hamro\\OneDrive\\Desktop\\trqsh\\ADS\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"command\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"protocols\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#protocols",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\hamro\\OneDrive\\Desktop\\trqsh\\ADS\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"protocols\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"inspector\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#inspector",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\hamro\\OneDrive\\Desktop\\trqsh\\ADS\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"inspector\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"outro\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#outro",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\hamro\\OneDrive\\Desktop\\trqsh\\ADS\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"outro\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      }
+    ],
+    "filesScanned": 1
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 1,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "console_warning",
+        "severity": "warning",
+        "message": "THREE.WebGLProgram: Program Info Log: (210,81-129): warning X4122: sum of 0.996094 and -2.98545e-017 cannot be represented accurately in double precision\n(209,37-61): warning X4122: sum of 1 and -1.49272e-017 cannot be represented accurately in double precision\n(210,82-106): warning X4122: sum of 1 and -1.49272e-017 cannot be represented accurately in double precision\n(209,37-61): warning X4122: sum of 1 and -1.66644e-018 cannot be represented accurately in double precision\n(210,82-106): warning X4122: sum of 1 and -1.66644e-018 cannot be represented accurately in double precision",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {
+          "data-hf-id": "hf-b51f",
+          "data-composition-id": "trqsh-ad",
+          "data-start": "0",
+          "data-duration": "32",
+          "data-width": "1080",
+          "data-height": "1920",
+          "data-fps": "60"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 1080,
+          "height": 1920
+        },
+        "time": 0,
+        "url": "http://127.0.0.1:56970/assets/vendor/three.core.js",
+        "line": 2000
+      }
+    ]
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 6,
+    "findings": [
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 12.444,
+        "selector": "div.path-line > i:nth-of-type(1)",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 192.37,
+          "top": 1439.5,
+          "right": 272.37,
+          "bottom": 1441.5,
+          "width": 80,
+          "height": 2
+        },
+        "containerSelector": "div.path-line",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 272,
+          "top": 1439.5,
+          "right": 808,
+          "bottom": 1440.5,
+          "width": 536,
+          "height": 1
+        },
+        "overflow": {
+          "left": 79.63
+        },
+        "dataAttributes": {
+          "data-hf-id": "hf-0zjc"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 192.37,
+          "y": 1439.5,
+          "width": 80,
+          "height": 2
+        },
+        "firstSeen": 12.444,
+        "lastSeen": 12.444,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          12.444
+        ]
+      },
+      {
+        "code": "text_box_overflow",
+        "severity": "info",
+        "time": 26.667,
+        "selector": "div.outro-title > div:nth-of-type(1) > h2:nth-of-type(1)",
+        "message": "Text extends outside its nearest visual/container box.",
+        "rect": {
+          "left": 76,
+          "top": 476.52,
+          "right": 617.81,
+          "bottom": 611.16,
+          "width": 541.81,
+          "height": 134.64
+        },
+        "containerSelector": "div.outro-title > div:nth-of-type(1)",
+        "text": "localhost,",
+        "fixHint": "Text is 542px x 135px inside 609px x 148px and overflows by up to 56px; increase the container height to at least ~203px, or allow wrapping with max-width/fitTextFontSize.",
+        "containerRect": {
+          "left": 76,
+          "top": 408,
+          "right": 685.36,
+          "bottom": 555.63,
+          "width": 609.36,
+          "height": 147.63
+        },
+        "overflow": {
+          "bottom": 55.53
+        },
+        "dataAttributes": {
+          "data-hf-id": "hf-7lvw"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 76,
+          "y": 476.52,
+          "width": 541.81,
+          "height": 134.64
+        },
+        "firstSeen": 26.667,
+        "lastSeen": 26.667,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          26.667
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 26.667,
+        "selector": "div.outro-title > div:nth-of-type(1) > h2:nth-of-type(1)",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 76,
+          "top": 477.34,
+          "right": 685.36,
+          "bottom": 611.96,
+          "width": 609.36,
+          "height": 134.63
+        },
+        "containerSelector": "div.outro-title > div:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 76,
+          "top": 408,
+          "right": 685.36,
+          "bottom": 555.63,
+          "width": 609.36,
+          "height": 147.63
+        },
+        "overflow": {
+          "bottom": 56.33
+        },
+        "dataAttributes": {
+          "data-hf-id": "hf-7lvw"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 76,
+          "y": 477.34,
+          "width": 609.36,
+          "height": 134.63
+        },
+        "firstSeen": 26.667,
+        "lastSeen": 26.667,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          26.667
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 30.222,
+        "selector": "div.outro-orbit.orbit-one",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -214.87,
+          "top": 770.13,
+          "right": 1294.87,
+          "bottom": 2279.87,
+          "width": 1509.74,
+          "height": 1509.74
+        },
+        "containerSelector": "#outro",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "left": 214.87,
+          "right": 214.87,
+          "bottom": 359.87
+        },
+        "dataAttributes": {
+          "data-hf-id": "hf-xk59"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": -214.87,
+          "y": 770.13,
+          "width": 1509.74,
+          "height": 1509.74
+        },
+        "firstSeen": 30.222,
+        "lastSeen": 30.222,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          30.222
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 30.222,
+        "selector": "div.outro-orbit.orbit-two",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -369.04,
+          "top": 615.96,
+          "right": 1449.04,
+          "bottom": 2434.04,
+          "width": 1818.08,
+          "height": 1818.08
+        },
+        "containerSelector": "#outro",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "left": 369.04,
+          "right": 369.04,
+          "bottom": 514.04
+        },
+        "dataAttributes": {
+          "data-hf-id": "hf-sob7"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": -369.04,
+          "y": 615.96,
+          "width": 1818.08,
+          "height": 1818.08
+        },
+        "firstSeen": 30.222,
+        "lastSeen": 30.222,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          30.222
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 30.222,
+        "selector": "div.outro-orbit.orbit-three",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -522,
+          "top": 463,
+          "right": 1602,
+          "bottom": 2587,
+          "width": 2124.01,
+          "height": 2124
+        },
+        "containerSelector": "#outro",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "left": 522,
+          "right": 522,
+          "bottom": 667
+        },
+        "dataAttributes": {
+          "data-hf-id": "hf-3c69"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": -522,
+          "y": 463,
+          "width": 2124.01,
+          "height": 2124
+        },
+        "firstSeen": 30.222,
+        "lastSeen": 30.222,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          30.222
+        ]
+      }
+    ],
+    "duration": 32,
+    "samples": [
+      1.778,
+      5.333,
+      8.889,
+      12.444,
+      16,
+      19.556,
+      23.111,
+      26.667,
+      30.222
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 6,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      1.778,
+      8.889,
+      16,
+      23.111,
+      30.222
+    ],
+    "checked": 82,
+    "passed": 82
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  },
+  "saved": {
+    "id": "12c20cab-d432-4629-9d69-17413f4d89b0",
+    "revision": "054cdb22-4666-4dcb-8a85-d63e9f2c24c2",
+    "report": "C:\\Users\\hamro\\OneDrive\\Desktop\\trqsh\\ADS\\.hyperframes\\artifacts\\checks\\12c20cab-d432-4629-9d69-17413f4d89b0.json",
+    "attribution": "recorded-revision"
+  },
+  "_meta": {
+    "version": "0.8.164",
+    "updateAvailable": false
+  }
+}

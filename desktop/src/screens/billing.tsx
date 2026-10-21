@@ -167,7 +167,7 @@ export function Billing() {
           </div>
           <Button
             variant="secondary"
-            onClick={() => agent.openURL(env?.billing_url ?? "https://trqsh.uz/dashboard/billing")}
+            onClick={() => agent.openURL(env?.billing_url ?? "https://app.trqsh.uz/billing")}
           >
             <ArrowUpRight />
             Open billing

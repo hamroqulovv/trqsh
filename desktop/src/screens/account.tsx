@@ -54,7 +54,7 @@ export function Account({ status, tunnels }: { status: Status; tunnels: Tunnel[]
   }, []);
   useEffect(() => load(), [load]);
 
-  const dashboard = env?.dashboard_url ?? "https://trqsh.uz/dashboard";
+  const dashboard = env?.dashboard_url ?? "https://app.trqsh.uz";
 
   // Live session totals across active tunnels (secondary, informational).
   const session = tunnels.reduce(

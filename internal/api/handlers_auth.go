@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -27,7 +28,7 @@ type authResponse struct {
 }
 
 func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
-	if !s.cfg.DevAuth {
+	if !s.cfg.DevAuth || s.cfg.IsProduction() {
 		writeError(w, http.StatusForbidden, "password-less signup is disabled; use OAuth")
 		return
 	}
@@ -57,7 +58,7 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	if !s.cfg.DevAuth {
+	if !s.cfg.DevAuth || s.cfg.IsProduction() {
 		writeError(w, http.StatusForbidden, "password-less login is disabled; use OAuth")
 		return
 	}
@@ -111,7 +112,23 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 
 // --- OAuth ---
 
+// Provider discovery is public in production and contains no runtime details
+// or credentials. The verbose /status endpoint intentionally stays dev-only.
+func (s *Server) handleOAuthProviders(w http.ResponseWriter, _ *http.Request) {
+	providers := make([]string, 0, len(s.providers))
+	for name, provider := range s.providers {
+		if provider.Configured() {
+			providers = append(providers, name)
+		}
+	}
+	sort.Strings(providers)
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"providers": providers})
+}
+
 func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	name := chi.URLParam(r, "provider")
 	p, ok := s.providers[name]
 	if !ok || !p.Configured() {
@@ -120,7 +137,7 @@ func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
 	}
 	// Bootstrap on the dashboard first to bind the exchange to that browser.
 	dashboardState := r.URL.Query().Get("dashboard_state")
-	if len(dashboardState) != 64 {
+	if !validDashboardState(dashboardState) {
 		dest := s.appBase() + "/login/oauth/" + url.PathEscape(name)
 		if next := safeNextPath(r.URL.Query().Get("next")); next != "" {
 			dest += "?next=" + url.QueryEscape(next)
@@ -130,12 +147,18 @@ func (s *Server) handleOAuthStart(w http.ResponseWriter, r *http.Request) {
 	}
 	s.setDashboardStateCookie(w, dashboardState, 600)
 	// Preserve the destination, including a pending desktop device approval.
-	if next := safeNextPath(r.URL.Query().Get("next")); next != "" {
-		s.setNextCookie(w, next)
+	next := safeNextPath(r.URL.Query().Get("next"))
+	if next == "" {
+		next = "/"
 	}
+	s.setNextCookie(w, next)
 	state := s.newState()
 	s.setStateCookie(w, state)
-	http.Redirect(w, r, p.AuthCodeURL(state), http.StatusFound)
+	verifier := auth.NewPKCEVerifier()
+	s.setPKCECookie(w, name+"."+state+"."+verifier, 600)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	http.Redirect(w, r, p.AuthCodeURL(state, verifier), http.StatusFound)
 }
 
 // handleLogout clears the API's host-only session cookies so another account can sign
@@ -170,29 +193,59 @@ func refreshTokenFromRequest(r *http.Request) string {
 }
 
 func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	name := chi.URLParam(r, "provider")
 	p, ok := s.providers[name]
-	if !ok {
+	if !ok || !p.Configured() {
 		writeError(w, http.StatusNotFound, "provider not configured")
 		return
 	}
 	// CSRF: the returned state must match BOTH the server-issued single-use state
 	// and the state cookie set on this browser when the flow started (double-submit).
 	qstate := r.URL.Query().Get("state")
-	sc, _ := r.Cookie("trqsh_oauth_state")
+	sc, _ := r.Cookie(s.sessionCookieName("trqsh_oauth_state"))
+	pc, _ := r.Cookie(s.sessionCookieName("trqsh_oauth_pkce"))
 	s.clearStateCookie(w)
-	if sc == nil || subtle.ConstantTimeCompare([]byte(sc.Value), []byte(qstate)) != 1 || !s.checkState(qstate) {
+	s.setPKCECookie(w, "", -1)
+	if sc == nil || qstate == "" || subtle.ConstantTimeCompare([]byte(sc.Value), []byte(qstate)) != 1 || !s.checkState(qstate) {
 		writeError(w, http.StatusBadRequest, "invalid state")
 		return
 	}
-	prof, err := p.Exchange(r.Context(), r.URL.Query().Get("code"))
-	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
+	var proof []string
+	if pc != nil {
+		proof = strings.Split(pc.Value, ".")
+	}
+	if len(proof) != 3 || proof[0] != name || proof[1] != qstate || len(proof[2]) != 43 {
+		writeError(w, http.StatusBadRequest, "invalid OAuth browser proof")
 		return
 	}
-	u, org, err := s.provisionUser(r.Context(), prof.Email, prof.Name, prof.AvatarURL, prof.Provider)
+	dashboardState, err := r.Cookie(s.sessionCookieName("trqsh_oauth_dashboard"))
+	s.setDashboardStateCookie(w, "", -1)
+	if err != nil || !validDashboardState(dashboardState.Value) {
+		writeError(w, http.StatusBadRequest, "missing dashboard login state")
+		return
+	}
+	if r.URL.Query().Get("error") != "" {
+		http.Redirect(w, r, s.appBase()+"/login?error=oauth_cancelled", http.StatusFound)
+		return
+	}
+	prof, err := p.Exchange(r.Context(), r.URL.Query().Get("code"), proof[2])
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		failure := "oauth_failed"
+		if errors.Is(err, auth.ErrUnverifiedEmail) {
+			failure = "verified_email_required"
+		}
+		http.Redirect(w, r, s.appBase()+"/login?error="+failure, http.StatusFound)
+		return
+	}
+	u, org, err := s.provisionOAuthUser(r.Context(), prof)
+	if err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			http.Redirect(w, r, s.appBase()+"/login?error=provider_mismatch", http.StatusFound)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "could not complete sign-in")
 		return
 	}
 	tokens, err := s.auth.IssueTokens(u.ID, org.ID)
@@ -200,14 +253,8 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	dashboardState, err := r.Cookie("trqsh_oauth_dashboard")
-	s.setDashboardStateCookie(w, "", -1)
-	if err != nil || len(dashboardState.Value) != 64 {
-		writeError(w, http.StatusBadRequest, "missing dashboard login state")
-		return
-	}
 	next := "/"
-	if nc, _ := r.Cookie("trqsh_oauth_next"); nc != nil {
+	if nc, _ := r.Cookie(s.sessionCookieName("trqsh_oauth_next")); nc != nil {
 		if n := safeNextPath(nc.Value); n != "" {
 			next = n
 		}
@@ -246,7 +293,7 @@ func safeNextPath(p string) string {
 func (s *Server) setNextCookie(w http.ResponseWriter, next string) {
 	// #nosec G124 -- Secure is set below (s.cfg.IsProduction()); gosec's cookie check only recognizes a literal `true`, not a conditional
 	http.SetCookie(w, &http.Cookie{
-		Name: "trqsh_oauth_next", Value: next, Path: "/v1/auth/oauth",
+		Name: s.sessionCookieName("trqsh_oauth_next"), Value: next, Path: "/",
 		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: 600,
 	})
 }
@@ -254,14 +301,14 @@ func (s *Server) setNextCookie(w http.ResponseWriter, next string) {
 func (s *Server) clearNextCookie(w http.ResponseWriter) {
 	// #nosec G124 -- Secure is set below (s.cfg.IsProduction()); gosec's cookie check only recognizes a literal `true`, not a conditional
 	http.SetCookie(w, &http.Cookie{
-		Name: "trqsh_oauth_next", Value: "", Path: "/v1/auth/oauth",
+		Name: s.sessionCookieName("trqsh_oauth_next"), Value: "", Path: "/",
 		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: -1,
 	})
 }
 
 func (s *Server) setDashboardStateCookie(w http.ResponseWriter, state string, age int) {
 	// #nosec G124 -- production requires Secure; development permits local HTTP, matching the other OAuth cookies.
-	http.SetCookie(w, &http.Cookie{Name: "trqsh_oauth_dashboard", Value: state, Path: "/v1/auth/oauth",
+	http.SetCookie(w, &http.Cookie{Name: s.sessionCookieName("trqsh_oauth_dashboard"), Value: state, Path: "/",
 		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: age})
 }
 
@@ -318,7 +365,7 @@ func (s *Server) clearSessionCookies(w http.ResponseWriter) {
 func (s *Server) setStateCookie(w http.ResponseWriter, state string) {
 	// #nosec G124 -- Secure is set below (s.cfg.IsProduction()); gosec's cookie check only recognizes a literal `true`, not a conditional
 	http.SetCookie(w, &http.Cookie{
-		Name: "trqsh_oauth_state", Value: state, Path: "/v1/auth/oauth",
+		Name: s.sessionCookieName("trqsh_oauth_state"), Value: state, Path: "/",
 		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: 600,
 	})
 }
@@ -326,9 +373,27 @@ func (s *Server) setStateCookie(w http.ResponseWriter, state string) {
 func (s *Server) clearStateCookie(w http.ResponseWriter) {
 	// #nosec G124 -- Secure is set below (s.cfg.IsProduction()); gosec's cookie check only recognizes a literal `true`, not a conditional
 	http.SetCookie(w, &http.Cookie{
-		Name: "trqsh_oauth_state", Value: "", Path: "/v1/auth/oauth",
+		Name: s.sessionCookieName("trqsh_oauth_state"), Value: "", Path: "/",
 		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: -1,
 	})
+}
+
+func (s *Server) setPKCECookie(w http.ResponseWriter, value string, age int) {
+	// #nosec G124 -- production enforces Secure and the __Host- prefix; local HTTP is development-only.
+	http.SetCookie(w, &http.Cookie{Name: s.sessionCookieName("trqsh_oauth_pkce"), Value: value, Path: "/",
+		HttpOnly: true, Secure: s.cfg.IsProduction(), SameSite: http.SameSiteLaxMode, MaxAge: age})
+}
+
+func validDashboardState(state string) bool {
+	if len(state) != 64 {
+		return false
+	}
+	for _, c := range state {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // --- Device flow (CLI/GUI login) ---
@@ -398,12 +463,33 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 // --- helpers ---
 
 func (s *Server) provisionUser(ctx context.Context, email, name, avatar, provider string) (store.User, store.Org, error) {
+	return s.provisionIdentity(ctx, email, name, avatar, provider, "")
+}
+
+// Provider IDs are stable even when an account's email address changes. Do not
+// silently merge different identities/providers on the basis of matching email.
+func (s *Server) provisionOAuthUser(ctx context.Context, profile auth.OAuthUser) (store.User, store.Org, error) {
+	if profile.Subject == "" || profile.Email == "" || (profile.Provider != "github" && profile.Provider != "google") {
+		return store.User{}, store.Org{}, auth.ErrUnverifiedEmail
+	}
+	u, err := s.store.GetUserByOAuth(ctx, profile.Provider, profile.Subject)
+	if err == nil {
+		return s.provisionIdentity(ctx, u.Email, profile.Name, profile.AvatarURL, profile.Provider, profile.Subject)
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return store.User{}, store.Org{}, err
+	}
+	return s.provisionIdentity(ctx, profile.Email, profile.Name, profile.AvatarURL, profile.Provider, profile.Subject)
+}
+
+func (s *Server) provisionIdentity(ctx context.Context, email, name, avatar, provider, subject string) (store.User, store.Org, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
 	u, err := s.store.GetUserByEmail(ctx, email)
 	if errors.Is(err, store.ErrNotFound) {
 		if name == "" {
 			name = strings.Split(email, "@")[0]
 		}
-		u, err = s.store.CreateUser(ctx, store.User{Email: email, Name: name, AvatarURL: avatar, OAuthProvider: provider})
+		u, err = s.store.CreateUser(ctx, store.User{Email: email, Name: name, AvatarURL: avatar, OAuthProvider: provider, OAuthSubject: subject})
 		if err != nil {
 			return store.User{}, store.Org{}, err
 		}
@@ -418,6 +504,13 @@ func (s *Server) provisionUser(ctx context.Context, email, name, avatar, provide
 	}
 	if err != nil {
 		return store.User{}, store.Org{}, err
+	}
+	if subject != "" {
+		if u.OAuthProvider != provider || u.OAuthSubject != subject {
+			return store.User{}, store.Org{}, store.ErrConflict
+		}
+		// A legacy account without a subject also needs operator review. A
+		// currently verified address cannot prove an old provider identity.
 	}
 	// Refresh the profile (name/avatar) on each sign-in — keeps the picture current
 	// and back-fills accounts created before avatars were stored.

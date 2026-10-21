@@ -6,10 +6,11 @@
 
 Share development servers, receive webhooks and inspect traffic from an interactive terminal. This package installs the native CLI; the desktop app is a separate download.
 
-CLI 0.2.5 connects to `https://tunnel.trqsh.uz` and uses authenticated WebSocket
-transport through `wss://tunnel.trqsh.uz/_trqsh/agent`. Direct QUIC/TCP connections
-remain available with `--server host:port`. Public tunnel URLs need wildcard
-DNS/TLS and edge ingress in addition to the control-plane hostname.
+CLI 0.2.6 uses `https://api.trqsh.uz` for sign-in and account APIs and
+connects to `trqsh.uz:4443` with QUIC and TCP fallback. Public tunnel URLs use
+`*.trqsh.uz` and require wildcard DNS/TLS plus edge ingress. This version is a
+release candidate in source; publish its native assets and wrappers together
+after the new deployment is ready.
 
 [![npm](https://img.shields.io/npm/v/%40trqsh-uz%2Ftrqsh?style=flat-square&color=18181b)](https://www.npmjs.com/package/@trqsh-uz/trqsh)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-52525b?style=flat-square)](#requirements)
@@ -125,7 +126,7 @@ Update through npm to keep package records aligned:
 npm install -g @trqsh-uz/trqsh@latest --foreground-scripts
 ```
 
-The console also supports `/update check` and `/update`. Restart after a successful update. Cached binaries older than the package are replaced; newer self-updated binaries are retained unless `TRQSH_VERSION` explicitly pins another release. Opening the updated console automatically restarts an older CLI daemon. Saved hosted endpoints from earlier releases migrate to `tunnel.trqsh.uz`; custom endpoints and credentials are preserved.
+The console also supports `/update check` and `/update`. Restart after a successful update. Cached binaries older than the package are replaced; newer self-updated binaries are retained unless `TRQSH_VERSION` explicitly pins another release. Opening the updated console automatically restarts an older CLI daemon. Previous hosted defaults under `tunnel.trqsh.uz` migrate to `api.trqsh.uz` and `trqsh.uz:4443`; custom endpoints and credentials are preserved.
 
 If `trqsh --version` still shows an old version, check `where.exe trqsh` on Windows or `command -v trqsh` on macOS/Linux. An earlier pip installation can take precedence over npm. To switch from pip to npm, remove the Python launcher with `python -m pip uninstall trqsh`, then run the npm update command above. Package removal preserves agent configuration and credentials. A local `npm install` does not replace a global command; use `-g` or run `npx @trqsh-uz/trqsh@latest`.
 

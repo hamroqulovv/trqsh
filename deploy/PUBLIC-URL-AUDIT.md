@@ -1,5 +1,7 @@
 # Public URL audit — 2026-10-09
 
+For the new `trqsh.uz` / `app.trqsh.uz` / `api.trqsh.uz` production deployment and GitHub/Google-only authentication, use [DOMAIN-AUTH.md](DOMAIN-AUTH.md). Earlier single-origin addresses and audit results below describe the previous deployment.
+
 The running local stack is now published through the existing Cloudflare Tunnel
 on a single HTTPS origin. Public navigation no longer points to localhost.
 

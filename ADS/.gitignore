@@ -1,0 +1,6 @@
+node_modules/
+.cache/
+.hyperframes/
+logs/
+output/
+assets/audio/sources/

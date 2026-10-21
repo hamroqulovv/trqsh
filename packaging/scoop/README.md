@@ -4,12 +4,12 @@
 
 **Windows CLI distribution through a Scoop manifest.**
 
-[Manifest](trqsh.json) · [Distribution guide](../README.md) · [CLI releases](https://github.com/algorithco/trqshcli/releases)
+[Manifest](trqsh.json) · [Distribution guide](../README.md) · [CLI releases](https://github.com/trqsh-tunnel/trqshcli/releases)
 
 ## Status
 
-The manifest supports x64 and arm64, but still pins **0.1.2** and legacy
-`uzcreator/trqshcli` URLs. Refresh it before publishing a bucket update. This
+The manifest supports x64 and arm64, but still pins **0.1.2**. Its release
+repository is `trqsh-tunnel/trqshcli`. Refresh the version and real checksums before publishing a bucket update. This
 guide does not assert availability of an up-to-date public bucket.
 
 For the current wrapper flow, use the [npm](../npm/README.md) or

@@ -1,5 +1,7 @@
 # Cloudflare setup for tunnel.trqsh.uz
 
+For the new `trqsh.uz` / `app.trqsh.uz` / `api.trqsh.uz` production deployment and GitHub/Google-only authentication, use [DOMAIN-AUTH.md](DOMAIN-AUTH.md). Earlier single-origin addresses and audit results below describe the previous deployment.
+
 Use the same Cloudflare Tunnel connector for the control plane and generated
 HTTP/HTTPS tunnel URLs. These steps assume `cloudflared` runs on Windows on
 the same computer as Docker, as in the current local setup.

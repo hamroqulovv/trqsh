@@ -12,13 +12,17 @@ Launch `trqsh` in a terminal and enter:
 
 1. trqsh requests a device code and prints an approval URL.
 2. Open that URL in your browser.
-3. Sign in using the options available on that deployment.
+3. Sign in with GitHub or Google using a verified email address.
 4. Check the displayed code and approve this device.
 5. Return to the console and run `/whoami`.
 
 Device approvals expire after **10 minutes**. If the code expires, start `/login` again. OAuth providers appear only when the operator has configured them.
 
-The local development stack also supports passwordless email sign-in in explicit development mode. That shortcut is a development feature, not a production authentication method.
+Public sign-in has no email-only form. OAuth uses a stable provider account ID,
+PKCE and a browser-bound single-use state. Accounts from an earlier deployment
+that lack a provider ID require operator review; an email match never merges
+accounts automatically. The isolated development API test shortcut is disabled
+by default and is always rejected in production.
 
 ## Use an existing API key
 

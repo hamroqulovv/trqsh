@@ -66,7 +66,7 @@ services:
       TRQSH_API_PUBLIC_URL: http://localhost:8080
       TRQSH_JWT_SECRET: ${TRQSH_JWT_SECRET:-dev-jwt-secret-change-me}
       TRQSH_INTERNAL_TOKEN: *internal_token
-      TRQSH_DEV_AUTH: "1"
+      TRQSH_DEV_AUTH: ${TRQSH_DEV_AUTH:-0}
       TRQSH_TRUST_PROXY: "1"
       # Billing is off unless you supply Stripe test keys in deploy/.env.
       TRQSH_STRIPE_SECRET_KEY: ${TRQSH_STRIPE_SECRET_KEY:-}

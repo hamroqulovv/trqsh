@@ -60,6 +60,13 @@ func (m *MemStore) CreateUser(_ context.Context, u User) (User, error) {
 	if _, ok := m.usersEmail[strings.ToLower(u.Email)]; ok {
 		return User{}, ErrConflict
 	}
+	if u.OAuthSubject != "" {
+		for _, existing := range m.users {
+			if existing.OAuthProvider == u.OAuthProvider && existing.OAuthSubject == u.OAuthSubject {
+				return User{}, ErrConflict
+			}
+		}
+	}
 	if u.ID == "" {
 		u.ID = NewID("user")
 	}
@@ -106,6 +113,40 @@ func (m *MemStore) GetUserByEmail(_ context.Context, email string) (User, error)
 		return User{}, ErrNotFound
 	}
 	return m.users[id], nil
+}
+
+func (m *MemStore) GetUserByOAuth(_ context.Context, provider, subject string) (User, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if subject == "" {
+		return User{}, ErrNotFound
+	}
+	for _, u := range m.users {
+		if u.OAuthProvider == provider && u.OAuthSubject == subject {
+			return u, nil
+		}
+	}
+	return User{}, ErrNotFound
+}
+
+func (m *MemStore) BindOAuthSubject(_ context.Context, id, provider, subject string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	u, ok := m.users[id]
+	if !ok {
+		return ErrNotFound
+	}
+	if subject == "" || u.OAuthProvider != provider || (u.OAuthSubject != "" && u.OAuthSubject != subject) {
+		return ErrConflict
+	}
+	for _, existing := range m.users {
+		if existing.ID != id && existing.OAuthProvider == provider && existing.OAuthSubject == subject {
+			return ErrConflict
+		}
+	}
+	u.OAuthSubject = subject
+	m.users[id] = u
+	return nil
 }
 
 func (m *MemStore) CreateOrg(_ context.Context, o Org) (Org, error) {

@@ -15,7 +15,7 @@ This directory contains npm and Python launchers, the shell installer and Window
 | npm · `@trqsh-uz/trqsh` | [npm](npm/README.md) | Install hook and lazy-download fallback. |
 | PyPI · `trqsh` | [Python](pypi/README.md) | Standard-library wrapper; binary downloads on first use. |
 | Shell | [Installer](install.sh) | macOS/Linux installer, mirrored in the website's public directory. |
-| Scoop | [Manifest guide](scoop/README.md) | Existing manifest pins a legacy version and repository; refresh before release. |
+| Scoop | [Manifest guide](scoop/README.md) | Existing manifest pins a legacy version; refresh before release. |
 | winget | [Manifest guide](winget/README.md) | Template manifests contain placeholder checksums. |
 | Homebrew | [Release configuration](../.goreleaser.yaml) | Tap publishing is currently commented out. |
 | Debian / RPM | [Release configuration](../.goreleaser.yaml) | Configured to package the CLI and edge server together. |
@@ -64,7 +64,7 @@ The native CLI supplies the shared welcome guide for fresh configurations. Reope
 
 ## Release assets
 
-npm, Python and shell default to **`algorithco/trqshcli`**:
+npm, Python and shell default to **`trqsh-tunnel/trqshcli`**:
 
 ```text
 trqsh_<version>_<os>_<arch>.tar.gz   macOS / Linux
@@ -84,7 +84,7 @@ The release configuration signs the checksum manifest with cosign. Download the 
 ```bash
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github[.]com/(uzcreator|algorithco)/trqsh/[.]github/workflows/release[.]yml@refs/tags/v[^/]+$' \
+  --certificate-identity-regexp '^https://github[.]com/(uzcreator|algorithco|trqsh-tunnel)/trqsh/[.]github/workflows/release[.]yml@refs/tags/(package-)?v[^/]+$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 ```

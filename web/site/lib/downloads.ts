@@ -59,8 +59,6 @@ export const OS_DOWNLOADS: Record<OSId, OSDownload> = {
     cli: [script, npm, python],
     archives: [
       archive("linux", "amd64", "Linux x64"), archive("linux", "arm64", "Linux ARM64"),
-      archive("linux", "amd64", "Debian / Ubuntu · x64", "deb"), archive("linux", "arm64", "Debian / Ubuntu · ARM64", "deb"),
-      archive("linux", "amd64", "Fedora / RHEL · x64", "rpm"), archive("linux", "arm64", "Fedora / RHEL · ARM64", "rpm"),
     ],
   },
 };
@@ -68,7 +66,7 @@ export const OS_ORDER: OSId[] = ["macos", "windows", "linux"];
 export const OS_LABEL: Record<OSId, string> = { macos: "macOS", windows: "Windows", linux: "Linux" };
 export const ARCH_LABEL: Record<Arch, string> = { arm64: "Apple Silicon / ARM64", amd64: "Intel / x64" };
 
-/** Standalone CLI archives precede the Linux packages in each platform list. */
+/** The current CLI-only release publishes native tar.gz/zip archives. */
 export function archiveFor(os: OSId, arch: Arch | null): Asset {
   const list = OS_DOWNLOADS[os].archives;
   return list.find((asset) => asset.arch === arch) ?? list[0];

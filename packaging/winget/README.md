@@ -4,7 +4,7 @@
 
 **Portable CLI manifests for winget distribution.**
 
-[Installer manifest](trqsh.trqsh.installer.yaml) · [Distribution guide](../README.md) · [CLI releases](https://github.com/algorithco/trqshcli/releases)
+[Installer manifest](trqsh.trqsh.installer.yaml) · [Distribution guide](../README.md) · [CLI releases](https://github.com/trqsh-tunnel/trqshcli/releases)
 
 ## Status
 

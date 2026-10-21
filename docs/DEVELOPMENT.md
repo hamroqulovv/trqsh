@@ -8,7 +8,7 @@ root unless a different directory is shown.
 
 | Tool | Required for | Version/source of truth |
 | --- | --- | --- |
-| Go | Native agent, edge, API and Go tests | 1.25.8+; go.mod is authoritative. |
+| Go | Native agent, edge, API and Go tests | 1.26+; go.mod is authoritative. |
 | Node.js | Website/dashboard/desktop frontend | 20+; Docker uses 22 and current CI uses 24. |
 | pnpm | Frontend dependency/build commands | Docker uses 9; current CI uses 10. Preserve the checked-in lockfile. |
 | Docker + Compose | Full local stack and image builds | Compose 2.24.4+ for the overlay's !override syntax. |

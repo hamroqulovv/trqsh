@@ -27,7 +27,7 @@ from . import __version__
 from ._ui import InstallUI
 
 # CLI releases publish to their own dedicated repo (source stays in
-# algorithco/trqsh; see .goreleaser.yaml).
+# trqsh-tunnel/trqsh; see .goreleaser.yaml).
 REPO = os.environ.get("TRQSH_REPO", "trqsh-tunnel/trqshcli")
 VERSION = os.environ.get("TRQSH_VERSION", __version__).lstrip("v")
 if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[\w.-]+)?(?:\+[\w.-]+)?", VERSION):
