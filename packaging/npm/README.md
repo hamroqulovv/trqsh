@@ -6,11 +6,9 @@
 
 Share development servers, receive webhooks and inspect traffic from an interactive terminal. This package installs the native CLI; the desktop app is a separate download.
 
-CLI 0.2.6 uses `https://api.trqsh.uz` for sign-in and account APIs and
+CLI 0.2.7 uses `https://api.trqsh.uz` for sign-in and account APIs and
 connects to `trqsh.uz:4443` with QUIC and TCP fallback. Public tunnel URLs use
-`*.trqsh.uz` and require wildcard DNS/TLS plus edge ingress. This version is a
-release candidate in source; publish its native assets and wrappers together
-after the new deployment is ready.
+`*.trqsh.uz`.
 
 [![npm](https://img.shields.io/npm/v/%40trqsh-uz%2Ftrqsh?style=flat-square&color=18181b)](https://www.npmjs.com/package/@trqsh-uz/trqsh)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16-52525b?style=flat-square)](#requirements)
