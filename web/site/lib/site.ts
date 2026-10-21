@@ -11,7 +11,7 @@ const apiUrl = process.env.TRQSH_API_URL || "https://api.trqsh.uz";
 const githubRepo = process.env.TRQSH_GITHUB_REPO || "trqsh-tunnel/trqsh";
 const cliGithubRepo = process.env.TRQSH_CLI_GITHUB_REPO || "trqsh-tunnel/trqshcli";
 const siteUrl = process.env.TRQSH_SITE_URL || "https://trqsh.uz";
-const version = process.env.TRQSH_LATEST_VERSION || "0.2.6";
+const version = process.env.TRQSH_LATEST_VERSION || "0.2.7";
 // Telegram handle (without @) users message to buy/upgrade a plan. There is no
 // self-serve checkout; the /upgrade page routes people here.
 const telegram = (process.env.TRQSH_TELEGRAM || "hamroqulovv").replace(

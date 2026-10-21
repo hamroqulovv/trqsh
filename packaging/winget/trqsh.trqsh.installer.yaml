@@ -2,21 +2,21 @@
 # Publish under manifests/t/trqsh/trqsh/<version>/ in microsoft/winget-pkgs.
 # InstallerSha256 values come from the release checksums.txt.
 PackageIdentifier: trqsh.trqsh
-PackageVersion: 0.2.6
+PackageVersion: 0.2.7
 InstallerType: zip
 NestedInstallerType: portable
 Commands:
   - trqsh
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/trqsh-tunnel/trqshcli/releases/download/v0.2.6/trqsh_0.2.6_windows_amd64.zip
-    InstallerSha256: 473DB66CCBBBDDFD1A57DB52AC25943757BBEC72B8B3A8BF28BC14966BB95A22
+    InstallerUrl: https://github.com/trqsh-tunnel/trqshcli/releases/download/v0.2.7/trqsh_0.2.7_windows_amd64.zip
+    InstallerSha256: 5120C0F0E526DAC3641CA900806E2CCB409A0A4F324FA00F5F257DFCEC8E361E
     NestedInstallerFiles:
       - RelativeFilePath: trqsh.exe
         PortableCommandAlias: trqsh
   - Architecture: arm64
-    InstallerUrl: https://github.com/trqsh-tunnel/trqshcli/releases/download/v0.2.6/trqsh_0.2.6_windows_arm64.zip
-    InstallerSha256: 2491CDDE6DA48B969D15ED6149760E1EF68D8484E0AF1445C7DFFD62F3B55D77
+    InstallerUrl: https://github.com/trqsh-tunnel/trqshcli/releases/download/v0.2.7/trqsh_0.2.7_windows_arm64.zip
+    InstallerSha256: B2948086B7A1B1AB508547583FF6E50C47FD0E795A0C1B6100A9D77270F86748
     NestedInstallerFiles:
       - RelativeFilePath: trqsh.exe
         PortableCommandAlias: trqsh

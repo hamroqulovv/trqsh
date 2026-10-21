@@ -8,7 +8,7 @@
 
 ## Status
 
-These manifests describe the published CLI **0.2.6** release, with its asset URLs
+These manifests describe the published CLI **0.2.7** release, with its asset URLs
 and SHA-256 values from `checksums.txt`. They have not been submitted to the
 `microsoft/winget-pkgs` catalog yet, so `winget install trqsh.trqsh` does not
 work until that submission is accepted.

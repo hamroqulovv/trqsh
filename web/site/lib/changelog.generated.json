@@ -7,6 +7,19 @@
   ],
   "releases": [
     {
+      "id": "cli-0.2.7",
+      "product": "cli",
+      "version": "0.2.7",
+      "tag": "v0.2.7",
+      "name": "trqsh CLI v0.2.7",
+      "publishedAt": "2026-10-21T16:03:33Z",
+      "url": "https://github.com/trqsh-tunnel/trqshcli/releases/tag/v0.2.7",
+      "repository": "trqsh-tunnel/trqshcli",
+      "prerelease": false,
+      "preview": false,
+      "body": "## CLI 0.2.7 — a friendlier console\n\n- Destructive commands (`/uninstall`, `/down`, `/stop all`, `/logout`) ask for a\n  Y/N confirmation instead of requiring `/uninstall yes`; `/uninstall yes` still\n  skips the question.\n- One-key shortcuts for common tunnel actions, a `?` shortcut sheet, a\n  Tab-filled suggested next step, and Ctrl+C that clears the prompt before it\n  quits.\n- Command results appear as framed cards, with the logo mark and highlighted key\n  hints in the header.\n- Suggests tunnel targets by detecting popular dev servers already running on\n  localhost.\n- Shows \"Waiting for sign-in\" while the browser approval is pending, and says\n  why an agent was rejected instead of \"session closed\".\n\nUpdate with `trqsh update`, your package manager, or the installers at\nhttps://trqsh.uz/docs/installation."
+    },
+    {
       "id": "cli-0.2.6",
       "product": "cli",
       "version": "0.2.6",
