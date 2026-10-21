@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 // Editorial descriptions summarize the linked, unmodified release notes.
 // Future releases get a useful fallback until an editorial description is added.
 const descriptions: Record<string, { title: string; summary: string; highlights?: string[] }> = {
+  "cli-0.2.6": {
+    title: "Home on trqsh.uz.",
+    summary: "The CLI connects straight to trqsh.uz over QUIC with TCP fallback, signs in through GitHub or Google at app.trqsh.uz, and serves tunnels at <name>.trqsh.uz.",
+    highlights: ["Migrate the previous tunnel.trqsh.uz defaults automatically while keeping custom endpoints, API keys and saved tunnels.", "Install on Windows from PowerShell with irm https://trqsh.uz/install.ps1 | iex."],
+  },
   "cli-0.2.5": {
     title: "A smoother upgrade, from package to tunnel.",
     summary: "Package updates now replace older cached binaries and restart older CLI daemons, so your next console uses the version you installed.",
