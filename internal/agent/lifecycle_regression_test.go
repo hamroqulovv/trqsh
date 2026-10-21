@@ -4,7 +4,9 @@ import (
 	"context"
 	"github.com/trqsh-uz/trqsh/pkg/proto"
 	"net"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -77,5 +79,47 @@ func TestAuditLogoutClearsAgentCredentials(t *testing.T) {
 	}
 	if err := a.ensureConnected(context.Background()); err == nil {
 		t.Fatal("logged-out agent connected with development fallback credentials")
+	}
+}
+
+// /login with a key the control plane rejects must fail there, not later as a
+// closed edge session, and must not replace the stored key.
+func TestLoginRejectsInvalidAPIKey(t *testing.T) {
+	t.Setenv("TRQSH_CONFIG", t.TempDir()+"/config.yml")
+	t.Setenv("TRQSH_API_KEY", "")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/account" {
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") == "Bearer good-key" {
+			apiWriteJSON(w, http.StatusOK, map[string]string{"id": "user_1"})
+			return
+		}
+		apiWriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid api key"})
+	}))
+	defer upstream.Close()
+	cfg := DefaultConfig()
+	cfg.APIBase = upstream.URL
+	cfg.APIKey = "old-key"
+	if err := cfg.Save(DefaultConfigPath()); err != nil {
+		t.Fatal(err)
+	}
+	a := New(cfg, nil)
+	defer func() { _ = a.Shutdown(context.Background()) }()
+	h := NewLocalAPI(a).Handler()
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("POST", "http://127.0.0.1/login", strings.NewReader(`{"token":"bad-key"}`)))
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "invalid API key") {
+		t.Fatalf("bad key: HTTP %d %s", w.Code, w.Body.String())
+	}
+	if storedAPIKey() != "old-key" {
+		t.Fatalf("rejected key replaced the stored key: %q", storedAPIKey())
+	}
+
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("POST", "http://127.0.0.1/login", strings.NewReader(`{"token":"good-key"}`)))
+	if w.Code/100 != 2 || storedAPIKey() != "good-key" {
+		t.Fatalf("good key: HTTP %d %s, stored %q", w.Code, w.Body.String(), storedAPIKey())
 	}
 }

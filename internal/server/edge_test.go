@@ -333,3 +333,24 @@ func freePort(t *testing.T) int {
 	defer func() { _ = ln.Close() }()
 	return ln.Addr().(*net.TCPAddr).Port
 }
+
+// A rejected handshake must reach the agent over QUIC too: closing the
+// connection immediately used to discard the AuthResp, so agents only saw
+// "session closed".
+func TestEdgeAuthFailureReachesQUICAgent(t *testing.T) {
+	srv := startEdge(t, 0, 0)
+	fa := dialAgent(t, srv.AgentAddr().String())
+	if err := proto.WriteMsg(fa.ctrl, &proto.Envelope{Msg: &proto.Envelope_Hello{Hello: &proto.Hello{
+		ProtocolVersion: "1", AgentVersion: "test",
+	}}}); err != nil {
+		t.Fatalf("write hello: %v", err)
+	}
+	env, err := proto.ReadMsg(fa.ctrl)
+	if err != nil {
+		t.Fatalf("read auth resp: %v (the rejection was lost)", err)
+	}
+	ar := env.GetAuthResp()
+	if ar == nil || ar.Ok || ar.GetError().GetCode() != proto.CodeAuthRequired {
+		t.Fatalf("auth resp = %v, want %s", env, proto.CodeAuthRequired)
+	}
+}

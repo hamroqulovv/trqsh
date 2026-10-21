@@ -2,7 +2,9 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -24,6 +26,29 @@ func cloudBase() string {
 		base = cfg.APIBase
 	}
 	return strings.TrimRight(base, "/")
+}
+
+var errInvalidAPIKey = errors.New("invalid API key: create one at https://app.trqsh.uz/keys")
+
+// verifyAPIKey asks the control plane whether key is valid, so a mistyped or
+// revoked key fails at sign-in instead of later as a closed edge session. Only
+// an explicit rejection counts: an unreachable API still allows offline sign-in.
+var verifyAPIKey = func(ctx context.Context, key string) error {
+	// #nosec G704 -- cloudBase() is our own config, never request-derived
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cloudBase()+"/v1/account", nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	resp, err := cloudHTTP.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return errInvalidAPIKey
+	}
+	return nil
 }
 
 // cloudGET is a convenience for the many read-only proxy routes.
