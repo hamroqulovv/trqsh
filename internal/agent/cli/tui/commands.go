@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"slices"
 	"strconv"
 	"strings"
@@ -69,6 +70,25 @@ func init() {
 
 }
 
+// commandAliases maps alternate names (and words people reach for first) to
+// the command they mean. The menu matches them too, so typing "/kill" offers
+// /stop.
+var commandAliases = map[string]string{
+	"q": "quit", "exit": "quit",
+	"list": "ls", "ps": "ls", "tunnels": "ls",
+	"account": "whoami", "me": "whoami",
+	"subs": "subdomains", "subdomain": "subdomains",
+	"domain": "domains",
+	"?":      "help", "h": "help",
+	"kill": "stop", "close": "stop",
+	"share": "http", "expose": "http",
+	"signin": "login", "signout": "logout",
+	"cls":     "clear",
+	"upgrade": "update",
+	"traffic": "requests", "reqs": "requests",
+	"shutdown": "down",
+}
+
 // lookupCommand resolves a name (or a short alias) to a command.
 func lookupCommand(name string) (slashCmd, bool) {
 	for _, c := range slashCommands {
@@ -76,21 +96,79 @@ func lookupCommand(name string) (slashCmd, bool) {
 			return c, true
 		}
 	}
-	switch name {
-	case "q", "exit":
-		return lookupCommand("quit")
-	case "list", "ps":
-		return lookupCommand("ls")
-	case "account", "me":
-		return lookupCommand("whoami")
-	case "subs", "subdomain":
-		return lookupCommand("subdomains")
-	case "domain":
-		return lookupCommand("domains")
-	case "?":
-		return lookupCommand("help")
+	if target, ok := commandAliases[name]; ok {
+		return lookupCommand(target)
 	}
 	return slashCmd{}, false
+}
+
+// aliasMatches reports whether one of cmd's aliases starts with prefix.
+func aliasMatches(cmd, prefix string) bool {
+	for alias, target := range commandAliases {
+		if target == cmd && len(alias) > 1 && strings.HasPrefix(alias, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// suggestCommand returns the command a mistyped name most likely meant
+// ("stp" → "stop", "unistall" → "uninstall"), or "" when nothing is close.
+// A command the name is the start of wins outright ("stat" → "status").
+func suggestCommand(name string) string {
+	if name == "" {
+		return ""
+	}
+	for _, c := range slashCommands {
+		if strings.HasPrefix(c.name, name) {
+			return c.name
+		}
+	}
+	best, bestDist := "", 3
+	if len(name) <= 3 {
+		bestDist = 2 // short names: a two-letter edit is a different word
+	}
+	consider := func(candidate, target string) {
+		if d := editDistance(name, candidate); d < bestDist {
+			best, bestDist = target, d
+		}
+	}
+	for _, c := range slashCommands {
+		consider(c.name, c.name)
+	}
+	for alias, target := range commandAliases {
+		if len(alias) > 2 {
+			consider(alias, target)
+		}
+	}
+	return best
+}
+
+// editDistance is the optimal-string-alignment distance between a and b:
+// Levenshtein plus adjacent swaps as one edit ("hlep" is one away from
+// "help"). Byte-wise, which is fine for ASCII command names.
+func editDistance(a, b string) int {
+	d := make([][]int, len(a)+1)
+	for i := range d {
+		d[i] = make([]int, len(b)+1)
+		d[i][0] = i
+	}
+	for j := range d[0] {
+		d[0][j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			d[i][j] = min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+cost)
+			if i > 1 && j > 1 && a[i-1] == b[j-2] && a[i-2] == b[j-1] {
+				d[i][j] = min(d[i][j], d[i-2][j-2]+1)
+			}
+		}
+	}
+	return d[len(a)][len(b)]
 }
 
 // parseLine splits "/http 3000 --subdomain x" into ("http", ["3000","--subdomain","x"]).
@@ -110,7 +188,7 @@ func cmdUDP(m *model, a []string) tea.Cmd  { return startTunnelCmd(m, "udp", a) 
 
 func startTunnelCmd(m *model, proto string, args []string) tea.Cmd {
 	if len(args) == 0 {
-		m.appendLines(stErr.Render("  ✗ usage: ") + stKey.Render("/"+proto+" <port>"))
+		m.appendLines(stErr.Render("  ✗ which port? ") + stDim.Render("e.g. ") + stKey.Render("/"+proto+" 3000"))
 		return nil
 	}
 	spec := agent.TunnelSpec{Proto: proto, Addr: normalizeAddr(args[0])}
@@ -129,7 +207,7 @@ func startTunnelCmd(m *model, proto string, args []string) tea.Cmd {
 		}
 	}
 	m.appendLines(stDim.Render("  starting " + proto + " tunnel → " + spec.Addr + " …"))
-	cl := m.cl
+	cl, width := m.cl, m.width
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -137,25 +215,68 @@ func startTunnelCmd(m *model, proto string, args []string) tea.Cmd {
 		if err != nil {
 			return printMsg{[]string{stErr.Render("  ✗ " + err.Error())}}
 		}
-		return printMsg{[]string{
-			"",
-			stOK.Render("  ✓ " + strings.ToUpper(proto) + " tunnel online"),
-			"  " + stURL.Render(t.PublicURL),
-			stDim.Render("  → " + t.LocalAddr),
-			stDim.Render("  /copy · /open · /pin traffic"),
-		}}
+		// The URL is what you came for, so it goes straight to the clipboard
+		// (the line says so). A headless box without a clipboard just skips it.
+		copied := clipboard.WriteAll(t.PublicURL) == nil
+		// Starting a tunnel never needs the local service up, but a visitor
+		// would get an error page — say so now rather than leave it a mystery.
+		answering := proto == "udp" || localAnswers(spec.Addr)
+		return printMsg{tunnelOnlineLines(proto, &t, width, copied, answering)}
 	}
+}
+
+// tunnelOnlineLines is the result of starting a tunnel: the URL in a card, a
+// warning when nothing is listening locally yet, and the next keys to press.
+func tunnelOnlineLines(proto string, t *agent.Tunnel, width int, copied, answering bool) []string {
+	status := stOK.Render("  ✓ " + strings.ToUpper(proto) + " tunnel online")
+	if copied {
+		status += stDim.Render(" · URL copied to the clipboard")
+	}
+	body := []string{stURL.Render(t.PublicURL), stDim.Render("→ " + t.LocalAddr)}
+	out := append([]string{"", status}, card("", body, cardWidth(width, lipgloss.Width(t.PublicURL)))...)
+	if !answering {
+		out = append(out, stWarn.Render("  ! nothing is answering on "+t.LocalAddr+" yet")+
+			stDim.Render(" — visitors see an error until it starts"))
+	}
+	hints := []string{"Ctrl+O", "open", "Ctrl+T", "live traffic", "/qr", "phone"}
+	if proto != "http" {
+		hints = []string{"Ctrl+Y", "copy address", "/ls", "all tunnels"}
+	}
+	return append(out, "  "+keyHints(hints...))
+}
+
+// localAnswers reports whether something accepts connections at addr.
+func localAnswers(addr string) bool {
+	c, err := net.DialTimeout("tcp", addr, 400*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
 }
 
 func cmdLs(m *model, _ []string) tea.Cmd {
 	if len(m.tunnels) == 0 {
-		m.appendLines(stDim.Render("  no tunnels — ") + stKey.Render("/http <port>") + stDim.Render(" to start one"))
+		m.appendLines(stDim.Render("  no tunnels yet — type a port, like ") + stKey.Render("3000") + stDim.Render(", to share it"))
 		return nil
 	}
+	urlW, localW := 0, 0
 	for _, t := range m.tunnels {
-		m.appendLines("  " + stKey.Render(shortID(t.ID)) + "  " + stURL.Render(t.PublicURL) +
-			stDim.Render(fmt.Sprintf("  → %s · %s · %d req", t.LocalAddr, t.Status, t.Metrics.Requests)))
+		urlW, localW = max(urlW, lipgloss.Width(t.PublicURL)), max(localW, lipgloss.Width(t.LocalAddr))
 	}
+	// Columns shrink the URL last: it's the part people copy.
+	urlW = min(urlW, max(12, m.width-localW-36))
+	m.appendLines("  " + stTitle.Render("TUNNELS") + stDim.Render(fmt.Sprintf("  %d running", len(m.tunnels))))
+	m.appendLines("  " + stDim.Render(pad("ID", 10)+pad("URL", urlW+2)+pad("LOCAL", localW+2)+pad("STATUS", 10)+"REQUESTS"))
+	for _, t := range m.tunnels {
+		state := stOK.Render(pad("● "+t.Status, 10))
+		if t.Status == "error" {
+			state = stErr.Render(pad("! "+t.Status, 10))
+		}
+		m.appendLines("  " + stKey.Render(pad(shortID(t.ID), 10)) + stURL.Render(padCell(t.PublicURL, urlW)) + "  " +
+			stSub.Render(pad(t.LocalAddr, localW+2)) + state + stSub.Render(strconv.FormatInt(t.Metrics.Requests, 10)))
+	}
+	m.appendLines("  " + keyHints("/stop <id>", "stop one", "/open <id>", "open", "/qr <id>", "QR code"))
 	return nil
 }
 
@@ -308,35 +429,54 @@ func cmdRequests(m *model, _ []string) tea.Cmd {
 }
 
 func cmdStop(m *model, args []string) tea.Cmd {
+	if len(m.tunnels) == 0 {
+		m.appendLines(stDim.Render("  no tunnels running"))
+		return nil
+	}
 	if len(args) == 0 {
-		m.appendLines(stErr.Render("  ✗ usage: ") + stKey.Render("/stop <id|all>"))
+		m.appendLines(stErr.Render("  ✗ which tunnel? ") + stKey.Render("/stop <id|all>") + stDim.Render(" — or type ") + stKey.Render("/stop ") + stDim.Render("and pick one"))
 		return nil
 	}
 	target := args[0]
 	tunnels := append([]agent.Tunnel(nil), m.tunnels...) // snapshot for the goroutine
-	cl := m.cl
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-		defer cancel()
-		var victims []agent.Tunnel
-		if strings.EqualFold(target, "all") {
-			victims = tunnels
-		} else if t := matchTunnel(tunnels, target); t != nil {
-			victims = []agent.Tunnel{*t}
-		}
-		if len(victims) == 0 {
-			return printMsg{[]string{stErr.Render("  ✗ no tunnel matched " + target)}}
-		}
-		var out []string
-		for _, t := range victims {
-			if err := cl.stopTunnel(ctx, t.ID); err != nil {
-				out = append(out, stErr.Render("  ✗ "+err.Error()))
-			} else {
-				out = append(out, stOK.Render("  ✓ stopped ")+stDim.Render(t.PublicURL))
-			}
-		}
-		return printMsg{out}
+	var victims []agent.Tunnel
+	if strings.EqualFold(target, "all") {
+		victims = tunnels
+	} else if t := matchTunnel(tunnels, target); t != nil {
+		victims = []agent.Tunnel{*t}
 	}
+	if len(victims) == 0 {
+		m.appendLines(stErr.Render("  ✗ no tunnel matched " + target))
+		return nil
+	}
+	run := func(m *model) tea.Cmd {
+		cl := m.cl
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+			defer cancel()
+			var out []string
+			for _, t := range victims {
+				if err := cl.stopTunnel(ctx, t.ID); err != nil {
+					out = append(out, stErr.Render("  ✗ "+err.Error()))
+				} else {
+					out = append(out, stOK.Render("  ✓ stopped ")+stDim.Render(t.PublicURL))
+				}
+			}
+			return printMsg{out}
+		}
+	}
+	if len(victims) < 2 || (len(args) > 1 && confirmWord(args[1])) {
+		return run(m)
+	}
+	detail := make([]string, 0, len(victims))
+	for _, t := range victims {
+		detail = append(detail, t.PublicURL+"  → "+t.LocalAddr)
+	}
+	return m.ask(confirmState{
+		title:  "Stop all " + plural(len(victims), "tunnel") + "?",
+		detail: detail,
+		yes:    "Stop all", onYes: run, onYesID: "stop",
+	})
 }
 
 // --- pins ---
@@ -395,9 +535,12 @@ func cmdUnpin(m *model, args []string) tea.Cmd {
 
 func cmdStatus(m *model, _ []string) tea.Cmd {
 	glyph, word, col := m.connState()
-	dot := lipglossFg(col, glyph+" "+word)
-	m.appendLines("  " + dot + stDim.Render(fmt.Sprintf("   edge %s · %s · %d tunnels",
-		firstNonEmpty(m.status.Edge, "—"), firstNonEmpty(m.status.Kind, "—"), len(m.tunnels))))
+	m.appendLines(
+		"  "+boldFg(col, glyph+" "+strings.ToUpper(word)),
+		"  "+stDim.Render(pad("Edge", 11))+stSub.Render(firstNonEmpty(m.status.Edge, "—")),
+		"  "+stDim.Render(pad("Transport", 11))+stSub.Render(firstNonEmpty(m.status.Kind, "—")),
+		"  "+stDim.Render(pad("Tunnels", 11))+stSub.Render(strconv.Itoa(len(m.tunnels))),
+	)
 	return nil
 }
 
@@ -408,9 +551,10 @@ func cmdWhoami(m *model, _ []string) tea.Cmd {
 	}
 	a := m.acct
 	m.appendLines(
-		"  "+stBrand.Render(firstNonEmpty(a.User.Name, a.User.Email, "—"))+stDim.Render("   "+firstNonEmpty(a.Plan, a.Org.Plan, "free")+" plan"),
-		stDim.Render(fmt.Sprintf("  usage  %s in · %s out · %d req (30d)",
-			humanBytes(a.Usage.BytesIn), humanBytes(a.Usage.BytesOut), a.Usage.Requests)),
+		"  "+stBrand.Render(firstNonEmpty(a.User.Name, a.User.Email, "—"))+stDim.Render("  ·  "+firstNonEmpty(a.Plan, a.Org.Plan, "free")+" plan"),
+		"  "+stDim.Render(pad("Email", 11))+stSub.Render(firstNonEmpty(a.User.Email, "—")),
+		"  "+stDim.Render(pad("Traffic", 11))+stSub.Render(humanBytes(a.Usage.BytesIn)+" in · "+humanBytes(a.Usage.BytesOut)+" out")+stDim.Render("  last 30 days"),
+		"  "+stDim.Render(pad("Requests", 11))+stSub.Render(strconv.FormatInt(a.Usage.Requests, 10))+stDim.Render("  last 30 days"),
 	)
 	return nil
 }
@@ -506,32 +650,60 @@ func cmdStart(m *model, _ []string) tea.Cmd {
 	}
 }
 
-func cmdDown(m *model, _ []string) tea.Cmd {
-	cl := m.cl
-	m.appendLines(stDim.Render("  stopping the background daemon…"))
-	// Stop the daemon, then quit — there's nothing left to show once it's gone.
-	return tea.Sequence(
-		func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = cl.shutdown(ctx)
-			return nil
-		},
-		tea.Quit,
-	)
+func cmdDown(m *model, args []string) tea.Cmd {
+	run := func(m *model) tea.Cmd {
+		cl := m.cl
+		m.appendLines(stDim.Render("  stopping the background daemon…"))
+		// Stop the daemon, then quit — there's nothing left to show once it's gone.
+		return tea.Sequence(
+			func() tea.Msg {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = cl.shutdown(ctx)
+				return nil
+			},
+			tea.Quit,
+		)
+	}
+	// Nothing would be lost: skip the question.
+	if len(m.tunnels) == 0 || (len(args) > 0 && confirmWord(args[0])) {
+		return run(m)
+	}
+	return m.ask(confirmState{
+		title:  "Stop the daemon and quit?",
+		detail: []string{plural(len(m.tunnels), "running tunnel") + " will go offline."},
+		yes:    "Stop & quit", onYes: run, onYesID: "down",
+	})
 }
 
-func cmdLogout(m *model, _ []string) tea.Cmd {
-	cl := m.cl
-	m.acct, m.authed = nil, false
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-		defer cancel()
-		if err := cl.logout(ctx); err != nil {
-			return printMsg{[]string{stErr.Render("  ✗ " + err.Error())}}
+func cmdLogout(m *model, args []string) tea.Cmd {
+	run := func(m *model) tea.Cmd {
+		cl := m.cl
+		// Forget the startup key too, or the next fetchAccount (e.g. /whoami)
+		// would silently sign that account back in.
+		m.acct, m.authed, m.opts.APIKey = nil, false, ""
+		m.refreshWelcome()
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+			defer cancel()
+			if err := cl.logout(ctx); err != nil {
+				return printMsg{[]string{stErr.Render("  ✗ " + err.Error())}}
+			}
+			return printMsg{[]string{stOK.Render("  ✓ signed out")}}
 		}
-		return printMsg{[]string{stOK.Render("  ✓ signed out")}}
 	}
+	if (!m.authed && m.acct == nil) || (len(args) > 0 && confirmWord(args[0])) {
+		return run(m)
+	}
+	who := "this account"
+	if m.acct != nil {
+		who = firstNonEmpty(m.acct.User.Email, m.acct.User.Name, who)
+	}
+	return m.ask(confirmState{
+		title:  "Sign out of " + who + "?",
+		detail: []string{"Reserved subdomains and custom domains need sign-in to use."},
+		yes:    "Sign out", onYes: run, onYesID: "logout",
+	})
 }
 
 func cmdConfig(m *model, _ []string) tea.Cmd {
@@ -688,22 +860,39 @@ func cmdUninstall(m *model, args []string) tea.Cmd {
 		m.appendLines(stDim.Render("  uninstall isn't available in this build"))
 		return nil
 	}
-	if len(args) == 0 || !strings.EqualFold(args[0], "yes") {
-		m.appendLines(
-			stWarn.Render("  ⚠ this removes trqsh's local data (config, credentials, cached binaries) and stops tunnels"),
-			stDim.Render("  type ")+stKey.Render("/uninstall yes")+stDim.Render(" to confirm"),
-		)
-		return nil
-	}
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		msg, err := onUninstall(ctx)
-		if err != nil {
-			return printMsg{[]string{stErr.Render("  ✗ " + err.Error())}}
+	run := func(*model) tea.Cmd {
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			msg, err := onUninstall(ctx)
+			if err != nil {
+				return printMsg{[]string{stErr.Render("  ✗ " + err.Error())}}
+			}
+			return printMsg{[]string{stOK.Render("  ✓ " + msg)}}
 		}
-		return printMsg{[]string{stOK.Render("  ✓ " + msg)}}
 	}
+	// "/uninstall yes" still skips the question, for scripts and muscle memory.
+	if len(args) > 0 && confirmWord(args[0]) {
+		return run(m)
+	}
+	return m.ask(confirmState{
+		title: "Remove trqsh's local data?",
+		detail: []string{
+			"Stops every tunnel and the background daemon.",
+			"Deletes your config, saved sign-in and cached binaries.",
+			"The trqsh program itself stays installed.",
+		},
+		yes: "Uninstall", danger: true, onYes: run, onYesID: "uninstall",
+	})
+}
+
+// confirmWord reports whether an argument pre-answers a confirm dialog.
+func confirmWord(s string) bool {
+	switch strings.ToLower(s) {
+	case "yes", "y", "-y", "--yes", "force", "-f", "--force":
+		return true
+	}
+	return false
 }
 
 func cmdVersion(m *model, _ []string) tea.Cmd {
@@ -726,24 +915,36 @@ func cmdHelp(m *model, _ []string) tea.Cmd {
 	for _, c := range slashCommands {
 		byName[c.name] = c
 	}
+	// The usage column only earns its width on a wide terminal; a narrow one
+	// keeps the name and what it does.
+	argsW := 19
+	if m.width < 76 {
+		argsW = 0
+	}
 	for _, g := range []struct {
 		title string
-		color lipgloss.TerminalColor
 		names []string
 	}{
-		{"TUNNELS", colBrand, []string{"http", "tcp", "udp", "start", "ls", "open", "qr", "copy", "stop", "down", "requests"}},
-		{"PANELS", colSecondary, []string{"pin", "unpin", "theme"}},
-		{"ACCOUNT", colSecondary, []string{"status", "whoami", "setup", "login", "logout", "subdomains", "domains"}},
-		{"SYSTEM", colSecondary, []string{"config", "update", "uninstall", "version", "clear", "help", "quit"}},
+		{"SHARE", []string{"http", "tcp", "udp", "start"}},
+		{"MANAGE", []string{"ls", "open", "copy", "qr", "stop", "requests"}},
+		{"VIEW", []string{"pin", "unpin", "status", "theme", "clear"}},
+		{"ACCOUNT", []string{"whoami", "login", "logout", "setup", "subdomains", "domains"}},
+		{"SYSTEM", []string{"config", "update", "version", "uninstall", "help", "quit", "down"}},
 	} {
-		m.appendLines("  " + boldFg(g.color, g.title))
+		m.appendLines("  " + stTitle.Render(g.title))
 		for _, n := range g.names {
 			c := byName[n]
-			m.appendLines("    " + lipglossFg(g.color, pad("/"+c.name, 11)) + stDim.Render(pad(c.args, 18)) + c.desc)
+			args := ""
+			if argsW > 0 {
+				args = stDim.Render(pad(c.args, argsW))
+			}
+			m.appendLines("    " + stKey.Render(pad("/"+c.name, 12)) + args + stSub.Render(c.desc))
 		}
 		m.appendLines("")
 	}
-	m.appendLines(stDim.Render("  tip: ") + stKey.Render("/") + stDim.Render(" autocompletes · ") + stKey.Render("↑↓") + stDim.Render(" history · ") + stKey.Render("/pin traffic") + stDim.Render(" watches requests live"))
+	m.appendLines(
+		"  "+stDim.Render("Type a port, like ")+stKey.Render("3000")+stDim.Render(", to share it · the slash is optional · ")+stKey.Render("?")+stDim.Render(" lists keyboard shortcuts"),
+	)
 	return nil
 }
 

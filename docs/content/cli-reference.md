@@ -108,11 +108,10 @@ A tunnel URL QR and a console-control QR grant different access. Follow [QR remo
 | `/version` | Show console build version/platform. |
 | `/update check` | Check the latest release. |
 | `/update` | Install an available CLI update; restart afterward. |
-| `/uninstall` | Explain local-data removal. |
-| `/uninstall yes` | Stop the agent and remove local config/credentials/cache. |
+| `/uninstall` | Stop the agent and remove local config/credentials/cache, after a Y/N confirmation (`/uninstall yes` skips it). |
 | `/help` | Show the registered command list. |
 | `/quit` | Exit the console, leaving the daemon/tunnels running. |
-| `/down` | Stop the background daemon and exit. |
+| `/down` | Stop the background daemon and exit (asks first while tunnels are running). |
 
 An existing daemon is reused. To apply new environment/config values or an updated agent binary, stop it with `/down` before relaunching.
 

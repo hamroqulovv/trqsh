@@ -2,7 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -41,7 +43,13 @@ func (m model) frame() frameLayout {
 		room--
 	}
 	room = max(0, room)
-	if m.menuOpen() && room > 0 {
+	if m.confirm != nil && room > 0 {
+		// The dialog takes the menu's slot; it gets more rows because the
+		// question and what it will do are the whole point.
+		f.menu = m.renderConfirm(min(4+len(m.confirm.detail)+1, max(1, room-2)))
+	} else if m.showKeys && room > 0 {
+		f.menu = m.renderShortcuts(min(len(shortcutRows)+1, max(1, room-2)))
+	} else if m.menuOpen() && room > 0 {
 		// Always leave at least one selectable row, even in a short window.
 		menuBudget := min(8, max(1, room-min(3, room-1)))
 		f.menu = m.renderMenu(menuBudget)
@@ -69,24 +77,26 @@ func (m model) View() string {
 	if m.width < 1 || m.height < 1 {
 		return ""
 	}
+	var lines []string
 	if m.setup.stage != "" {
-		return m.setupView()
+		lines = m.setupLines()
+	} else {
+		f := m.frame()
+		lines = append(lines, f.header...)
+		if f.viewportRows > 0 {
+			vp := m.vp
+			vp.Height = f.viewportRows
+			lines = append(lines, strings.Split(vp.View(), "\n")...)
+		}
+		if f.scrollHint {
+			lines = append(lines, m.renderScrollHint())
+		}
+		lines = append(lines, f.pins...)
+		lines = append(lines, f.loading...)
+		lines = append(lines, f.menu...)
+		lines = append(lines, f.prompt...)
+		lines = append(lines, f.footer...)
 	}
-	f := m.frame()
-	lines := append([]string{}, f.header...)
-	if f.viewportRows > 0 {
-		vp := m.vp
-		vp.Height = f.viewportRows
-		lines = append(lines, strings.Split(vp.View(), "\n")...)
-	}
-	if f.scrollHint {
-		lines = append(lines, m.renderScrollHint())
-	}
-	lines = append(lines, f.pins...)
-	lines = append(lines, f.loading...)
-	lines = append(lines, f.menu...)
-	lines = append(lines, f.prompt...)
-	lines = append(lines, f.footer...)
 	for len(lines) < m.height {
 		lines = append(lines, "")
 	}
@@ -112,6 +122,9 @@ func (m model) spread(left, right string) string {
 
 func (m model) renderHeader() string {
 	left := stBrand.Render(" trqsh")
+	if m.width >= 24 {
+		left = " " + logoMark() + " " + stBrand.Render("trqsh")
+	}
 	if m.width >= 64 && m.opts.Version != "" {
 		left += " " + stDim.Render(m.opts.Version)
 	}
@@ -362,7 +375,80 @@ func (m model) statusBody() []string {
 	}
 }
 
+// renderWelcome is the console's home screen: who you are, then a short list
+// of what to do next that follows the state of things — share the dev server
+// that's running, then copy, open and watch the tunnel once it's up. Small
+// terminals get the three-line version.
 func (m model) renderWelcome() []string {
+	if m.height < 20 || m.width < 60 {
+		return m.renderWelcomeCompact()
+	}
+	title := "Welcome to trqsh"
+	account := stDim.Render("Not signed in · ") + stKey.Render("/login") + stDim.Render(" for reserved subdomains and custom domains")
+	if m.acct != nil {
+		title = "Welcome, " + firstNonEmpty(m.acct.User.Name, m.acct.User.Email, "you")
+		account = stSub.Render(firstNonEmpty(m.acct.Plan, m.acct.Org.Plan, "free") + " plan")
+		if m.acct.User.Email != "" {
+			account += stDim.Render(" · " + m.acct.User.Email)
+		}
+	} else if m.authed {
+		account = stSub.Render("Signed in")
+	}
+	lines := []string{
+		"",
+		"  " + logoMark() + "  " + stBrand.Render(title),
+		"      " + account,
+		"",
+	}
+	rows := m.quickStart()
+	// Keep the list from crowding out the command it leads to: the header,
+	// prompt and footer need about ten rows.
+	rows = rows[:min(len(rows), max(2, m.height-10-len(lines)-2))]
+	keyW := 0
+	for _, r := range rows {
+		keyW = max(keyW, lipgloss.Width(r[0]))
+	}
+	heading := "GET STARTED"
+	if len(m.tunnels) > 0 {
+		heading = "NEXT"
+	}
+	lines = append(lines, "  "+stTitle.Render(heading))
+	for _, r := range rows {
+		lines = append(lines, "  "+stKey.Render(pad(r[0], keyW))+"   "+stDim.Render(r[1]))
+	}
+	lines = append(lines, "")
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], max(1, m.width-2), "…")
+	}
+	return lines
+}
+
+// quickStart lists the home screen's suggestions as [keys, what it does].
+func (m model) quickStart() [][2]string {
+	var rows [][2]string
+	if len(m.tunnels) == 0 {
+		for _, p := range m.localPorts[:min(2, len(m.localPorts))] {
+			rows = append(rows, [2]string{fmt.Sprintf("/http %d", p), fmt.Sprintf("Share the app running on :%d", p)})
+		}
+		rows = append(rows, [2]string{"3000 ⏎", "Share any local port — just type its number"})
+	} else {
+		host := strings.TrimPrefix(strings.TrimPrefix(m.tunnels[0].PublicURL, "https://"), "http://")
+		rows = append(rows,
+			[2]string{"Ctrl+Y", "Copy " + host},
+			[2]string{"Ctrl+O", "Open it in your browser"},
+			[2]string{"Ctrl+T", "Watch requests arrive live"},
+		)
+		if m.authed || m.acct != nil {
+			rows = append(rows, [2]string{"/qr", "Control this console from your phone"})
+		}
+	}
+	return append(rows,
+		[2]string{"/", "Browse every command"},
+		[2]string{"?", "Keyboard shortcuts"},
+	)
+}
+
+func (m model) renderWelcomeCompact() []string {
 	title := "Your tunnel workspace"
 	accountLine := stDim.Render("Not signed in · ") + stKey.Render("/login")
 	if m.acct != nil {
@@ -374,9 +460,15 @@ func (m model) renderWelcome() []string {
 	} else if m.authed {
 		accountLine = stSub.Render("Signed in")
 	}
-	action := stKey.Render("/http 3000") + stDim.Render(" to share localhost · ") + stKey.Render("/") + stDim.Render(" for commands")
+	// Point at a dev server that's actually running, when one was found.
+	port, what := "3000", " to share localhost"
+	if len(m.localPorts) > 0 && len(m.tunnels) == 0 {
+		port = fmt.Sprint(m.localPorts[0])
+		what = " — something is running on :" + port
+	}
+	action := stKey.Render("/http "+port) + stDim.Render(what+" · ") + stKey.Render("/") + stDim.Render(" for commands")
 	if m.width < 60 {
-		action = stKey.Render("/http 3000") + stDim.Render(" · ") + stKey.Render("/") + stDim.Render(" commands")
+		action = stKey.Render("/http "+port) + stDim.Render(" · ") + stKey.Render("/") + stDim.Render(" commands")
 	}
 	lines := []string{"  " + stBrand.Render(title), "  " + accountLine, "  " + action}
 	if m.height >= 14 {
@@ -436,19 +528,86 @@ func (m model) renderScrollHint() string {
 	return "  " + stDim.Render(text)
 }
 
+// renderHint is the footer: the keys that matter right now on the left and,
+// once a tunnel is up, its address on the right — the one thing people come
+// back to the console for. A flash message briefly takes the hints' place.
 func (m model) renderHint() string {
-	var variants []string
-	if m.menuOpen() {
-		variants = []string{"↑↓ select · Tab complete · Enter run · Esc close", "↑↓ select · Enter run · Esc close", "Enter run · Esc close", "Esc close"}
-	} else {
-		variants = []string{"↑↓ history · / commands · PgUp/PgDn scroll · Ctrl+C quit", "↑↓ history · / commands · Ctrl+C quit", "/ commands · Ctrl+C quit", "Ctrl+C quit", "Ctrl+C"}
+	var variants [][]string
+	modal := true
+	switch {
+	case m.showKeys:
+		variants = [][]string{{"Esc", "close"}}
+	case m.confirm != nil:
+		variants = [][]string{{"Y", "confirm", "N", "cancel", "←→", "choose", "Enter", "select"}, {"Y", "confirm", "N", "cancel"}, {"Y/N", ""}}
+	case m.menuOpen():
+		variants = [][]string{{"↑↓", "select", "Tab", "complete", "Enter", "run", "Esc", "close"}, {"↑↓", "select", "Enter", "run", "Esc", "close"}, {"Enter", "run", "Esc", "close"}, {"Esc", "close"}}
+	case m.input.Value() != "":
+		variants = [][]string{{"Enter", "run", "Esc", "clear", "↑↓", "history"}, {"Enter", "run", "Esc", "clear"}, {"Enter", "run"}}
+	default:
+		modal = false
+		variants = [][]string{{"/", "commands", "?", "shortcuts", "↑↓", "history", "Ctrl+C", "quit"}, {"/", "commands", "?", "shortcuts"}, {"/", "commands"}}
 	}
-	for _, text := range variants {
-		if lipgloss.Width(text)+2 <= m.width {
-			return "  " + stDim.Render(text)
+	right := ""
+	if !modal && m.flash == "" && !slices.Contains(m.pins, "tunnels") {
+		right = m.tunnelStatus(max(0, m.width-4))
+	}
+	avail := m.width - 2
+	if right != "" {
+		avail -= lipgloss.Width(right) + 3
+	}
+	left := ""
+	if m.flash != "" {
+		left = stText.Render(trunc(m.flash, max(1, m.width-4)))
+	} else {
+		for _, v := range variants {
+			if text := keyHints(v...); lipgloss.Width(text) <= avail {
+				left = text
+				break
+			}
 		}
 	}
-	return ""
+	if left == "" && right == "" {
+		return ""
+	}
+	gap := max(1, m.width-2-lipgloss.Width(left)-lipgloss.Width(right)-1)
+	return "  " + left + strings.Repeat(" ", gap) + right
+}
+
+// tunnelStatus is the footer's live line for the running tunnels, dropping
+// detail until it fits w cells: "● tidy-otter.trqsh.uz → :3000 · 42 req +1".
+// The dot brightens while requests are arriving, like an activity light.
+func (m model) tunnelStatus(w int) string {
+	if len(m.tunnels) == 0 || w < 12 {
+		return ""
+	}
+	t := m.tunnels[0]
+	dot := stSub.Render("●")
+	switch {
+	case t.Status == "error":
+		dot = stErr.Render("!")
+	case !m.status.Connected:
+		dot = stWarn.Render("◌")
+	case !m.lastReqAt.IsZero() && time.Since(m.lastReqAt) < 2*time.Second:
+		dot = stBrand.Render("●")
+	}
+	host := strings.TrimPrefix(strings.TrimPrefix(t.PublicURL, "https://"), "http://")
+	local := strings.TrimPrefix(t.LocalAddr, "localhost")
+	more := ""
+	if n := len(m.tunnels) - 1; n > 0 {
+		more = fmt.Sprintf(" +%d", n)
+	}
+	for _, parts := range [][]string{
+		{host, " → " + local, fmt.Sprintf(" · %d req", t.Metrics.Requests), more},
+		{host, " → " + local, more},
+		{host, more},
+		{host},
+	} {
+		text := dot + " " + stURL.Render(parts[0]) + stDim.Render(strings.Join(parts[1:], ""))
+		if lipgloss.Width(text) <= w {
+			return text
+		}
+	}
+	return dot + " " + stURL.Render(trunc(host, w-2))
 }
 
 func (m model) renderMenu(budget int) []string {
@@ -457,7 +616,11 @@ func (m model) renderMenu(budget int) []string {
 	}
 	var out []string
 	if budget >= 3 {
-		out = append(out, "  "+stTitle.Render("COMMANDS")+stDim.Render(fmt.Sprintf("  %d/%d", m.menuIdx+1, len(m.menuItems))))
+		title := "COMMANDS"
+		if strings.Contains(strings.TrimSpace(m.input.Value()), " ") || strings.HasSuffix(m.input.Value(), " ") {
+			title = "CHOOSE"
+		}
+		out = append(out, "  "+stTitle.Render(title)+stDim.Render(fmt.Sprintf("  %d/%d", m.menuIdx+1, len(m.menuItems))))
 	}
 	window := min(7, budget-len(out))
 	start := max(0, m.menuIdx-window+1)
@@ -478,7 +641,17 @@ func (m model) renderMenu(budget int) []string {
 		if i == m.menuIdx {
 			out = append(out, "  "+stMenuSel.Render(padCell("› "+label+desc, innerW)))
 		} else {
-			out = append(out, "    "+stKey.Render(label)+stDim.Render(desc))
+			// The command reads bold; a usage hint after it ("<port>") stays
+			// quiet, while a concrete choice ("/stop a1b2c3d4") stays bold.
+			name, rest, found := strings.Cut(label, " ")
+			restStyle := stKey
+			if r := strings.TrimSpace(rest); strings.HasPrefix(r, "<") || strings.HasPrefix(r, "[") || r == "" {
+				restStyle = stDim
+			}
+			if found {
+				rest = " " + rest
+			}
+			out = append(out, "    "+stKey.Render(name)+restStyle.Render(rest)+stDim.Render(desc))
 		}
 	}
 	return out

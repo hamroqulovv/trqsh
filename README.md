@@ -91,8 +91,8 @@ The [documentation source index](docs/README.md) links all guides, including exa
 commands, limitations, local automation and troubleshooting. The website serves them at
 `/docs`; the Control API serves its own Swagger UI at `/docs` on the API origin.
 
-**Uninstall:** `/uninstall` explains local-data removal; `/uninstall yes` stops the agent and
-removes local config, credentials and cache. Remove the program with its original package
+**Uninstall:** `/uninstall` asks for a Y/N confirmation, then stops the agent and removes
+local config, credentials and cache. Remove the program with its original package
 manager, for example `npm uninstall -g @trqsh-uz/trqsh` or `python -m pip uninstall trqsh`.
 
 ## Local development

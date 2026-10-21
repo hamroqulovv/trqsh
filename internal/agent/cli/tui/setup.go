@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type setupState struct {
@@ -17,6 +17,7 @@ type setupState struct {
 	selected, generation int
 	input                textinput.Model
 	note, url, code      string
+	warn                 bool // note is a problem to fix, not guidance
 	ctx                  context.Context
 	cancel               context.CancelFunc
 }
@@ -90,19 +91,20 @@ func (m model) setupKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if s.stage == "port" {
 			port, err := strconv.Atoi(value)
 			if err != nil || port < 1 || port > 65535 {
-				s.note = "Enter a port from 1 to 65535."
+				s.note, s.warn = "Enter a port from 1 to 65535.", true
 				return m, nil
 			}
 			m.closeSetup("completed")
-			cmd := cmdHTTP(&m, []string{value})
-			return m, cmd
+			// Run it as the console command, so the transcript shows what ran
+			// and the loading indicator follows it like any other.
+			return m.run("/http "+value, false)
 		}
 		if value == "" {
-			s.note = "Enter your API key, or press Esc to skip."
+			s.note, s.warn = "Paste your API key, or press Esc to skip.", true
 			return m, nil
 		}
 		s.input.SetValue("")
-		s.stage, s.note = "waiting", "Signing in..."
+		s.stage, s.note, s.warn = "waiting", "Signing in with your key…", false
 		s.ctx, s.cancel = context.WithTimeout(context.Background(), 15*time.Second)
 		ctx, generation, cl := s.ctx, s.generation, m.cl
 		return m, func() tea.Msg {
@@ -113,31 +115,37 @@ func (m model) setupKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if s.stage == "waiting" {
 		return m, nil
 	}
-	count := 3
-	if s.stage == "ready" {
-		count = 2
+	count := len(m.setupChoices())
+	key := msg.String()
+	// A choice's number picks it outright: "2" is "Use an API key".
+	if n, err := strconv.Atoi(key); err == nil && n >= 1 && n <= count {
+		s.selected, key = n-1, "enter"
 	}
-	switch msg.String() {
-	case "up", "k":
+	switch key {
+	case "up", "k", "shift+tab":
 		s.selected = (s.selected + count - 1) % count
 	case "down", "j", "tab":
 		s.selected = (s.selected + 1) % count
 	case "enter":
+		s.warn = false
 		if s.stage == "ready" {
 			if s.selected == 1 {
 				m.closeSetup("completed")
 				return m, nil
 			}
-			s.stage, s.note = "port", "Enter the local HTTP port to expose publicly. Enter starts the tunnel."
-			s.input = textinput.New()
-			s.input.SetValue("3000")
+			port := "3000"
+			if len(m.localPorts) > 0 {
+				port = strconv.Itoa(m.localPorts[0])
+			}
+			s.stage, s.note = "port", "Enter starts the tunnel and prints its public URL."
+			s.input = newSetupInput()
+			s.input.SetValue(port)
 			s.input.CharLimit = 5
-			s.input.Focus()
 			return m, textinput.Blink
 		}
 		switch s.selected {
 		case 0:
-			s.stage, s.note = "waiting", "Starting browser sign-in..."
+			s.stage, s.note = "waiting", "Starting browser sign-in…"
 			s.ctx, s.cancel = context.WithTimeout(context.Background(), 10*time.Minute)
 			ctx, generation, cl := s.ctx, s.generation, m.cl
 			return m, func() tea.Msg {
@@ -147,12 +155,11 @@ func (m model) setupKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return setupDeviceMsg{generation, d, err}
 			}
 		case 1:
-			s.stage, s.note = "key", "Your key stays out of command history."
-			s.input = textinput.New()
+			s.stage, s.note = "key", "It's masked here and never saved to command history."
+			s.input = newSetupInput()
 			s.input.EchoMode = textinput.EchoPassword
-			s.input.EchoCharacter = '*'
+			s.input.EchoCharacter = '•'
 			s.input.CharLimit = 512
-			s.input.Focus()
 			return m, textinput.Blink
 		case 2:
 			m.closeSetup("dismissed")
@@ -206,59 +213,159 @@ func (m model) setupResult(msg setupResultMsg) (tea.Model, tea.Cmd) {
 		m.setup.stage, m.setup.note = "ready", "Signed in. Choose what to do next."
 		return m, m.fetchAccount()
 	}
-	m.setup.stage, m.setup.note = "welcome", "Sign-in failed or expired. Try again, or set up later."
+	m.setup.stage, m.setup.note, m.setup.warn = "welcome", "Sign-in failed or expired. Try again, or set up later.", true
 	return m, nil
 }
-func (m model) setupView() string {
-	s := m.setup
-	lines := []string{stBrand.Render("trqsh / welcome"), "Bring your localhost online.", ""}
-	if s.note != "" {
-		lines = append(lines, s.note, "")
+// setupChoice is one option on the guide's menu; desc shows under the
+// highlighted one, so the screen explains itself without a wall of text.
+type setupChoice struct{ label, desc, tag string }
+
+func (m model) setupChoices() []setupChoice {
+	if m.setup.stage == "ready" {
+		share := "Pick a local port and get a public HTTPS URL."
+		if len(m.localPorts) > 0 {
+			share = fmt.Sprintf("Something is running on :%d — share it in one step.", m.localPorts[0])
+		}
+		return []setupChoice{
+			{"Start an HTTP tunnel", share, "recommended"},
+			{"Open the console", "Look around first. Type a port any time to share it.", ""},
+		}
 	}
-	choices := []string{"Sign in with browser", "Use an API key", "Set up later"}
-	if s.stage == "ready" {
-		choices = []string{"Start an HTTP tunnel", "Open console"}
+	return []setupChoice{
+		{"Sign in with browser", "Approve this device in your browser. Nothing to paste.", "recommended"},
+		{"Use an API key", "Paste a key from your dashboard.", ""},
+		{"Set up later", "Go straight to the console. /setup brings this guide back.", ""},
+	}
+}
+
+func newSetupInput() textinput.Model {
+	in := textinput.New()
+	in.Prompt = "› "
+	in.PromptStyle = stBrand
+	in.TextStyle = stText
+	in.PlaceholderStyle = stDim
+	in.Cursor.Style = stMenuSel
+	in.Focus()
+	return in
+}
+
+// setupLines draws the guide as a card centered on the page. A terminal too
+// small for the card gets just the active choice or input and its keys.
+func (m model) setupLines() []string {
+	cardW := min(66, m.width-4)
+	innerW := cardW - 4
+	body, hints := m.setupBody(max(1, innerW))
+	if m.width >= 44 {
+		box := roundedBox("", strings.Join(append(append([]string{""}, body...), "", hints), "\n"), cardW, colBorder, colPanelBg)
+		lines := strings.Split(box, "\n")
+		if len(lines) <= m.height {
+			left := strings.Repeat(" ", (m.width-cardW)/2)
+			for i := range lines {
+				lines[i] = left + lines[i]
+			}
+			// A touch above center reads as centered on a screen.
+			top := make([]string, (m.height-len(lines))*2/5)
+			return append(top, lines...)
+		}
+	}
+	if lines := append(body, "", hints); len(lines) <= m.height && m.width >= 24 {
+		for i := range lines {
+			lines[i] = " " + trunc(lines[i], m.width-2)
+		}
+		return lines
+	}
+	return m.setupFocus()
+}
+
+// setupBody is the card's content, and the key hints for its bottom row.
+func (m model) setupBody(w int) (body []string, hints string) {
+	s := m.setup
+	body = []string{
+		logoMark() + "  " + stBrand.Render("trqsh"),
+		"    " + stSub.Render("Bring your localhost online."),
+		"",
+		m.setupSteps(),
+		"",
+	}
+	note := func() {
+		if s.note == "" {
+			return
+		}
+		if s.warn {
+			body = append(body, "", stWarn.Render("! ")+stSub.Render(s.note))
+		} else {
+			body = append(body, "", stDim.Render(s.note))
+		}
 	}
 	switch s.stage {
 	case "welcome", "ready":
-		for i, label := range choices {
-			prefix := "  "
-			if i == s.selected {
-				prefix = "> "
-			}
-			lines = append(lines, prefix+label)
+		if s.warn {
+			body = append(body, stWarn.Render("! ")+stSub.Render(s.note), "")
 		}
-	case "key", "port":
-		lines = append(lines, s.input.View())
+		for i, c := range m.setupChoices() {
+			num := strconv.Itoa(i + 1)
+			if i == s.selected {
+				right := num
+				if c.tag != "" {
+					right = c.tag + "  " + num
+				}
+				row := padCell("› "+c.label, max(1, w-lipgloss.Width(right)-1)) + " " + right
+				body = append(body, stMenuSel.Render(padCell(row, w)), "  "+stDim.Render(c.desc))
+				continue
+			}
+			body = append(body, "  "+stSub.Render(padCell(c.label, max(1, w-3)))+" "+stDim.Render(num))
+		}
+		hints = keyHints("↑↓", "select", "Enter", "continue", "Esc", "skip")
+	case "key":
+		body = append(body, stBrand.Render("Paste your API key"), "", s.input.View())
+		note()
+		hints = keyHints("Enter", "sign in", "Esc", "skip")
+	case "port":
+		body = append(body, stBrand.Render("Which local port should go online?"), "", s.input.View())
+		note()
+		hints = keyHints("Enter", "start tunnel", "Esc", "skip")
 	case "waiting":
 		if s.url != "" {
-			lines = append(lines, s.url, "Code: "+s.code)
+			body = append(body,
+				stBrand.Render("Approve the sign-in in your browser"),
+				"",
+				stDim.Render("Code  ")+stMenuSel.Render(" "+s.code+" "),
+				stDim.Render("Link  ")+stURL.Render(trunc(s.url, max(1, w-6))),
+				"",
+				m.pixelStrip()+"  "+stDim.Render("Waiting for approval…"),
+			)
+		} else {
+			body = append(body, m.pixelStrip()+"  "+stSub.Render(s.note))
 		}
+		hints = keyHints("Esc", "cancel")
 	}
-	lines = append(lines, "", "Up/Down select | Enter continue | Esc skip")
-	var wrapped []string
-	for _, line := range lines {
-		wrapped = append(wrapped, strings.Split(ansi.Hardwrap(line, max(1, m.width-2), true), "\n")...)
+	return body, hints
+}
+
+// setupSteps shows where the guide is: sign in, then share a first port.
+func (m model) setupSteps() string {
+	first, second := stBrand.Render("● Sign in"), stDim.Render("○ Share a port")
+	if m.setup.stage == "ready" || m.setup.stage == "port" {
+		first, second = stSub.Render("✓ Signed in"), stBrand.Render("● Share a port")
 	}
-	if len(wrapped) > m.height {
-		// Keep the active choice/input visible even in a very short terminal.
-		focus := fmt.Sprintf("trqsh | %s", s.stage)
-		if s.stage == "welcome" || s.stage == "ready" {
-			focus = "> " + choices[s.selected]
-		}
-		if s.stage == "key" || s.stage == "port" {
-			focus = s.input.View()
-		}
-		if s.stage == "waiting" {
-			focus = firstNonEmpty(s.url, s.note)
-		}
-		wrapped = []string{focus}
-		if m.height > 1 {
-			wrapped = append(wrapped, "Enter continue | Esc skip")
-		}
+	return first + stRule.Render("  ────  ") + second
+}
+
+// setupFocus is the guide in one or two rows, for the smallest terminals.
+func (m model) setupFocus() []string {
+	s := m.setup
+	focus := "trqsh · " + s.stage
+	switch s.stage {
+	case "welcome", "ready":
+		focus = stMenuSel.Render("› " + m.setupChoices()[s.selected].label)
+	case "key", "port":
+		focus = s.input.View()
+	case "waiting":
+		focus = firstNonEmpty(s.code, s.note)
 	}
-	for i := range wrapped {
-		wrapped[i] = ansi.Truncate(wrapped[i], m.width, "")
+	lines := []string{trunc(focus, max(1, m.width))}
+	if m.height > 1 {
+		lines = append(lines, trunc(keyHints("Enter", "continue", "Esc", "skip"), max(1, m.width)))
 	}
-	return strings.Join(wrapped, "\n")
+	return lines
 }

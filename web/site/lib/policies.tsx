@@ -54,7 +54,7 @@ export const privacyPolicy: PolicyDocument = {
     </> },
     { id: "local-data", title: "Local configuration and logs", content: <>
       <p>The CLI saves configuration, saved tunnel definitions, and its working API key on your computer, normally in <code>~/.trqsh/trqsh.yml</code>. Runtime files can include the local control token and <code>daemon.log</code>. These files are separate from the in-memory HTTP capture buffer and can remain after the agent stops.</p>
-      <p>Protect this directory and review logs before sharing them. Client removal and local-data removal are separate operations; the installation guide explains <code>/uninstall yes</code> and package-manager removal. Neither action deletes your hosted account. See <Link href="/docs/installation">Installation</Link> and <Link href="/docs/configuration">Configuration</Link>.</p>
+      <p>Protect this directory and review logs before sharing them. Client removal and local-data removal are separate operations; the installation guide explains <code>/uninstall</code> and package-manager removal. Neither action deletes your hosted account. See <Link href="/docs/installation">Installation</Link> and <Link href="/docs/configuration">Configuration</Link>.</p>
     </> },
     { id: "remote-control", title: "QR remote-control sessions", content: <>
       <p>Using <code>/qr</code> sends recent console transcript lines and a tunnel-state snapshot through the hosted relay to paired viewers. The relay retains up to 200 recent lines and the last state snapshot in the API process. Pairings expire after 30 minutes and do not survive an API restart; you can end a pairing with <code>/qr stop</code>.</p>

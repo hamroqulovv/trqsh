@@ -40,14 +40,44 @@ var (
 	stMenuSel = lipgloss.NewStyle().Foreground(colSelectedText).Background(colBrand).Bold(true)
 )
 
-// lipglossFg renders s in foreground color c — a shorthand for the one-off
-// dynamically-colored spans (like the connection dot) that don't warrant a
-// named style.
-func lipglossFg(c lipgloss.TerminalColor, s string) string {
-	return lipgloss.NewStyle().Foreground(c).Render(s)
+// logoMark is the web logo — a filled tile holding a prompt — as two cells of
+// inverted text, so the header carries the same mark as the site and app.
+func logoMark() string { return stMenuSel.Render("›_") }
+
+// keyHints renders "key label" pairs with the keys emphasized, so a row of
+// shortcuts scans by its keys instead of reading as one grey sentence.
+func keyHints(pairs ...string) string {
+	var parts []string
+	for i := 0; i+1 < len(pairs); i += 2 {
+		parts = append(parts, stKey.Render(pairs[i])+" "+stDim.Render(pairs[i+1]))
+	}
+	return strings.Join(parts, stRule.Render("  ·  "))
 }
 
-// boldFg renders s bold in foreground color c (for /help section headers).
+// card frames a command's result in the transcript. It has no background:
+// transcript lines are re-colored on /theme, and that skips lines that paint
+// their own surface.
+func card(title string, body []string, outerW int) []string {
+	innerW := max(1, outerW-4)
+	fitted := make([]string, len(body))
+	for i, line := range body {
+		fitted[i] = trunc(line, innerW)
+	}
+	box := roundedBox(title, strings.Join(fitted, "\n"), outerW, colBorderStrong, nil)
+	lines := strings.Split(box, "\n")
+	for i := range lines {
+		lines[i] = "  " + lines[i]
+	}
+	return lines
+}
+
+// cardWidth sizes a result card to its content, within the terminal.
+func cardWidth(termW, contentW int) int {
+	return max(12, min(termW-4, max(contentW+4, 48)))
+}
+
+// boldFg renders s bold in foreground color c — for the one-off dynamically
+// colored spans, like the connection state, that don't warrant a named style.
 func boldFg(c lipgloss.TerminalColor, s string) string {
 	return lipgloss.NewStyle().Foreground(c).Bold(true).Render(s)
 }
