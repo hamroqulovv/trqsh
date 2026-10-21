@@ -68,6 +68,8 @@ port 3000. `/quit` leaves its background daemon and tunnels running; `/down` sto
 ```bash
 # macOS / Linux
 curl -fsSL https://trqsh.uz/install.sh | sh
+# Windows (PowerShell)
+irm https://trqsh.uz/install.ps1 | iex
 # Windows / macOS / Linux with npm
 npm install -g @trqsh-uz/trqsh
 

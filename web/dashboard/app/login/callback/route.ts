@@ -24,7 +24,9 @@ export async function GET(req: NextRequest) {
       }
     } catch { /* A failed exchange returns to login without creating a session. */ }
   }
-  const response = NextResponse.redirect(new URL(dashboardPath(destination), req.url));
+  // Relative Location: the browser resolves it against the public origin it is
+  // on. Behind the edge, req.url is the container's own http://localhost:3000.
+  const response = new NextResponse(null, { status: 307, headers: { Location: dashboardPath(destination) } });
   response.cookies.set(oauthCookie, "", { httpOnly: true, secure: secureSession, sameSite: "lax", path: "/", maxAge: 0 });
   response.headers.set("Cache-Control", "no-store");
   response.headers.set("Referrer-Policy", "no-referrer");
