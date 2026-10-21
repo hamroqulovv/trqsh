@@ -35,6 +35,11 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-and-quality
+          # ADS/ is the launch-film project (vendored three.js, saved
+          # third-party reference pages, render scripts); it never ships.
+          config: |
+            paths-ignore:
+              - ADS/**
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
