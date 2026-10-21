@@ -28,6 +28,10 @@ function applyTheme(dark: boolean) {
     ?.setAttribute("content", dark ? DARK_THEME_COLOR : LIGHT_THEME_COLOR);
 }
 
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => { ready: Promise<void> };
+};
+
 export function ThemeToggle({ className }: { className?: string }) {
   const [dark, setDark] = React.useState(false);
 
@@ -51,13 +55,50 @@ export function ThemeToggle({ className }: { className?: string }) {
     };
   }, []);
 
-  function toggle() {
+  function toggle(event: React.MouseEvent<HTMLButtonElement>) {
     const next = !document.documentElement.classList.contains("dark");
-    applyTheme(next);
-    setDark(next);
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, next ? "dark" : "light");
-    } catch {}
+    const commit = () => {
+      applyTheme(next);
+      setDark(next);
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, next ? "dark" : "light");
+      } catch {}
+    };
+
+    // The new theme spreads out from the button as a growing circle.
+    const doc = document as ViewTransitionDocument;
+    if (
+      !doc.startViewTransition ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      commit();
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const radius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y),
+    );
+    doc
+      .startViewTransition(commit)
+      .ready.then(() => {
+        document.documentElement.animate(
+          {
+            clipPath: [
+              `circle(0px at ${x}px ${y}px)`,
+              `circle(${radius}px at ${x}px ${y}px)`,
+            ],
+          },
+          {
+            duration: 700,
+            easing: "cubic-bezier(0.65, 0, 0.35, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
+      })
+      .catch(() => {});
   }
 
   return (
@@ -68,12 +109,12 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-pressed={dark}
       title={dark ? "Switch to light theme" : "Switch to dark theme"}
       className={cn(
-        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-secondary transition-colors hover:border-border-strong hover:bg-accent hover:text-foreground",
+        "relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface text-secondary transition-colors hover:border-border-strong hover:bg-accent hover:text-foreground",
         className,
       )}
     >
-      <Sun className="hidden h-4 w-4 dark:block" aria-hidden="true" />
-      <Moon className="block h-4 w-4 dark:hidden" aria-hidden="true" />
+      <Sun className="theme-icon theme-icon-sun h-4 w-4" aria-hidden="true" />
+      <Moon className="theme-icon theme-icon-moon h-4 w-4" aria-hidden="true" />
     </button>
   );
 }

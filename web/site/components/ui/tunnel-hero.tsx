@@ -53,6 +53,21 @@ void main() {
   gl_FragColor = vec4(color, 1.0);
 }`;
 
+const TAU = Math.PI * 2;
+const smoothstep = (edge0: number, edge1: number, x: number) => {
+  const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1);
+  return t * t * (3 - 2 * t);
+};
+// Mirrors TunnelPath in the shader, so the page can follow the vanishing
+// point as the tunnel bends.
+const tunnelPath = (x: number) => {
+  const s = smoothstep(1, 4, x);
+  return [
+    (0.2 * Math.sin(TAU * x * 0.5) + 0.4 * Math.sin(TAU * x * 0.2 + 0.3)) * s,
+    (0.3 * Math.cos(TAU * x * 0.3) + 0.2 * Math.cos(TAU * x * 0.1)) * s,
+  ] as const;
+};
+
 export default function TunnelHero({ className }: { className?: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -83,6 +98,23 @@ export default function TunnelHero({ className }: { className?: string }) {
     let lastRender = 0;
     let pointerX = 0;
     let pointerY = 0;
+    let cssHeight = 1;
+    // Where the visible mouth of the tunnel sits relative to the hero center,
+    // published as --vx/--vy on the backdrop for elements that should emerge
+    // from it. Rings fade with depth, so the mouth is drawn by rings around
+    // pz = 0.6 rather than by the (invisible) farthest ones.
+    const backdrop = host.parentElement;
+    const publishVanishingPoint = () => {
+      if (!material || !backdrop) return;
+      const camZ = material.uniforms.iTime.value * 0.7;
+      const far = tunnelPath(camZ + 0.6);
+      const near = tunnelPath(camZ);
+      const pointer = material.uniforms.iPointer.value as Three.Vector2;
+      const x = -(far[0] - near[0]) - pointer.x * 0.045;
+      const y = -(far[1] - near[1]) - pointer.y * 0.045;
+      backdrop.style.setProperty("--vx", `${(x * cssHeight).toFixed(1)}px`);
+      backdrop.style.setProperty("--vy", `${(-y * cssHeight).toFixed(1)}px`);
+    };
 
     const stop = () => {
       cancelAnimationFrame(frame);
@@ -113,6 +145,7 @@ export default function TunnelHero({ className }: { className?: string }) {
       pointer.y += (pointerY - pointer.y) * 0.05;
       if (now - lastRender >= 1000 / (mobile.matches ? 24 : 30)) {
         render();
+        publishVanishingPoint();
         lastRender = now;
       }
       frame = requestAnimationFrame(loop);
@@ -145,6 +178,7 @@ export default function TunnelHero({ className }: { className?: string }) {
       renderer.setSize(width, height, false);
       const resolution = material.uniforms.iResolution.value as Three.Vector3;
       resolution.set(canvas.width, canvas.height, 1);
+      cssHeight = height;
       (material.uniforms.iCenter.value as Three.Vector2).set(
         stacked.matches ? 0.5 : 0.75,
         stacked.matches ? 0.25 : 0.5,

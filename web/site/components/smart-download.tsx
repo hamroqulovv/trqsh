@@ -78,7 +78,7 @@ export function SmartDownload({ variant = "card", className }: { variant?: "hero
               {snippet.label}{snippet.recommended && <span className="text-[10px] text-muted">Recommended</span>}
             </button>)}
           </div>
-          <CodeBlock code={install.command} label={os === "windows" ? "PowerShell · " + install.label : "Terminal · " + install.label} />
+          <CodeBlock code={install.command} label={os === "windows" ? "PowerShell · " + install.label : "Terminal · " + install.label} wrap />
           <p className="mt-4 text-xs font-medium text-foreground">{install.requirement}</p>
           <p className="mt-2 text-xs leading-relaxed text-secondary">{install.description}</p>
           {install.label === "Shell" && <a href={site.installShUrl} className="mt-3 inline-flex items-center gap-1 text-xs text-secondary underline underline-offset-4">Read the install script <ArrowUpRight size={12} aria-hidden="true" /></a>}
