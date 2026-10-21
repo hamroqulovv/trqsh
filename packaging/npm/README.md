@@ -142,10 +142,9 @@ To also clear local credentials, configuration and caches, do this **before** re
 
 ```text
 /uninstall
-/uninstall yes
 ```
 
-The second command confirms local-data removal and stops tunnels. It does not delete your cloud account. Removing the npm package alone removes its vendored binary but leaves separate agent data.
+Press `Y` to confirm local-data removal, which also stops tunnels. It does not delete your cloud account. Removing the npm package alone removes its vendored binary but leaves separate agent data.
 
 ## Troubleshooting
 

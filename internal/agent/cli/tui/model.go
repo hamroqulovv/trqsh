@@ -8,7 +8,10 @@ package tui
 
 import (
 	"context"
+	"net"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -100,9 +103,26 @@ type model struct {
 	remoteConnected    bool
 	pendingRemoteLines []string // transcript lines queued to publish this Update() tick
 
-	// autocomplete menu (command names, or argument options for /pin, /unpin)
+	// autocomplete menu (command names, or argument options: tunnels for /stop,
+	// detected ports for /http, panels for /pin…)
 	menuItems []menuEntry
 	menuIdx   int
+	// menuFreeform marks a menu of suggestions for a free-form argument (a
+	// port): Enter runs what was typed unless the user arrowed to a suggestion.
+	menuFreeform bool
+	menuMoved    bool
+
+	// confirm is the open yes/no dialog guarding a destructive command (see
+	// confirm.go); nil when none is showing. remoteRun is true while a paired
+	// phone's command runs, so ask() can skip the dialog for it.
+	confirm   *confirmState
+	remoteRun bool
+
+	// localPorts are common dev-server ports found listening on this machine,
+	// offered as /http suggestions and in the welcome banner.
+	localPorts []int
+	portsAt    time.Time
+	probing    bool
 
 	// command history: up/down recalls previously entered lines to edit.
 	history    []string
@@ -113,6 +133,17 @@ type model struct {
 	// acts on it (typing replaces it, Backspace/Delete clears it) or
 	// cancels it (anything else, which then runs normally — see handleKey).
 	selectAll bool
+
+	// flash replaces the footer's key hints for a moment ("Press Ctrl+C again
+	// to quit"); flashSeq lets a newer message outlive an older one's timer.
+	// quitArmed is set by the first Ctrl+C on an empty line (see keys.go).
+	flash     string
+	flashSeq  int
+	quitArmed bool
+	// showKeys is the "?" shortcut sheet, drawn where the menu goes.
+	showKeys bool
+	// lastReqAt is when the newest request arrived, for the footer's pulse.
+	lastReqAt time.Time
 
 	welcomeShown bool // the welcome banner has been placed in the transcript
 	welcomeLen   int  // how many leading transcript lines the banner occupies
@@ -156,6 +187,7 @@ type loginDoneMsg struct {
 	msg string
 }
 type remoteStartedMsg struct{ code, url string }
+type portsMsg struct{ ports []int }
 
 // Run starts the TUI and blocks until the user quits.
 func Run(opts Options) error {
@@ -231,7 +263,31 @@ func inputPrompt(line int) string {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, m.poll(), m.fetchAccount(), tickCmd())
+	return tea.Batch(textarea.Blink, m.poll(), m.fetchAccount(), tickCmd(), m.probePorts())
+}
+
+// probePorts looks for local dev servers in the background. It's cheap (a
+// handful of loopback dials) but not free, so it runs at startup and again
+// only when a port suggestion is about to be shown and the last scan is stale.
+func (m model) probePorts() tea.Cmd {
+	skip := 0
+	if _, p, err := net.SplitHostPort(m.opts.Addr); err == nil {
+		skip, _ = strconv.Atoi(p)
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return portsMsg{ports: probeLocalPorts(ctx, skip)}
+	}
+}
+
+// maybeProbePorts re-scans when a port picker is open and the scan is stale.
+func (m *model) maybeProbePorts() tea.Cmd {
+	if m.probing || !m.menuFreeform || time.Since(m.portsAt) < 3*time.Second {
+		return nil
+	}
+	m.probing = true
+	return m.probePorts()
 }
 
 // --- commands (async work) ---
@@ -315,6 +371,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.setup.stage != "" {
 			return m.setupKey(msg)
 		}
+		if m.confirm != nil {
+			return m.confirmKey(msg)
+		}
 		return m.handleKey(msg)
 
 	case tickMsg:
@@ -342,12 +401,25 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.handleEvent(agent.Event(msg)))
 		m.relayout()
 
+	case portsMsg:
+		m.probing, m.localPorts, m.portsAt = false, msg.ports, time.Now()
+		if m.menuOpen() || m.menuFreeform {
+			idx, moved := m.menuIdx, m.menuMoved
+			m.refreshMenu()
+			m.menuIdx, m.menuMoved = min(idx, max(0, len(m.menuItems)-1)), moved
+		}
+		m.refreshWelcome()
+		m.relayout()
+
 	case remoteStartedMsg:
 		m.remoteCode, m.remoteURL = msg.code, msg.url
 		renderPairQR(&m, msg.url, msg.code)
 
 	case printMsg:
 		m.appendLines(msg.lines...)
+
+	case flashDoneMsg:
+		m.clearFlash(msg)
 
 	case loginStartedMsg:
 		m.loginActive = true
@@ -368,6 +440,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case loginDoneMsg:
 		m.loginActive = false
 		if msg.ok {
+			// The daemon now owns the newly signed-in credential. Drop the key read
+			// at startup, or fetchAccount would push the old account back over it.
+			m.opts.APIKey = ""
 			m.appendLines(stOK.Render("  ✓ signed in"))
 			cmds = append(cmds, m.fetchAccount())
 		} else {
@@ -397,6 +472,26 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// The "?" sheet closes on any key. Esc and "?" only close it; anything
+	// else also does its usual job, so the sheet never costs a keystroke.
+	if m.showKeys {
+		m.showKeys = false
+		m.relayout()
+		if msg.Type == tea.KeyEsc || msg.String() == "?" {
+			return m, nil
+		}
+	}
+	if msg.Type != tea.KeyCtrlC && m.quitArmed {
+		m.quitArmed, m.flash = false, ""
+	}
+	if next, cmd, ok := m.quickKey(msg); ok {
+		return next, cmd
+	}
+	if msg.String() == "?" && m.input.Value() == "" {
+		m.showKeys = true
+		m.relayout()
+		return m, nil
+	}
 	menuOpen := m.menuOpen()
 
 	// Ctrl+A selects the whole input, GUI-style — not the textarea library's
@@ -421,9 +516,6 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.Type {
-	case tea.KeyCtrlC:
-		m.quitting = true
-		return m, tea.Quit
 	case tea.KeyPgUp:
 		m.vp.HalfPageUp()
 		return m, nil
@@ -433,14 +525,17 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnd: // jump to the latest output (the "scroll to bottom" affordance)
 		m.vp.GotoBottom()
 		return m, nil
+	case tea.KeyCtrlL: // the shell's "clear screen"
+		cmdClear(&m, nil)
+		m.relayout()
+		return m, nil
 	}
 
 	switch msg.String() {
 	case "up", "ctrl+p":
 		if menuOpen {
-			if m.menuIdx > 0 {
-				m.menuIdx--
-			}
+			m.menuIdx = (m.menuIdx - 1 + len(m.menuItems)) % len(m.menuItems) // wraps
+			m.menuMoved = true
 			return m, nil
 		}
 		m.historyPrev() // recall an earlier command to edit
@@ -448,9 +543,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "down", "ctrl+n":
 		if menuOpen {
-			if m.menuIdx < len(m.menuItems)-1 {
-				m.menuIdx++
-			}
+			m.menuIdx = (m.menuIdx + 1) % len(m.menuItems)
+			m.menuMoved = true
 			return m, nil
 		}
 		m.historyNext()
@@ -462,10 +556,19 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.relayout()
 			return m, nil
 		}
-	case "esc":
-		if menuOpen {
-			m.input.SetValue("")
+		// On an empty prompt, Tab takes the suggested next step.
+		if line, _ := m.nextStep(); line != "" && m.input.Value() == "" {
+			m.input.SetValue(line)
+			m.input.CursorEnd()
 			m.refreshMenu()
+			m.relayout()
+			return m, nil
+		}
+	case "esc":
+		// Esc clears the line — with or without the menu open — so there's
+		// always one key that gets you back to an empty prompt.
+		if menuOpen || m.input.Value() != "" {
+			m.clearInput()
 			m.relayout()
 			return m, nil
 		}
@@ -480,7 +583,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.historyIdx = len(m.history)
 	m.refreshMenu()
 	m.relayout()
-	return m, c
+	return m, tea.Batch(c, m.maybeProbePorts())
 }
 
 // historyPrev recalls the previous command into the input (older).
@@ -518,12 +621,17 @@ func (m *model) historyNext() {
 func (m model) submit() (tea.Model, tea.Cmd) {
 	if m.menuOpen() {
 		sel := m.menuItems[m.menuIdx]
-		m.input.SetValue(sel.insert)
-		m.input.CursorEnd()
-		if !sel.run { // a command that still needs arguments: complete, keep editing
-			m.refreshMenu()
-			m.relayout()
-			return m, nil
+		// A typed free-form value (a port) wins over a suggestion the user
+		// didn't pick: "/http 80" must not start 8080 just because it's listed.
+		_, typed := parseLine(m.input.Value())
+		if !m.menuFreeform || m.menuMoved || len(typed) == 0 {
+			m.input.SetValue(sel.insert)
+			m.input.CursorEnd()
+			if !sel.run { // a command that still needs arguments: complete, keep editing
+				m.refreshMenu()
+				m.relayout()
+				return m, m.maybeProbePorts()
+			}
 		}
 	}
 	line := strings.TrimSpace(m.input.Value())
@@ -532,6 +640,20 @@ func (m model) submit() (tea.Model, tea.Cmd) {
 	if line == "" {
 		m.relayout()
 		return m, nil
+	}
+	if rewritten, ok := barePort(line); ok {
+		line = rewritten // "3000" is recorded as what it ran: "/http 3000"
+	}
+	// A command missing its required argument opens the picker for it instead
+	// of printing a usage error: "/stop" lists the running tunnels to choose.
+	if name, args := parseLine(line); len(args) == 0 {
+		if c, ok := lookupCommand(name); ok && strings.HasPrefix(c.args, "<") && len(m.argOptions(c.name)) > 0 {
+			m.input.SetValue("/" + c.name + " ")
+			m.input.CursorEnd()
+			m.refreshMenu()
+			m.relayout()
+			return m, m.maybeProbePorts()
+		}
 	}
 	m.pushHistory(line)
 	return m.run(line, false)
@@ -552,6 +674,9 @@ func (m *model) pushHistory(line string) {
 // the echo line, since running them at all is the thing being refused, not
 // just how it's displayed.
 func (m model) run(line string, remote bool) (tea.Model, tea.Cmd) {
+	if rewritten, ok := barePort(line); ok {
+		line = rewritten
+	}
 	name, args := parseLine(line)
 	cmd, ok := lookupCommand(name)
 	if remote && ok && remoteBlocked[cmd.name] {
@@ -568,11 +693,17 @@ func (m model) run(line string, remote bool) (tea.Model, tea.Cmd) {
 	}
 	m.appendLines("", stKey.Render(chevron)+stEcho.Render(line))
 	if !ok {
-		m.appendLines(stErr.Render("  ✗ unknown command: "+name) + stDim.Render("   (type /help)"))
+		hint := stDim.Render("   type ") + stKey.Render("/") + stDim.Render(" to browse commands")
+		if guess := suggestCommand(name); guess != "" {
+			hint = stDim.Render("   did you mean ") + stKey.Render("/"+guess) + stDim.Render("?")
+		}
+		m.appendLines(stErr.Render("  ✗ unknown command: /"+name) + hint)
 		m.relayout()
 		return m, nil
 	}
+	m.remoteRun = remote
 	c := cmd.run(&m, args)
+	m.remoteRun = false
 	if c != nil && cmd.name != "quit" && cmd.name != "down" {
 		c = m.trackOperation(cmd.name, args, c)
 	}
@@ -587,61 +718,186 @@ func (m model) menuOpen() bool { return len(m.menuItems) > 0 }
 func (m *model) refreshMenu() {
 	m.menuItems = nil
 	m.menuIdx = 0
+	m.menuFreeform, m.menuMoved = false, false
 	v := m.input.Value()
-	if !strings.HasPrefix(v, "/") {
+	if m.confirm != nil || strings.TrimSpace(v) == "" {
 		return
+	}
+	if !strings.HasPrefix(v, "/") {
+		// Every line is a command, so the slash is optional: a bare port
+		// offers the ways to share it, and a bare word is matched against
+		// command names exactly as if it began with "/".
+		if port := strings.TrimSpace(v); isPort(port) {
+			m.menuItems = m.portMenu(port)
+			return
+		}
+		if c := v[0]; (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			return
+		}
+		v = "/" + v
 	}
 	fields := strings.Fields(v[1:])
 	trailingSpace := strings.HasSuffix(v, " ")
 
 	// Still choosing the command name (one partial token, no space yet).
+	// Prefix matches come first, then commands that merely contain the text or
+	// have an alias starting with it ("/kill" finds /stop), so a half-remembered
+	// name still turns something up.
 	if len(fields) <= 1 && !trailingSpace {
 		prefix := ""
 		if len(fields) == 1 {
 			prefix = strings.ToLower(fields[0])
 		}
+		var later []menuEntry
 		for _, c := range slashCommands {
-			if strings.HasPrefix(c.name, prefix) {
-				insert, run := "/"+c.name, c.args == ""
-				// Enter on /theme reports its current mode; Tab still offers choices.
-				if c.name == "theme" {
-					run = true
-				}
-				label := "/" + c.name
-				if c.args != "" {
-					insert += " "
-					label += " " + c.args
-				}
-				m.menuItems = append(m.menuItems, menuEntry{insert: insert, label: label, desc: c.desc, run: run})
+			insert, run := "/"+c.name, c.args == ""
+			// Enter on /theme reports its current mode; Tab still offers choices.
+			if c.name == "theme" {
+				run = true
+			}
+			label := "/" + c.name
+			if c.args != "" {
+				insert += " "
+				label += " " + c.args
+			}
+			e := menuEntry{insert: insert, label: label, desc: c.desc, run: run}
+			switch {
+			case strings.HasPrefix(c.name, prefix):
+				m.menuItems = append(m.menuItems, e)
+			case len(prefix) >= 3 && (strings.Contains(c.name, prefix) || aliasMatches(c.name, prefix)):
+				later = append(later, e)
 			}
 		}
+		m.menuItems = append(m.menuItems, later...)
 		return
 	}
 
-	// Choosing an argument value for a command that offers fixed choices, so the
-	// user can arrow-select "traffic" instead of typing it.
+	// Choosing the first argument for a command that offers choices, so the
+	// user can arrow-select a tunnel or panel instead of typing it.
 	name := strings.ToLower(fields[0])
-	argPrefix := ""
-	if !trailingSpace && len(fields) >= 2 {
-		argPrefix = strings.ToLower(fields[len(fields)-1])
+	if c, ok := lookupCommand(name); ok {
+		name = c.name
 	}
+	argPrefix := ""
+	switch {
+	case len(fields) == 1 && trailingSpace:
+	case len(fields) == 2 && !trailingSpace:
+		argPrefix = strings.ToLower(fields[1])
+	default:
+		return // past the first argument: free typing
+	}
+	m.menuFreeform = freeformArg[name]
 	for _, opt := range m.argOptions(name) {
-		if strings.HasPrefix(opt, argPrefix) {
-			m.menuItems = append(m.menuItems, menuEntry{insert: "/" + name + " " + opt, label: "/" + name + " " + opt, run: true})
+		if strings.HasPrefix(strings.ToLower(opt.value), argPrefix) ||
+			(argPrefix != "" && strings.Contains(strings.ToLower(opt.desc), argPrefix)) {
+			insert := "/" + name + " " + opt.value
+			if opt.more {
+				insert += " "
+			}
+			m.menuItems = append(m.menuItems, menuEntry{insert: insert, label: "/" + name + " " + opt.value, desc: opt.desc, run: !opt.more})
 		}
 	}
 }
 
+// portMenu lists the protocols a bare port can be shared over, HTTP first.
+func (m *model) portMenu(port string) []menuEntry {
+	addr := "localhost:" + port
+	httpDesc := "Share " + addr + " at a public HTTPS URL"
+	for _, t := range m.tunnels {
+		if t.LocalAddr == addr {
+			httpDesc = "Already shared at " + t.PublicURL
+		}
+	}
+	return []menuEntry{
+		{insert: "/http " + port, label: "/http " + port, desc: httpDesc, run: true},
+		{insert: "/tcp " + port, label: "/tcp " + port, desc: "Raw TCP — databases, SSH, game servers", run: true},
+		{insert: "/udp " + port, label: "/udp " + port, desc: "UDP datagrams — DNS, VoIP, games", run: true},
+	}
+}
+
+// argOption is one selectable value for a command's first argument. more
+// means the value still needs further input ("/subdomains reserve <name>").
+type argOption struct {
+	value, desc string
+	more        bool
+}
+
+// freeformArg lists commands whose argument options are only suggestions —
+// any value may be typed (see submit).
+var freeformArg = map[string]bool{"http": true, "tcp": true, "udp": true}
+
 // argOptions returns the selectable argument values for a command (empty for
-// commands whose arguments are free-form, like a port number).
-func (m *model) argOptions(name string) []string {
+// commands whose arguments are entirely free-form).
+func (m *model) argOptions(name string) []argOption {
+	tunnelOpts := func() []argOption {
+		var out []argOption
+		for _, t := range m.tunnels {
+			out = append(out, argOption{value: shortID(t.ID), desc: t.PublicURL + "  → " + t.LocalAddr})
+		}
+		return out
+	}
 	switch name {
+	case "http", "tcp", "udp":
+		shared := map[string]string{}
+		for _, t := range m.tunnels {
+			shared[t.LocalAddr] = t.PublicURL
+		}
+		var out []argOption
+		for _, p := range m.localPorts {
+			port := strconv.Itoa(p)
+			desc := "something is listening on localhost:" + port
+			if url, ok := shared["localhost:"+port]; ok {
+				desc = "already shared at " + url
+			}
+			out = append(out, argOption{value: port, desc: desc})
+		}
+		return out
+	case "stop":
+		out := tunnelOpts()
+		if len(out) > 1 {
+			out = append(out, argOption{value: "all", desc: "stop every tunnel"})
+		}
+		return out
+	case "open", "copy":
+		return tunnelOpts()
+	case "qr":
+		var out []argOption
+		if m.remoteCode != "" {
+			out = append(out, argOption{value: "stop", desc: "end the phone pairing"})
+		}
+		for _, t := range m.tunnels {
+			out = append(out, argOption{value: shortID(t.ID), desc: "QR code for " + t.PublicURL})
+		}
+		return out
 	case "pin":
-		return []string{"traffic", "tunnels", "status"}
+		var out []argOption
+		for _, p := range []argOption{
+			{value: "traffic", desc: "live request feed"},
+			{value: "tunnels", desc: "running tunnels and their URLs"},
+			{value: "status", desc: "connection, edge and transport"},
+		} {
+			if !slices.Contains(m.pins, p.value) {
+				out = append(out, p)
+			}
+		}
+		return out
 	case "unpin":
-		return append(append([]string{}, m.pins...), "all")
+		var out []argOption
+		for _, p := range m.pins {
+			out = append(out, argOption{value: p})
+		}
+		if len(m.pins) > 1 {
+			out = append(out, argOption{value: "all"})
+		}
+		return out
 	case "theme":
-		return []string{"auto", "dark", "light"}
+		return []argOption{{value: "auto", desc: "follow the terminal"}, {value: "dark"}, {value: "light"}}
+	case "update":
+		return []argOption{{value: "check", desc: "only check, don't install"}}
+	case "subdomains":
+		return []argOption{{value: "reserve", desc: "claim a name", more: true}, {value: "release", desc: "give one back", more: true}}
+	case "domains":
+		return []argOption{{value: "add", desc: "connect a domain you own", more: true}, {value: "verify", desc: "check its DNS records", more: true}}
 	}
 	return nil
 }
@@ -665,6 +921,7 @@ func (m *model) handleEvent(ev agent.Event) tea.Cmd {
 				method: ev.Request.Method, path: ev.Request.Path,
 				status: ev.Request.Status, ms: ev.Request.DurationMs, at: time.Now(),
 			})
+			m.lastReqAt = time.Now()
 			if len(m.requests) > 500 {
 				m.requests = m.requests[len(m.requests)-500:]
 			}
@@ -786,14 +1043,7 @@ func (m *model) relayout() {
 	}
 	oldWidth, oldHeight := m.input.Width(), m.input.Height()
 	m.input.SetWidth(max(4, m.width-2))
-	switch {
-	case m.width < 48:
-		m.input.Placeholder = "/ for commands"
-	case len(m.tunnels) > 0:
-		m.input.Placeholder = "Type / for commands"
-	default:
-		m.input.Placeholder = "/http 3000 to start · / for commands"
-	}
+	m.input.Placeholder = m.placeholder()
 	rows := max(m.input.LineInfo().Height, m.input.LineCount())
 	// Leave room for the header, hints and output before allowing a long
 	// command to grow. Very short terminals keep a single editable row.
@@ -811,6 +1061,30 @@ func (m *model) relayout() {
 	case atBottom:
 		m.vp.GotoBottom()
 	}
+}
+
+// placeholder is the empty prompt's ghost text: the suggested next step when
+// there is one (Tab fills it in), otherwise how to begin. The longest variant
+// that fits is used.
+func (m model) placeholder() string {
+	var variants []string
+	line, why := m.nextStep()
+	switch {
+	case m.confirm != nil:
+		variants = []string{"Y to confirm · N to cancel"}
+	case line != "":
+		variants = []string{"Tab → " + line + "  (" + why + ")", "Tab → " + line}
+	case len(m.tunnels) > 0:
+		variants = []string{"Type / for commands · ? for shortcuts", "/ for commands"}
+	default:
+		variants = []string{"Type a port to share it, like 3000 · / for commands", "Type a port, or / for commands", "Port or /command"}
+	}
+	for _, v := range variants {
+		if lipgloss.Width(v) <= m.width-6 {
+			return v
+		}
+	}
+	return variants[len(variants)-1]
 }
 
 // SetWidth/SetHeight do not reposition Bubbles' internal textarea viewport.

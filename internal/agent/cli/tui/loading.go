@@ -77,7 +77,7 @@ func (m model) loadingText() (label, detail string) {
 	if !m.dataLoaded || !m.accountLoaded {
 		return "Starting workspace", "Loading tunnels and account"
 	}
-	if m.loginActive {
+	if m.loginActive || m.setup.stage == "waiting" {
 		return "Waiting for sign-in", "Approve in your browser"
 	}
 	if _, state, _ := m.connState(); state == "connecting" {

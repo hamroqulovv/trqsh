@@ -143,10 +143,9 @@ To clear local credentials, configuration and caches, run these commands **insid
 
 ```text
 /uninstall
-/uninstall yes
 ```
 
-The confirmation stops tunnels and removes local data; it does not delete your cloud account. Then use the original package manager:
+Press `Y` to confirm; it stops tunnels and removes local data; it does not delete your cloud account. Then use the original package manager:
 
 ```sh
 # pipx

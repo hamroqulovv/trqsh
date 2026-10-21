@@ -50,8 +50,8 @@ scoop update trqsh
 scoop uninstall trqsh
 ```
 
-To also clear local credentials and configuration, run `/uninstall` and then
-`/uninstall yes` inside the CLI before package removal. The cloud account is
+To also clear local credentials and configuration, run `/uninstall` inside the
+CLI and press `Y` before package removal. The cloud account is
 unaffected.
 
 ---

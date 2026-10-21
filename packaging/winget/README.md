@@ -57,8 +57,8 @@ winget upgrade --id trqsh.trqsh --exact
 winget uninstall --id trqsh.trqsh --exact
 ```
 
-To also clear local credentials and configuration, run `/uninstall` and
-`/uninstall yes` inside the CLI before package removal. The cloud account is
+To also clear local credentials and configuration, run `/uninstall` inside the
+CLI and press `Y` before package removal. The cloud account is
 unaffected.
 
 ---

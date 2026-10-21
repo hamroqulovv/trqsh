@@ -146,6 +146,6 @@ npm install -g @trqsh-uz/trqsh@latest
 python -m pip install --upgrade trqsh
 ~~~
 
-`/uninstall` explains local-data removal and requires `/uninstall yes` to proceed. It stops tunnels and removes local credentials/configuration/cache; it does not delete your cloud account. Remove the package itself with its installer or package manager, for example `npm uninstall -g @trqsh-uz/trqsh` or `python -m pip uninstall trqsh`.
+`/uninstall` explains local-data removal and asks you to confirm — press `Y` to proceed or `N`/`Esc` to cancel (`/uninstall yes` skips the question). It stops tunnels and removes local credentials/configuration/cache; it does not delete your cloud account. Remove the package itself with its installer or package manager, for example `npm uninstall -g @trqsh-uz/trqsh` or `python -m pip uninstall trqsh`.
 
 Next: [Create your first tunnel](/docs/quickstart).
