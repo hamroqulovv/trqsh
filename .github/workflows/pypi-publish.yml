@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish (must match a trqshcli release, e.g. 0.2.6)"
+        description: "Version to publish (must match a trqshcli release, e.g. 0.2.7)"
         required: true
-        default: "0.2.6"
+        default: "0.2.7"
 
 jobs:
   pypi:
