@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"testing"
+	"time"
 )
 
 // The on-demand DecisionFunc is a security boundary: it must let the edge issue
@@ -12,19 +13,43 @@ import (
 func TestTLSDecision(t *testing.T) {
 	s := &Server{cfg: Config{BaseDomain: "trqsh.uz"}, hub: NewHub(), reg: NewInMemoryRegistry()}
 	ctx := context.Background()
+	for _, h := range []string{"demo.trqsh.uz", "shop.example.com"} {
+		if err := s.reg.Bind(ctx, Route{Host: h}, Binding{EdgeID: "e1"}, time.Minute); err != nil {
+			t.Fatal(err)
+		}
+	}
 
-	allowed := []string{"trqsh.uz", "demo.trqsh.uz", "Abc.TRQSH.uz", "reserved.trqsh.uz."}
+	allowed := []string{"trqsh.uz", "API.trqsh.uz", "www.trqsh.uz.", "demo.trqsh.uz", "shop.example.com"}
 	for _, n := range allowed {
 		if err := s.tlsDecision(ctx, n); err != nil {
 			t.Errorf("tlsDecision(%q) = %v, want allow", n, err)
 		}
 	}
 
-	denied := []string{"evil.example.com", "trqsh.uz.attacker.net", "random.io"}
+	// Unbound names inside the zone are what Certificate Transparency scanners
+	// probe (www.<seen name>, ...); each would cost a Let's Encrypt order.
+	denied := []string{"evil.example.com", "trqsh.uz.attacker.net", "random.io",
+		"nobody.trqsh.uz", "www.demo.trqsh.uz", "www.www.abc.trqsh.uz"}
 	for _, n := range denied {
 		if err := s.tlsDecision(ctx, n); err == nil {
-			t.Errorf("tlsDecision(%q) = allow, want deny (unbound external domain)", n)
+			t.Errorf("tlsDecision(%q) = allow, want deny (unbound name)", n)
 		}
+	}
+}
+
+// With a DNS token the wildcard is managed by a config without on-demand:
+// CertMagic only allowlists (never obtains) names managed by an on-demand config.
+func TestACMECertManagerManagesWildcardWithoutOnDemand(t *testing.T) {
+	cfg := Config{BaseDomain: "trqsh.uz", ACMEEmail: "ops@trqsh.uz", ACMEStaging: true, CloudflareToken: "test"}
+	cm, err := newACMECertManager(cfg, nil, func(context.Context, string) error { return nil })
+	if err != nil {
+		t.Fatalf("newACMECertManager: %v", err)
+	}
+	if cm.wild == nil || cm.wild.OnDemand != nil {
+		t.Fatalf("wildcard config = %+v, want one without OnDemand", cm.wild)
+	}
+	if cm.magic.OnDemand == nil {
+		t.Fatal("custom domains still need the on-demand config")
 	}
 }
 
