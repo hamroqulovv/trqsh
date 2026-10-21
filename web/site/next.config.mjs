@@ -22,7 +22,7 @@ const nextConfig = {
     TRQSH_BASE_DOMAIN: process.env.TRQSH_BASE_DOMAIN || "trqsh.uz",
     // Latest published version — drives download filenames (matches goreleaser
     // `trqsh_<version>_<os>_<arch>` archive names).
-    TRQSH_LATEST_VERSION: process.env.TRQSH_LATEST_VERSION || "0.2.5",
+    TRQSH_LATEST_VERSION: process.env.TRQSH_LATEST_VERSION || "0.2.6",
     // Telegram username (no @) users contact to buy/upgrade a plan — shown on the
     // /upgrade page (there is no self-serve checkout).
     TRQSH_TELEGRAM: process.env.TRQSH_TELEGRAM || "hamroqulovv",

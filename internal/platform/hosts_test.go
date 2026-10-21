@@ -18,6 +18,7 @@ func TestReservedHosts(t *testing.T) {
 	}{
 		{"trqsh.uz", true, true},
 		{"API.trqsh.uz.", true, true},
+		{"tunnel.trqsh.uz", true, true},
 		{"stars.trqsh.uz", true, false},
 		{"shop.trqsh.uz", true, false},
 		{"abc123.trqsh.uz", false, false},
