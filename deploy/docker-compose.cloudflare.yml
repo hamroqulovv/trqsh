@@ -5,6 +5,7 @@ services:
   api:
     image: trqsh-cloudflare-api
     environment:
+      TRQSH_DEV_AUTH: "0"
       TRQSH_BASE_DOMAIN: trqsh.uz
       TRQSH_API_PUBLIC_URL: https://trqsh.uz
       TRQSH_APP_URL: https://trqsh.uz/dashboard

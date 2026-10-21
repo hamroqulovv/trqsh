@@ -11,7 +11,7 @@ console or desktop app, inspect HTTP traffic locally, or self-host the full plat
 [![CI](https://github.com/trqsh-tunnel/trqsh/actions/workflows/ci.yml/badge.svg)](https://github.com/trqsh-tunnel/trqsh/actions/workflows/ci.yml)
 [![Security](https://github.com/trqsh-tunnel/trqsh/actions/workflows/security.yml/badge.svg)](https://github.com/trqsh-tunnel/trqsh/actions/workflows/security.yml)
 [![CodeQL](https://github.com/trqsh-tunnel/trqsh/actions/workflows/codeql.yml/badge.svg)](https://github.com/trqsh-tunnel/trqsh/actions/workflows/codeql.yml)
-[![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8)](https://go.dev)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 
 [CLI releases](https://github.com/trqsh-tunnel/trqshcli/releases) · [Documentation](docs/README.md) · [Self-hosting](docs/content/self-hosting.md) · [Contributing](CONTRIBUTING.md)
@@ -95,9 +95,11 @@ manager, for example `npm uninstall -g @trqsh-uz/trqsh` or `python -m pip uninst
 
 ## Local development
 
+Production domain layout and GitHub/Google-only sign-in: [deployment and OAuth setup](deploy/DOMAIN-AUTH.md).
+
 Choose one local deployment mode; both use ports 80/443 and must not be started in parallel.
 
-- **Single container:** [the existing `trqsh` stack](deploy/SINGLE-CONTAINER.md) serves the site, dashboard and API through `http://localhost:3004`. Its frontend origins are built for `https://tunnel.trqsh.uz`; check that guide before changing public URLs or authentication.
+- **Single container:** [the `trqsh` stack](deploy/SINGLE-CONTAINER.md) exposes the site on `:3004`, dashboard on `:3005`, and API on `:8081`, all on loopback. Its public origins use `trqsh.uz`, `app.trqsh.uz`, and `api.trqsh.uz`; configure OAuth before starting it.
 - **Separate services:** the persistent local stack below serves the site on `:3004`, dashboard on `:3005`, and API on `:8081`.
 
 For the separate-service mode, including both frontends:

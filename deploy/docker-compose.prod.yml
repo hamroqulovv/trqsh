@@ -101,7 +101,7 @@ services:
 
   # One-shot schema migration (goose up), then exits 0.
   migrate:
-    image: ghcr.io/uzcreator/migrate:${TRQSH_IMAGE_TAG:-latest}
+    image: ghcr.io/trqsh-tunnel/migrate:${TRQSH_IMAGE_TAG:-latest}
     # Local-dev fallback — build from source instead of pulling the CI image:
     #   build:
     #     context: ..
@@ -125,7 +125,7 @@ services:
   # naive DNS round-robin uneven, so the opt-in `apilb` sidecar below is the
   # recommended path.
   api:
-    image: ghcr.io/uzcreator/api:${TRQSH_IMAGE_TAG:-latest}
+    image: ghcr.io/trqsh-tunnel/api:${TRQSH_IMAGE_TAG:-latest}
     # Local-dev fallback — build from source instead of pulling the CI image:
     #   build:
     #     context: ..
@@ -146,11 +146,14 @@ services:
         hard: 65535
     environment:
       TRQSH_ENV: production
+      TRQSH_DEV_AUTH: "0"
       TRQSH_API_ADDR: ":8080"
       TRQSH_DATABASE_URL: postgres://trqsh:${POSTGRES_PASSWORD}@postgres:5432/trqsh?sslmode=disable
       TRQSH_REDIS_URL: redis://redis:6379/0
       TRQSH_BASE_DOMAIN: ${TRQSH_BASE_DOMAIN:-trqsh.uz}
       TRQSH_API_PUBLIC_URL: https://api.${TRQSH_BASE_DOMAIN:-trqsh.uz}
+      TRQSH_APP_URL: https://app.${TRQSH_BASE_DOMAIN:-trqsh.uz}
+      TRQSH_QR_URL: https://qr.${TRQSH_BASE_DOMAIN:-trqsh.uz}
       TRQSH_JWT_SECRET: ${TRQSH_JWT_SECRET:?set TRQSH_JWT_SECRET in deploy/.env}
       TRQSH_INTERNAL_TOKEN: ${TRQSH_INTERNAL_TOKEN:?set TRQSH_INTERNAL_TOKEN in deploy/.env}
       TRQSH_TRUST_PROXY: "1"
@@ -173,7 +176,7 @@ services:
   # the apex (trqsh.uz) and www to it. next.config build-time defaults already
   # point CTAs at the production app/api URLs.
   site:
-    image: ghcr.io/uzcreator/site:${TRQSH_IMAGE_TAG:-latest}
+    image: ghcr.io/trqsh-tunnel/site:${TRQSH_IMAGE_TAG:-latest}
     # Local-dev fallback — build from source instead of pulling the CI image:
     #   build:
     #     context: ..
@@ -183,7 +186,7 @@ services:
   # Web dashboard (web/dashboard, Next.js) at app.<base>. TRQSH_API_URL is the
   # PUBLIC api URL, baked at build so the browser's OAuth links resolve.
   dashboard:
-    image: ghcr.io/uzcreator/dashboard:${TRQSH_IMAGE_TAG:-latest}
+    image: ghcr.io/trqsh-tunnel/dashboard:${TRQSH_IMAGE_TAG:-latest}
     # TRQSH_API_URL / NEXT_PUBLIC_TRQSH_BASE_DOMAIN are inlined at BUILD time by
     # Next.js. images.yml now bakes the production values (api.trqsh.uz / trqsh.uz)
     # into the published image via per-service build-args, so the pulled image is
@@ -216,7 +219,9 @@ services:
 
   # Edge data plane: public ingress (:80/:443) + agent sessions (:4443 tcp+udp).
   edge:
-    image: ghcr.io/uzcreator/edge:${TRQSH_IMAGE_TAG:-latest}
+    # Its own tag so a deploy can leave live tunnels alone when only other
+    # services changed (scripts/deploy-vps.sh).
+    image: ghcr.io/trqsh-tunnel/edge:${TRQSH_EDGE_IMAGE_TAG:-${TRQSH_IMAGE_TAG:-latest}}
     # Local-dev fallback — build from source instead of pulling the CI image:
     #   build:
     #     context: ..
@@ -265,6 +270,10 @@ services:
       TRQSH_SITE_UPSTREAM: "http://site:3000"
       TRQSH_APP_UPSTREAM: "http://dashboard:3000"
       TRQSH_API_UPSTREAM: "http://${TRQSH_API_TARGET:-api}:8080"
+      # Co-hosted services sharing :443 (TLS spliced unterminated by SNI) and
+      # names no tunnel may claim. Both empty by default — see SHARED-HOST.md.
+      TRQSH_TLS_PASSTHROUGH: ${TRQSH_TLS_PASSTHROUGH:-}
+      TRQSH_RESERVED_SUBDOMAINS: ${TRQSH_RESERVED_SUBDOMAINS:-}
     volumes:
       - trqsh_tls:/var/lib/trqsh/tls
     ports:

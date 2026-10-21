@@ -1,5 +1,7 @@
 # trqsh: localhost va ochiq loyiha tayyorgarligi
 
+For the new `trqsh.uz` / `app.trqsh.uz` / `api.trqsh.uz` production deployment and GitHub/Google-only authentication, use [DOMAIN-AUTH.md](../../deploy/DOMAIN-AUTH.md). Earlier single-origin addresses and audit results below describe the previous deployment.
+
 2026-10-20. Holat: reja va hujjatlar; funksional kod, litsenziya, GitHub sozlamalari va ishlayotgan xizmatlar bu bosqichda o‘zgartirilmaydi.
 
 ## Ish uchun tanlangan nusxa

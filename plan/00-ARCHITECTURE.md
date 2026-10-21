@@ -46,7 +46,7 @@ the public internet through trqsh's **edge** servers, without port-forwarding. R
 | Logging | `log/slog` (JSON in prod) |
 | Metrics/trace | **OpenTelemetry** + **Prometheus** |
 | Infra | **Docker**, **Kubernetes + Helm**, **Terraform**, **GitHub Actions** |
-| Auth | agent→edge via **API keys**; dashboard via **JWT** sessions + OAuth (GitHub/Google) |
+| Auth | agent→edge via **API keys**; dashboard via **JWT** sessions + GitHub/Google OAuth only, requiring verified email and permanent provider identity |
 
 ## 4. Monorepo layout (repo root = the folder containing `plan/`)
 

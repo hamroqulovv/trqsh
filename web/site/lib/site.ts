@@ -8,10 +8,10 @@ const apiUrl = process.env.TRQSH_API_URL || "https://api.trqsh.uz";
 // monorepo; CLI releases publish to their own dedicated repo so CLI download
 // links / changelog / checksums point users at a clean, CLI-only release list
 // instead of one mixed with desktop and other release types.
-const githubRepo = process.env.TRQSH_GITHUB_REPO || "algorithco/trqsh";
-const cliGithubRepo = process.env.TRQSH_CLI_GITHUB_REPO || "algorithco/trqshcli";
+const githubRepo = process.env.TRQSH_GITHUB_REPO || "trqsh-tunnel/trqsh";
+const cliGithubRepo = process.env.TRQSH_CLI_GITHUB_REPO || "trqsh-tunnel/trqshcli";
 const siteUrl = process.env.TRQSH_SITE_URL || "https://trqsh.uz";
-const version = process.env.TRQSH_LATEST_VERSION || "0.2.2";
+const version = process.env.TRQSH_LATEST_VERSION || "0.2.5";
 // Telegram handle (without @) users message to buy/upgrade a plan. There is no
 // self-serve checkout; the /upgrade page routes people here.
 const telegram = (process.env.TRQSH_TELEGRAM || "hamroqulovv").replace(
@@ -21,6 +21,7 @@ const telegram = (process.env.TRQSH_TELEGRAM || "hamroqulovv").replace(
 
 export const site = {
   name: "trqsh",
+  supportEmail: "hello@trqsh.uz",
   tagline: "Your localhost, live on the internet.",
   description:
     "Bring your localhost to the internet with the trqsh CLI. Share development servers, receive webhooks, and connect TCP or UDP services from your terminal.",
@@ -41,7 +42,7 @@ export const site = {
   telegramUrl: `https://t.me/${telegram}`,
 } as const;
 
-/** Where "Start free" / "Sign up" go — the dashboard's email+OAuth entry (Part 06/05). */
+/** Where "Start free" / "Sign up" go — the dashboard's GitHub/Google OAuth entry (Part 06/05). */
 export const signupUrl = `${dashboardUrl}/login`;
 export const loginUrl = `${dashboardUrl}/login`;
 /** OAuth deep-links straight into the control API (Part 05). */
@@ -52,6 +53,7 @@ export const primaryNav = [
   { label: "Pricing", href: "/pricing" },
   { label: "Download", href: "/download" },
   { label: "Docs", href: "/docs" },
+  { label: "Changelog", href: "/changelog" },
 ] as const;
 
 export const footerNav: {
@@ -61,41 +63,35 @@ export const footerNav: {
   {
     title: "Product",
     links: [
-      { label: "Pricing", href: "/pricing" },
       { label: "Download", href: "/download" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "Dashboard", href: site.dashboardUrl, external: true },
+    ],
+  },
+  {
+    title: "Documentation",
+    links: [
       { label: "Quickstart", href: "/docs/quickstart" },
-      {
-        label: "Changelog",
-        href: `${site.cliGithubUrl}/releases`,
-        external: true,
-      },
-    ],
-  },
-  {
-    title: "Docs",
-    links: [
-      { label: "Documentation", href: "/docs" },
+      { label: "CLI reference", href: "/docs/cli-reference" },
       { label: "API reference", href: "/docs/api" },
-      { label: "Configuration", href: "/docs/configuration" },
-      { label: "Troubleshooting", href: "/docs/errors" },
+      { label: "Self-hosting", href: "/docs/self-hosting" },
     ],
   },
   {
-    title: "Developers",
+    title: "Resources",
     links: [
-      { label: "Open-source agent", href: site.githubUrl, external: true },
-      { label: "Self-hosting", href: "/docs/self-hosting" },
-      { label: "Custom domains", href: "/docs/custom-domains" },
+      { label: "GitHub", href: site.githubUrl, external: true },
+      { label: "Changelog", href: "/changelog" },
+      { label: "Troubleshooting", href: "/docs/troubleshooting" },
       { label: "Security", href: "/docs/security" },
     ],
   },
-  {
-    title: "Company",
-    links: [
-      { label: "Sign in", href: loginUrl, external: true },
-      { label: "Start free", href: signupUrl, external: true },
-      { label: "Terms", href: "/terms" },
-      { label: "Privacy", href: "/privacy" },
-    ],
-  },
 ];
+
+export const footerLegalNav = [
+  { label: "Terms", href: "/terms" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "Cookies", href: "/cookies" },
+  { label: "Acceptable use", href: "/acceptable-use" },
+  { label: "Contact", href: `mailto:${site.supportEmail}` },
+] as const;

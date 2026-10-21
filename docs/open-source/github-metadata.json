@@ -3,7 +3,7 @@
   "repository": {
     "name": "trqsh-tunnel/trqsh",
     "description": "Expose localhost over authenticated HTTP, TCP and UDP tunnels. QUIC-first with TCP/WebSocket fallbacks, a CLI, desktop app and self-hosted control plane.",
-    "homepage_proposal": "https://tunnel.trqsh.uz",
+    "homepage_proposal": "https://trqsh.uz",
     "homepage_requires_live_verification_before_applying": true,
     "topics": ["tunneling", "developer-tools", "localhost", "self-hosted", "golang", "quic", "websocket", "reverse-proxy", "ngrok-alternative", "nextjs", "tauri"]
   },

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1080,height=1920">
+  <title>trqsh — Build local. Go global.</title>
+  <script src="assets/vendor/gsap.min.js"></script>
+  <link rel="stylesheet" href="flow-v3.css">
+</head>
+<body>
+<main id="film" data-composition-id="trqsh-ad" data-start="0" data-duration="32" data-width="1080" data-height="1920" data-fps="60">
+  <div class="paper"></div><div class="dot-field"></div>
+  <canvas id="flow-canvas" width="1080" height="1920" aria-hidden="true"></canvas>
+  <div class="end-fill"></div>
+  <header id="brand" class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="m8 10 6 6-6 6m10 0h6" stroke="var(--logo-cutout,#f0f2ec)" stroke-width="2.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>trqsh</span></header>
+  <div class="edition">LOCAL → GLOBAL</div>
+
+  <section id="h-start" class="chapter-heading clip" data-start="0" data-duration="4.6" data-track-index="2"><div class="heading-inner"><div class="eyebrow">YOUR NEXT BIG THING.</div><div class="title-line"><h2>Made on</h2></div><div class="title-line"><h2>localhost.</h2></div><p class="subline">Your idea is already running.</p></div></section>
+  <section id="h-connect" class="chapter-heading clip" data-start="3.8" data-duration="4.8" data-track-index="2"><div class="heading-inner"><div class="eyebrow">LET SOMEONE ELSE IN.</div><div class="title-line"><h2>Open to</h2></div><div class="title-line"><h2>the world.</h2></div><p class="subline">Give it a public link.</p></div></section>
+  <section id="h-command" class="chapter-heading clip" data-start="7.8" data-duration="6.8" data-track-index="2"><div class="heading-inner"><div class="eyebrow">KEEP YOUR FLOW.</div><div class="title-line"><h2>One command.</h2></div><div class="title-line"><h2>You're live.</h2></div><p class="subline">Local app. Public HTTPS link.</p></div></section>
+  <section id="h-protocol" class="chapter-heading clip" data-start="13.8" data-duration="6.8" data-track-index="2"><div class="heading-inner"><div class="eyebrow">CHOOSE YOUR CONNECTION.</div><div class="title-line"><h2>More than</h2></div><div class="title-line"><h2>one protocol.</h2></div><p class="subline">Three ways through.</p></div></section>
+  <section id="h-inspect" class="chapter-heading clip" data-start="19.8" data-duration="6.8" data-track-index="2"><div class="heading-inner"><div class="eyebrow">TAKE A CLOSER LOOK.</div><div class="title-line"><h2>See it.</h2></div><div class="title-line"><h2>Replay it.</h2></div><p class="subline">Your HTTP traffic, in view.</p></div></section>
+  <section id="h-end" class="chapter-heading clip" data-start="25.8" data-duration="6.2" data-track-index="2"><div class="heading-inner"><div class="eyebrow">WHAT WILL YOU PUT OUT THERE?</div><div class="title-line"><h2>Build local.</h2></div><div class="title-line"><h2>Go global.</h2></div></div></section>
+
+  <div id="object" class="morph-card clip" data-start="0" data-duration="32" data-track-index="0">
+    <div class="face local-face"><div class="face-top"><span>YOUR PROJECT</span><span class="local-badge">LOCAL</span></div><div class="local-address"><i></i>localhost:3000</div><div class="mock-app"><div class="mock-side"></div><div class="mock-rows"><i></i><i></i><i></i></div></div></div>
+    <div class="face terminal-face"><div class="terminal-top"><span class="window-dots"><i></i><i></i><i></i></span><span>trqsh / console</span><span class="live">● ONLINE</span></div><div class="terminal-body"><div class="auth-line">✓ Signed in</div><div class="command-line"><span class="prompt">❯</span><span id="typed-command"></span><b class="caret" id="cursor"></b></div><div class="command-result"><div class="success"><i></i>Tunnel online</div><div class="result-label">PUBLIC HTTPS ENDPOINT</div><div class="result-url">tidy-otter-4f2a.trqsh.uz ↗</div><div class="result-target">↓ localhost:3000</div></div></div></div>
+    <div class="face inspector-face"><div class="inspector-bar"><span>⌘</span><span>HTTP inspector</span><span class="local-tag">LOCAL</span></div><div class="inspector-row"><b>200</b><span class="method">GET</span><span>/</span><i>↗</i></div><div class="inspector-row"><b>200</b><span class="method">GET</span><span>/api/health</span><i>↗</i></div><div class="inspector-row inspector-selected"><b>201</b><span class="method">POST</span><span>/api/orders</span><i>↗</i></div><div class="payload"><div class="payload-label">RESPONSE BODY</div><div>{</div><div>&nbsp; <span class="key">"status"</span>: <em>"created"</em>,</div><div>&nbsp; <span class="key">"ready"</span>: <em>true</em></div><div>}</div></div><div class="inspector-bottom"><span id="capture-status">Request captured</span><div class="replay"><span id="replay-symbol">↻</span><strong id="replay-word">Replay</strong><div class="replay-halo"></div></div></div></div>
+    <div class="face mark-face"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m6 7 9 9-9 9m14 0h8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  </div>
+  <div class="destination"><span>PUBLIC HTTPS</span><i>↗</i><strong>your-app.trqsh.uz</strong></div>
+  <div class="endpoint-notes"><span>YOUR MACHINE</span><b>→</b><span>THE INTERNET</span></div>
+  <div class="terminal-caption"><p>Share the link. Keep building.</p><span>ILLUSTRATIVE SESSION · ASSIGNED URL VARIES</span></div>
+
+  <div id="pc-http" class="protocol-card"><span class="protocol-icon">↗</span><div class="protocol-text"><strong>HTTP</strong><span>Share local web apps.</span></div><span class="protocol-arrow">↗</span></div>
+  <div id="pc-tcp" class="protocol-card"><span class="protocol-icon">⇄</span><div class="protocol-text"><strong>TCP</strong><span>Connect to local services.</span></div><span class="protocol-arrow">↗</span></div>
+  <div id="pc-udp" class="protocol-card"><span class="protocol-icon">⌁</span><div class="protocol-text"><strong>UDP</strong><span>Forward your datagrams.</span></div><span class="protocol-arrow">↗</span></div>
+  <div class="protocol-note">QUIC-FIRST TRANSPORT · TCP FALLBACK</div>
+  <p class="inspect-note">Inspect HTTP. Replay locally.</p>
+
+  <div class="outro-word">trqsh</div>
+  <div class="cta"><strong>trqsh.uz</strong><span class="cta-arrow">↗</span></div>
+  <p class="end-detail">Open source. Self-host ready.</p>
+  <footer class="progress"><span id="progress-label">01 / BUILT HERE</span><div class="progress-track"><i></i></div><span id="progress-number">01 — 06</span></footer>
+  <audio id="soundtrack" src="assets/audio/effects-v3.wav" data-start="0" data-duration="32" data-track-index="3" data-volume="1" preload="auto"></audio>
+</main>
+<script type="module">
+  import { timeline } from './flow-v3.mjs';
+  window.__timelines = window.__timelines || {};
+  window.__timelines['trqsh-ad'] = timeline;
+</script>
+</body>
+</html>

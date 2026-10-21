@@ -25,3 +25,4 @@ session can catch up in one read — without re-deriving context.
 - [`09-gui.md`](./09-gui.md) — desktop GUI (Wails v3): login, tunnels, inspector/replay, account, settings, Part 04 (Step 9).
 - [`10-infra.md`](./10-infra.md) — infra/deploy: Docker, compose, Helm, Terraform, CI/CD, observability, secrets, Part 08 (Step 10).
 - [`11-site.md`](./11-site.md) — marketing site + docs (Next.js): landing, pricing, download, API reference, Part 09 (Step 11). **Final — launch-ready; whole stack run end-to-end.**
+- [`12-domain-auth.md`](./12-domain-auth.md) — TRQSH.UZ deployment preparation, verified GitHub/Google sign-in, provider identities and package endpoint migration. Live provider setup and deployment remain pending.

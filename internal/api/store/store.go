@@ -24,6 +24,7 @@ type User struct {
 	Name          string    `json:"name"`
 	AvatarURL     string    `json:"avatar_url,omitempty"`
 	OAuthProvider string    `json:"oauth_provider,omitempty"`
+	OAuthSubject  string    `json:"-"` // immutable provider account ID; never use email as identity
 	CreatedAt     time.Time `json:"created_at"`
 }
 
@@ -191,6 +192,8 @@ type Store interface {
 	CreateUser(ctx context.Context, u User) (User, error)
 	GetUser(ctx context.Context, id string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserByOAuth(ctx context.Context, provider, subject string) (User, error)
+	BindOAuthSubject(ctx context.Context, id, provider, subject string) error
 	UpdateUserProfile(ctx context.Context, id, name, avatarURL string) error
 
 	// Orgs & membership.

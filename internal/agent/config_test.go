@@ -79,10 +79,10 @@ func TestLoadMigratesLegacyHostedEndpoints(t *testing.T) {
 		t.Setenv(name, "")
 	}
 	for _, tc := range []struct{ name, server, api, wantServer, wantAPI string }{
-		{"legacy", "trqsh.uz:4443", "https://api.trqsh.uz/", DefaultServer, DefaultAPIBase},
+		{"legacy", "wss://tunnel.trqsh.uz/_trqsh/agent", "https://tunnel.trqsh.uz/", DefaultServer, DefaultAPIBase},
 		{"custom", "edge.example:4443", "https://api.example", "edge.example:4443", "https://api.example"},
-		{"custom-server", "edge.example:4443", "https://api.trqsh.uz", "edge.example:4443", DefaultAPIBase},
-		{"custom-api", "trqsh.uz:4443", "http://127.0.0.1:8081", DefaultServer, "http://127.0.0.1:8081"},
+		{"custom-server", "edge.example:4443", "https://tunnel.trqsh.uz", "edge.example:4443", DefaultAPIBase},
+		{"custom-api", "tunnel.trqsh.uz:4443", "http://127.0.0.1:8081", DefaultServer, "http://127.0.0.1:8081"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "trqsh.yml")

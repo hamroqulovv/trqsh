@@ -13,8 +13,8 @@ func TestDeviceLoginUsesMigratedHostedEndpoint(t *testing.T) {
 	t.Setenv("TRQSH_CONFIG", filepath.Join(t.TempDir(), "trqsh.yml"))
 	t.Setenv("TRQSH_API_URL", "")
 	cfg := DefaultConfig()
-	cfg.APIBase = "https://api.trqsh.uz"
-	cfg.Server = "trqsh.uz:4443"
+	cfg.APIBase = "https://tunnel.trqsh.uz"
+	cfg.Server = "wss://tunnel.trqsh.uz/_trqsh/agent"
 	if err := cfg.Save(DefaultConfigPath()); err != nil {
 		t.Fatal(err)
 	}

@@ -45,7 +45,7 @@ variable "control_ingress_ip" {
 variable "edge_image" {
   description = "Edge container image the droplets run."
   type        = string
-  default     = "ghcr.io/uzcreator/edge:latest"
+  default     = "ghcr.io/trqsh-tunnel/edge:latest"
 }
 
 variable "ssh_key_fingerprints" {

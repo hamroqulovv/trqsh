@@ -9,7 +9,7 @@ For the normal HTTP workflow:
 | Connection | Protection |
 | --- | --- |
 | Visitor → public HTTPS URL | TLS terminates at the edge. |
-| Agent → edge | QUIC with TLS, or authenticated TLS-over-TCP fallback. |
+| Agent → edge | Encrypted QUIC, authenticated TLS-over-TCP, or authenticated WebSocket over HTTPS, depending on the configured endpoint. |
 | Agent → local HTTP service | Plain HTTP to the configured local destination. |
 | Browser → production dashboard/API | HTTPS when the deployment is configured correctly. |
 
@@ -62,8 +62,8 @@ Rate limits and request-size controls reduce abuse; they are not a promise that 
 
 ## Report abuse or a vulnerability
 
-For abuse involving a trqsh hostname, contact **abuse@trqsh.uz** with the hostname, time and relevant evidence.
+For abuse involving a trqsh hostname, contact **hello@trqsh.uz** with the hostname, time (including time zone) and relevant evidence.
 
-For a security vulnerability, follow the repository security policy and contact **security@trqsh.uz**. Include the affected component/version, impact and reproduction steps. Avoid publishing working credentials or private captured traffic in a public issue.
+For a security vulnerability, follow the repository security policy and contact **hello@trqsh.uz** with the subject “Security report”. Include the affected component/version, impact and reproduction steps. Avoid publishing working credentials or private captured traffic in a public issue.
 
-Use the [Terms](/terms) and [Privacy policy](/privacy) for the hosted service's policies. Self-hosted operators control their own retention, access and infrastructure.
+Use the [Terms](/terms), [Privacy policy](/privacy), [Cookies & storage](/cookies), and [Acceptable use policy](/acceptable-use) for the hosted service's policies. The privacy policy distinguishes local captures from hosted account and tunnel-history records. Self-hosted operators control their own retention, access and infrastructure.

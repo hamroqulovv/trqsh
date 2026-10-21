@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/trqsh-uz/trqsh/internal/platform"
 )
 
 // Config is the edge server configuration, sourced from environment variables
@@ -105,6 +107,10 @@ type Config struct {
 	AppUpstream  string // TRQSH_APP_UPSTREAM, e.g. "http://dashboard:3000"
 	APIUpstream  string // TRQSH_API_UPSTREAM, e.g. "http://api:8080"
 
+	// Hostnames whose TLS connections are spliced unterminated to a co-hosted
+	// service sharing :443 (see passthrough.go). Empty => none.
+	Passthrough map[string]PassthroughRoute // TRQSH_TLS_PASSTHROUGH
+
 	// Tuning.
 	HeartbeatInterval time.Duration
 	SessionIdle       time.Duration
@@ -173,6 +179,13 @@ func LoadConfig() (Config, error) {
 	envStr(&c.SiteUpstream, "TRQSH_SITE_UPSTREAM")
 	envStr(&c.AppUpstream, "TRQSH_APP_UPSTREAM")
 	envStr(&c.APIUpstream, "TRQSH_API_UPSTREAM")
+	if v := os.Getenv("TRQSH_TLS_PASSTHROUGH"); strings.TrimSpace(v) != "" {
+		routes, err := ParsePassthrough(v)
+		if err != nil {
+			return c, err
+		}
+		c.Passthrough = routes
+	}
 	c.ACMEStaging = envBool("TRQSH_ACME_STAGING", c.ACMEStaging)
 	envInt(&c.PortMin, "TRQSH_PORT_MIN")
 	envInt(&c.PortMax, "TRQSH_PORT_MAX")
@@ -182,6 +195,16 @@ func LoadConfig() (Config, error) {
 	}
 	if c.EntitlementsMode == "api" && c.APIURL == "" {
 		return c, fmt.Errorf("server: TRQSH_ENTITLEMENTS=api requires TRQSH_API_URL")
+	}
+	for host := range c.Passthrough {
+		if platform.ControlPlaneHost(host, c.BaseDomain) {
+			return c, fmt.Errorf("server: TRQSH_TLS_PASSTHROUGH host %s is a control-plane host", host)
+		}
+		// A tunnel must never be issued the same name: reserve it on the edge and
+		// the API alike (both read TRQSH_RESERVED_SUBDOMAINS).
+		if sub, under := strings.CutSuffix(host, "."+strings.ToLower(c.BaseDomain)); under && !platform.ReservedSubdomain(sub) {
+			return c, fmt.Errorf("server: TRQSH_TLS_PASSTHROUGH host %s: add %q to TRQSH_RESERVED_SUBDOMAINS", host, sub)
+		}
 	}
 	if c.PortMin > c.PortMax {
 		return c, fmt.Errorf("server: TRQSH_PORT_MIN(%d) > TRQSH_PORT_MAX(%d)", c.PortMin, c.PortMax)

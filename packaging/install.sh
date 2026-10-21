@@ -8,8 +8,8 @@
 set -eu
 
 # CLI releases publish to their own dedicated repo (source stays in
-# algorithco/trqsh; see .goreleaser.yaml).
-REPO="${TRQSH_REPO:-algorithco/trqshcli}"
+# trqsh-tunnel/trqsh; see .goreleaser.yaml).
+REPO="${TRQSH_REPO:-trqsh-tunnel/trqshcli}"
 BINDIR="${TRQSH_BINDIR:-}"
 
 say() { printf '  [ok] %s\n' "$1" >&2; }

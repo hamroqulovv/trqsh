@@ -2,10 +2,15 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"strings"
 	"time"
@@ -13,11 +18,14 @@ import (
 
 // OAuthUser is the normalized profile returned by an OAuth provider.
 type OAuthUser struct {
+	Subject   string
 	Email     string
 	Name      string
 	AvatarURL string
 	Provider  string
 }
+
+var ErrUnverifiedEmail = errors.New("oauth: sign-in requires a verified email address")
 
 // OAuthProvider is a configured OAuth2 authorization-code provider.
 type OAuthProvider struct {
@@ -28,6 +36,7 @@ type OAuthProvider struct {
 	AuthURL      string
 	TokenURL     string
 	UserURL      string
+	EmailsURL    string // GitHub's verified-email endpoint (not its public profile).
 	Scopes       []string
 	// AuthParams are extra query params added to the authorization redirect
 	// (e.g. Google's prompt=select_account so a fresh account can be chosen).
@@ -38,10 +47,11 @@ type OAuthProvider struct {
 func GitHubProvider(clientID, clientSecret, redirectURL string) OAuthProvider {
 	return OAuthProvider{ // #nosec G101 -- public OAuth endpoint URLs below; ClientSecret comes from a parameter, not a literal
 		Name: "github", ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURL,
-		AuthURL:  "https://github.com/login/oauth/authorize",
-		TokenURL: "https://github.com/login/oauth/access_token",
-		UserURL:  "https://api.github.com/user",
-		Scopes:   []string{"read:user", "user:email"},
+		AuthURL:   "https://github.com/login/oauth/authorize",
+		TokenURL:  "https://github.com/login/oauth/access_token",
+		UserURL:   "https://api.github.com/user",
+		EmailsURL: "https://api.github.com/user/emails",
+		Scopes:    []string{"read:user", "user:email"},
 	}
 }
 
@@ -51,7 +61,7 @@ func GoogleProvider(clientID, clientSecret, redirectURL string) OAuthProvider {
 		Name: "google", ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURL,
 		AuthURL:    "https://accounts.google.com/o/oauth2/v2/auth",
 		TokenURL:   "https://oauth2.googleapis.com/token",
-		UserURL:    "https://www.googleapis.com/oauth2/v2/userinfo",
+		UserURL:    "https://openidconnect.googleapis.com/v1/userinfo",
 		Scopes:     []string{"openid", "email", "profile"},
 		AuthParams: map[string]string{"prompt": "select_account"},
 	}
@@ -63,13 +73,16 @@ func (p OAuthProvider) Configured() bool {
 }
 
 // AuthCodeURL builds the authorization redirect URL for a state token.
-func (p OAuthProvider) AuthCodeURL(state string) string {
+func (p OAuthProvider) AuthCodeURL(state, verifier string) string {
 	q := url.Values{}
 	q.Set("client_id", p.ClientID)
 	q.Set("redirect_uri", p.RedirectURL)
 	q.Set("response_type", "code")
 	q.Set("scope", strings.Join(p.Scopes, " "))
 	q.Set("state", state)
+	challenge := sha256.Sum256([]byte(verifier))
+	q.Set("code_challenge", base64.RawURLEncoding.EncodeToString(challenge[:]))
+	q.Set("code_challenge_method", "S256")
 	for k, v := range p.AuthParams {
 		q.Set(k, v)
 	}
@@ -77,21 +90,25 @@ func (p OAuthProvider) AuthCodeURL(state string) string {
 }
 
 // Exchange swaps an authorization code for the user's profile.
-func (p OAuthProvider) Exchange(ctx context.Context, code string) (OAuthUser, error) {
-	token, err := p.exchangeToken(ctx, code)
+func (p OAuthProvider) Exchange(ctx context.Context, code, verifier string) (OAuthUser, error) {
+	if code == "" || len(code) > 4096 || len(verifier) != 43 {
+		return OAuthUser{}, errors.New("oauth: invalid authorization code or PKCE verifier")
+	}
+	token, err := p.exchangeToken(ctx, code, verifier)
 	if err != nil {
 		return OAuthUser{}, err
 	}
 	return p.fetchUser(ctx, token)
 }
 
-func (p OAuthProvider) exchangeToken(ctx context.Context, code string) (string, error) {
+func (p OAuthProvider) exchangeToken(ctx context.Context, code, verifier string) (string, error) {
 	form := url.Values{}
 	form.Set("client_id", p.ClientID)
 	form.Set("client_secret", p.ClientSecret)
 	form.Set("code", code)
 	form.Set("redirect_uri", p.RedirectURL)
 	form.Set("grant_type", "authorization_code")
+	form.Set("code_verifier", verifier)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.TokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -135,27 +152,20 @@ func (p OAuthProvider) fetchUser(ctx context.Context, accessToken string) (OAuth
 		return OAuthUser{}, fmt.Errorf("oauth userinfo: status %d", resp.StatusCode)
 	}
 	var raw struct {
-		Email   string `json:"email"`
-		Name    string `json:"name"`
-		Login   string `json:"login"`
-		Avatar  string `json:"avatar_url"`
-		Picture string `json:"picture"`
-		// Email-verification signals. Google's userinfo returns verified_email;
-		// OIDC id_token/userinfo returns email_verified. Pointers so "field absent"
-		// (GitHub, whose /user email is always an already-verified address) is
-		// distinguishable from an explicit false.
+		ID      json.Number `json:"id"`
+		Subject string      `json:"sub"`
+		Email   string      `json:"email"`
+		Name    string      `json:"name"`
+		Login   string      `json:"login"`
+		Avatar  string      `json:"avatar_url"`
+		Picture string      `json:"picture"`
+		// Absence is not proof of verification. GitHub is checked separately
+		// against /user/emails, even when /user includes a public email.
 		VerifiedEmail *bool `json:"verified_email"`
 		EmailVerified *bool `json:"email_verified"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&raw); err != nil {
 		return OAuthUser{}, err
-	}
-	// Accounts are linked by email (provisionUser), so an unverified address from
-	// a provider that allows one would be an account-takeover vector: attacker sets
-	// victim@example.com as an unverified email, signs in, and lands on the victim's
-	// account. Reject any email the provider explicitly marks unverified.
-	if (raw.VerifiedEmail != nil && !*raw.VerifiedEmail) || (raw.EmailVerified != nil && !*raw.EmailVerified) {
-		return OAuthUser{}, fmt.Errorf("oauth userinfo: email is not verified with %s", p.Name)
 	}
 	name := raw.Name
 	if name == "" {
@@ -165,24 +175,41 @@ func (p OAuthProvider) fetchUser(ctx context.Context, accessToken string) (OAuth
 	if avatar == "" {
 		avatar = raw.Picture
 	}
-	if raw.Email == "" && p.Name == "github" {
-		// GitHub's /user omits private emails; the user:email scope lets us read
-		// the account's primary verified address from /user/emails.
+	subject := raw.Subject
+	switch p.Name {
+	case "github":
+		subject = raw.ID.String()
+		if id, err := raw.ID.Int64(); err != nil || id <= 0 {
+			return OAuthUser{}, errors.New("oauth userinfo: missing GitHub identity")
+		}
+		// Public-profile emails carry no verification flag. Always ask GitHub
+		// for its verified primary email; never trust the profile address alone.
 		raw.Email, err = p.fetchGitHubEmail(ctx, accessToken)
 		if err != nil {
 			return OAuthUser{}, err
 		}
+	case "google":
+		if subject == "" {
+			return OAuthUser{}, errors.New("oauth userinfo: missing Google identity")
+		}
+		if raw.EmailVerified == nil || !*raw.EmailVerified || (raw.VerifiedEmail != nil && !*raw.VerifiedEmail) {
+			return OAuthUser{}, ErrUnverifiedEmail
+		}
+	default:
+		return OAuthUser{}, errors.New("oauth: unsupported provider")
 	}
-	if raw.Email == "" {
-		return OAuthUser{}, fmt.Errorf("oauth userinfo: no email (make it public or add email scope)")
+	raw.Email = strings.ToLower(strings.TrimSpace(raw.Email))
+	address, err := mail.ParseAddress(raw.Email)
+	if err != nil || address.Address != raw.Email || !strings.Contains(raw.Email, "@") {
+		return OAuthUser{}, ErrUnverifiedEmail
 	}
-	return OAuthUser{Email: raw.Email, Name: name, AvatarURL: avatar, Provider: p.Name}, nil
+	return OAuthUser{Subject: subject, Email: raw.Email, Name: name, AvatarURL: avatar, Provider: p.Name}, nil
 }
 
 // fetchGitHubEmail returns the account's primary verified email via the
-// user:email scope, used when the public profile hides the address.
+// user:email scope. A public profile address alone never proves verification.
 func (p OAuthProvider) fetchGitHubEmail(ctx context.Context, accessToken string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.EmailsURL, nil)
 	if err != nil {
 		return "", err
 	}
@@ -202,22 +229,23 @@ func (p OAuthProvider) fetchGitHubEmail(ctx context.Context, accessToken string)
 		Primary  bool   `json:"primary"`
 		Verified bool   `json:"verified"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&emails); err != nil {
 		return "", err
 	}
-	var fallback string
 	for _, e := range emails {
 		if e.Verified && e.Primary {
 			return e.Email, nil
 		}
-		if e.Verified && fallback == "" {
-			fallback = e.Email
-		}
 	}
-	if fallback != "" {
-		return fallback, nil
-	}
-	return "", fmt.Errorf("oauth userinfo: no verified email")
+	return "", ErrUnverifiedEmail
+}
+
+// NewPKCEVerifier returns an independent, cryptographically random RFC 7636
+// verifier. Only its SHA-256 challenge is sent in the authorization URL.
+func NewPKCEVerifier() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func httpClient() *http.Client { return &http.Client{Timeout: 15 * time.Second} }

@@ -71,7 +71,7 @@ func TestOAuthDashboardExchangeFlow(t *testing.T) {
 			_, _ = w.Write([]byte(`{"access_token":"provider-token"}`))
 			return
 		}
-		_, _ = w.Write([]byte(`{"email":"login@example.test","name":"Login","email_verified":true}`))
+		_, _ = w.Write([]byte(`{"sub":"google-login-user","email":"login@example.test","name":"Login","email_verified":true}`))
 	}))
 	defer provider.Close()
 	cfg := DefaultConfig()

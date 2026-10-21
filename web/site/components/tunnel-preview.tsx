@@ -99,18 +99,8 @@ export function TunnelPreview() {
           max={3}
           className="tunnel-card overflow-hidden rounded-2xl border border-border-strong bg-surface"
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-secondary">
-              <Terminal className="h-4 w-4" aria-hidden="true" /> Your next
-              tunnel
-            </div>
-            <span className="flex items-center gap-1.5 rounded border border-border px-2 py-1 font-mono text-[9px] tracking-wide text-muted">
-              <span
-                className="h-1 w-1 rounded-full bg-secondary"
-                aria-hidden="true"
-              />{" "}
-              INTERACTIVE DEMO
-            </span>
+          <div className="flex items-center gap-2 px-5 py-4 text-xs font-medium text-secondary">
+            <Terminal className="h-4 w-4" aria-hidden="true" /> Command example
           </div>
           <div className="border-t border-border px-5 py-3">
             <div
@@ -187,9 +177,6 @@ export function TunnelPreview() {
                   {example.remote}
                 </p>
               </div>
-            </div>
-            <div className="mt-7 border-t border-border pt-3 font-mono text-[10px] text-muted">
-              Sample output · run the command to create your own URL
             </div>
           </div>
           <TunnelConnection port={example.port} />

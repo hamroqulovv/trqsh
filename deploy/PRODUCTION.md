@@ -1,5 +1,7 @@
 # Production deploy — single host
 
+For the new `trqsh.uz` / `app.trqsh.uz` / `api.trqsh.uz` production deployment and GitHub/Google-only authentication, use [DOMAIN-AUTH.md](DOMAIN-AUTH.md). Earlier single-origin addresses and audit results below describe the previous deployment.
+
 Bring the whole trqsh stack up on one Ubuntu server with Docker Compose.
 
 ## 0. Prerequisites (once)

@@ -8,7 +8,7 @@ const path = require("path");
 const pkg = require("../package.json");
 
 // CLI releases publish to their own dedicated repo (source stays in
-// algorithco/trqsh; see .goreleaser.yaml).
+// trqsh-tunnel/trqsh; see .goreleaser.yaml).
 const REPO = process.env.TRQSH_REPO || "trqsh-tunnel/trqshcli";
 const VERSION = (process.env.TRQSH_VERSION || pkg.version).replace(/^v/, "");
 if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(VERSION)) {

@@ -42,15 +42,15 @@ set -a
 . /data/runtime.env
 set +a
 
-export TRQSH_ENV="${TRQSH_ENV:-development}"
-export TRQSH_DEV_AUTH="${TRQSH_DEV_AUTH:-1}"
-export TRQSH_BASE_DOMAIN="${TRQSH_BASE_DOMAIN:-tunnel.trqsh.uz}"
-export TRQSH_API_PUBLIC_URL="${TRQSH_API_PUBLIC_URL:-https://tunnel.trqsh.uz}"
-export TRQSH_APP_URL="${TRQSH_API_PUBLIC_URL}/dashboard"
-export TRQSH_QR_URL="${TRQSH_APP_URL}/remote"
+export TRQSH_ENV="${TRQSH_ENV:-production}"
+export TRQSH_DEV_AUTH=0
+export TRQSH_BASE_DOMAIN="${TRQSH_BASE_DOMAIN:-trqsh.uz}"
+export TRQSH_API_PUBLIC_URL="${TRQSH_API_PUBLIC_URL:-https://api.trqsh.uz}"
+export TRQSH_APP_URL="${TRQSH_APP_URL:-https://app.trqsh.uz}"
+export TRQSH_QR_URL="${TRQSH_QR_URL:-https://qr.trqsh.uz}"
 export TRQSH_DATABASE_URL="postgres://trqsh:${POSTGRES_PASSWORD}@127.0.0.1:5432/trqsh?sslmode=disable"
 export TRQSH_REDIS_URL=redis://127.0.0.1:6379/0
-export TRQSH_API_ADDR=127.0.0.1:8080
+export TRQSH_API_ADDR=0.0.0.0:8080
 export TRQSH_API_URL=http://127.0.0.1:8080
 export TRQSH_API_INTERNAL_URL=http://127.0.0.1:8080
 export TRQSH_ENTITLEMENTS=api

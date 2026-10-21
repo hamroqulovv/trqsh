@@ -6,10 +6,11 @@
 
 Share development servers, receive webhooks and inspect traffic from an interactive terminal. This package installs the native CLI; the desktop app is a separate download.
 
-CLI 0.2.5 connects to `https://tunnel.trqsh.uz` and uses authenticated WebSocket
-transport through `wss://tunnel.trqsh.uz/_trqsh/agent`. Direct QUIC/TCP connections
-remain available with `--server host:port`. Public tunnel URLs need wildcard
-DNS/TLS and edge ingress in addition to the control-plane hostname.
+CLI 0.2.6 uses `https://api.trqsh.uz` for sign-in and account APIs and
+connects to `trqsh.uz:4443` with QUIC and TCP fallback. Public tunnel URLs use
+`*.trqsh.uz` and require wildcard DNS/TLS plus edge ingress. This version is a
+release candidate in source; publish its native assets and wrappers together
+after the new deployment is ready.
 
 [![PyPI](https://img.shields.io/pypi/v/trqsh?style=flat-square&color=18181b)](https://pypi.org/project/trqsh/)
 [![Python](https://img.shields.io/badge/Python-%3E%3D3.8-52525b?style=flat-square)](#requirements)
@@ -132,7 +133,7 @@ pipx upgrade trqsh
 python -m pip install --upgrade trqsh
 ```
 
-The console also supports `/update check` and `/update`. Restart after a successful update. Cached binaries older than the package are replaced; newer self-updates are retained unless `TRQSH_VERSION` explicitly pins another release. Opening the updated console restarts an older CLI daemon. Saved hosted endpoints migrate to `tunnel.trqsh.uz`; custom endpoints, credentials and tunnel definitions are preserved.
+The console also supports `/update check` and `/update`. Restart after a successful update. Cached binaries older than the package are replaced; newer self-updates are retained unless `TRQSH_VERSION` explicitly pins another release. Opening the updated console restarts an older CLI daemon. Previous hosted defaults under `tunnel.trqsh.uz` migrate to `api.trqsh.uz` and `trqsh.uz:4443`; custom endpoints, credentials and tunnel definitions are preserved.
 
 Use one package manager for the global command. When switching from npm to pip, remove the npm launcher with `npm uninstall -g @trqsh-uz/trqsh`. Check `where.exe trqsh` on Windows or `command -v trqsh` on macOS/Linux if an older installation still appears. `python -m trqsh --version` explicitly selects the current Python environment's package.
 

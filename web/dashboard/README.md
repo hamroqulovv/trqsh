@@ -1,5 +1,7 @@
 ![trqsh — Localhost, online.](../../packaging/assets/readme-banner.svg)
 
+Production now uses `trqsh.uz`, `app.trqsh.uz` and `api.trqsh.uz` with GitHub/Google-only sign-in. See [domain and OAuth setup](../../deploy/DOMAIN-AUTH.md). The single-origin `/dashboard` examples below describe the previous deployment.
+
 # trqsh · Dashboard
 
 **The account workspace for tunnels, domains, keys and usage.**

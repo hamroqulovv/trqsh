@@ -1,0 +1,59 @@
+PASS 1
+[aist#0:0/pcm_s16le @ 0000016426b45cc0] Guessed Channel Layout: stereo
+Input #0, wav, from 'C:\Users\hamro\OneDrive\Desktop\trqsh\ADS\assets\audio\mix-premaster.wav':
+  Duration: 00:00:32.00, bitrate: 1536 kb/s
+  Stream #0:0: Audio: pcm_s16le ([1][0][0][0] / 0x0001), 48000 Hz, 2 channels, s16, 1536 kb/s
+Stream mapping:
+  Stream #0:0 -> #0:0 (pcm_s16le (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'pipe:':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Audio: pcm_s16le, 192000 Hz, stereo, s16, 6144 kb/s
+    Metadata:
+      encoder         : Lavc60.31.102 pcm_s16le
+size=       0kB time=00:00:00.00 bitrate=N/A speed=   0x    size=N/A time=00:00:19.80 bitrate=N/A speed=38.2x    [out#0/null @ 0000016426b45f40] video:0kB audio:24000kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+size=N/A time=00:00:29.10 bitrate=N/A speed=37.5x    
+[Parsed_loudnorm_0 @ 0000016426b66c00] 
+{
+	"input_i" : "-17.00",
+	"input_tp" : "-3.10",
+	"input_lra" : "10.80",
+	"input_thresh" : "-27.27",
+	"output_i" : "-14.14",
+	"output_tp" : "-1.50",
+	"output_lra" : "4.10",
+	"output_thresh" : "-24.18",
+	"normalization_type" : "dynamic",
+	"target_offset" : "-1.86"
+}
+
+PASS 2
+[aist#0:0/pcm_s16le @ 000001de15ee88c0] Guessed Channel Layout: stereo
+Input #0, wav, from 'C:\Users\hamro\OneDrive\Desktop\trqsh\ADS\assets\audio\mix-premaster.wav':
+  Duration: 00:00:32.00, bitrate: 1536 kb/s
+  Stream #0:0: Audio: pcm_s16le ([1][0][0][0] / 0x0001), 48000 Hz, 2 channels, s16, 1536 kb/s
+Stream mapping:
+  Stream #0:0 -> #0:0 (pcm_s16le (native) -> pcm_s24le (native))
+Press [q] to stop, [?] for help
+Output #0, wav, to 'C:\Users\hamro\OneDrive\Desktop\trqsh\ADS\assets\audio\master.wav':
+  Metadata:
+    ISFT            : Lavf60.16.100
+  Stream #0:0: Audio: pcm_s24le ([1][0][0][0] / 0x0001), 48000 Hz, stereo, s32, 2304 kb/s
+    Metadata:
+      encoder         : Lavc60.31.102 pcm_s24le
+size=       0kB time=00:00:00.00 bitrate=N/A speed=N/A    [out#0/wav @ 000001de15ee8a80] video:0kB audio:9000kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.001107%
+size=    9000kB time=00:00:31.97 bitrate=2305.6kbits/s speed= 293x    
+[Parsed_loudnorm_0 @ 000001de15efce40] 
+{
+	"input_i" : "-17.04",
+	"input_tp" : "-3.10",
+	"input_lra" : "10.70",
+	"input_thresh" : "-27.29",
+	"output_i" : "-16.04",
+	"output_tp" : "-2.10",
+	"output_lra" : "10.70",
+	"output_thresh" : "-26.29",
+	"normalization_type" : "linear",
+	"target_offset" : "0.04"
+}

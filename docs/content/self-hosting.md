@@ -22,7 +22,7 @@ A working website login proves the HTTP control plane is reachable. It does not 
 
 Use Docker with Compose **2.24.4 or later** for the overlay's `!override` support. Docker Desktop should be running on Windows/macOS. The persistent local workflow does not require a host Go or Node toolchain because images build those components.
 
-For native development, use Go 1.25.8 or newer as required by `go.mod`, Node.js 20+ and pnpm 9. Check the repository development guide for optional generators.
+For native development, use Go 1.26 or newer as required by `go.mod`, Node.js 20+ and pnpm 9. Check the repository development guide for optional generators.
 
 ## Start the full local stack
 

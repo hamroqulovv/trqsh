@@ -1,0 +1,24 @@
+# Overlay: run trqsh on a host it shares with another project's web service.
+#
+# The edge keeps the public :80/:443 (no extra hop for tunnel traffic) and
+# splices TLS for the other project's hostnames, unterminated, to its proxy over
+# the external `shared-ingress` network. See SHARED-HOST.md.
+#
+#   docker network create --subnet 172.31.250.0/24 shared-ingress   # once per host
+#   docker compose -f docker-compose.prod.yml -f docker-compose.shared-host.yml up -d
+#
+# Moving the other project off this host: drop this overlay and clear
+# TRQSH_TLS_PASSTHROUGH in .env. Nothing else in trqsh changes.
+
+services:
+  edge:
+    networks:
+      default: {}
+      shared-ingress:
+        # Fixed so the co-hosted proxy can trust exactly this peer for
+        # forwarded client addresses (CF-Connecting-IP).
+        ipv4_address: ${TRQSH_SHARED_INGRESS_IP:-172.31.250.10}
+
+networks:
+  shared-ingress:
+    external: true

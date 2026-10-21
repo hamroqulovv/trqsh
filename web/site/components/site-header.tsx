@@ -38,7 +38,7 @@ export function SiteHeader() {
     const onPointer = (event: PointerEvent) => {
       if (!headerRef.current?.contains(event.target as Node)) setOpen(false);
     };
-    const query = window.matchMedia("(min-width: 768px)");
+    const query = window.matchMedia("(min-width: 1024px)");
     const onResize = () => {
       if (query.matches) setOpen(false);
     };
@@ -76,7 +76,7 @@ export function SiteHeader() {
           </Link>
           <nav
             aria-label="Main navigation"
-            className="hidden items-center gap-7 md:flex"
+            className="hidden items-center gap-7 lg:flex"
           >
             {navigation.map((item) => (
               <Link
@@ -98,7 +98,7 @@ export function SiteHeader() {
         <div className="flex items-center gap-2 sm:gap-5">
           <a
             href={loginUrl}
-            className="hidden text-sm font-medium text-secondary hover:text-foreground md:inline-flex"
+            className="hidden text-sm font-medium text-secondary hover:text-foreground lg:inline-flex"
           >
             Sign in
           </a>
@@ -120,7 +120,7 @@ export function SiteHeader() {
             aria-expanded={open}
             aria-controls="mobile-navigation"
             onClick={() => setOpen((value) => !value)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-accent md:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-accent lg:hidden"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -130,7 +130,7 @@ export function SiteHeader() {
         <nav
           id="mobile-navigation"
           aria-label="Mobile navigation"
-          className="mobile-menu absolute inset-x-0 top-full border-b border-border bg-page px-5 py-5 shadow-[0_10px_20px_-15px_rgb(0_0_0/0.2)] md:hidden"
+          className="mobile-menu absolute inset-x-0 top-full border-b border-border bg-page px-5 py-5 shadow-[0_10px_20px_-15px_rgb(0_0_0/0.2)] lg:hidden"
         >
           <div className="flex flex-col gap-1">
             {navigation.map((item) => (

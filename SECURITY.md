@@ -7,7 +7,7 @@ credentials. This document describes how to report issues and the controls alrea
 
 **Please do not open a public issue for security problems.**
 
-Email **security@trqsh.uz** with:
+Email **hello@trqsh.uz** with the subject **Security report** and:
 
 - a description of the issue and its impact,
 - steps to reproduce (a proof-of-concept if possible),
@@ -17,7 +17,7 @@ We aim to acknowledge within **48 hours**, provide an initial assessment within 
 days**, and coordinate a fix and disclosure timeline with you. We do not pursue legal action
 against good-faith research that respects user privacy and data and does not degrade the service.
 
-For abuse (phishing/malware hosted on a tunnel), email **abuse@trqsh.uz** with the hostname.
+For abuse (phishing/malware hosted on a tunnel), email **hello@trqsh.uz** with the subject **Abuse report** and the hostname.
 
 ## Supported versions
 
@@ -28,8 +28,9 @@ Until 1.0, security fixes land on the latest `main` and the most recent tagged r
 The controls below are implemented in this repository.
 
 ### Transport & TLS
-- TLS everywhere: agent↔edge, public↔edge, browser↔API. No plaintext in production.
-- QUIC/HTTP-3 primary with an authenticated TLS-over-TCP fallback.
+- Agent↔edge connections use encrypted QUIC, authenticated TLS-over-TCP, or authenticated WebSocket over HTTPS, depending on the endpoint. Direct connections prefer QUIC with TCP fallback; HTTPS-proxied endpoints use WebSocket.
+- Public HTTPS terminates at the edge. The ordinary local HTTP upstream is plaintext, and raw TCP/UDP tunnels need application-level encryption when required. This is not end-to-end encryption between an HTTP visitor and the local app.
+- Production browser↔API connections require correctly configured HTTPS. HTTP/2 and HTTP/3 public ingress are deployment options, separate from agent transport.
 - Minimum TLS 1.2 on public listeners.
 - Length-prefixed protocol frames are bounded (`proto.MaxFrameSize`, 1 MiB) on read **and**
   write, so a malicious length prefix cannot exhaust memory.
@@ -61,7 +62,7 @@ The controls below are implemented in this repository.
 - A session may only bind subdomains/domains/ports its account is entitled to.
 - Containers run **non-root** on `distroless/static`; Kubernetes `NetworkPolicy` restricts the
   control API's internal RPC to the edge, dashboard, and ingress only.
-- Public hostnames are subject to phishing/malware screening.
+- Tunnels and accounts may be restricted in response to abuse reports under the hosted service's acceptable-use policy. Do not assume every hostname or request is automatically screened for phishing or malware.
 
 ## Operator hardening checklist (production)
 

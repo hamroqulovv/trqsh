@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trqsh"
-version = "0.2.5"
+version = "0.2.6"
 description = "Expose localhost to the internet — fast QUIC tunnels with a desktop app. Installs the trqsh CLI binary for your platform."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -24,8 +24,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://tunnel.trqsh.uz"
-Documentation = "https://tunnel.trqsh.uz/docs"
+Homepage = "https://trqsh.uz"
+Documentation = "https://trqsh.uz/docs"
 Source = "https://github.com/trqsh-tunnel/trqsh"
 Issues = "https://github.com/trqsh-tunnel/trqsh/issues"
 

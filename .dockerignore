@@ -22,3 +22,13 @@ deploy/observability
 !**/.env.example
 .vscode
 *.log
+
+# Local session, marketing and native build output (not application sources).
+.claude
+ADS
+**/target
+*.exe
+**/__pycache__
+*.pem
+*.key
+*.pfx

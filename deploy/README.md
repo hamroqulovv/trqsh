@@ -1,5 +1,7 @@
 # deploy/ — Infrastructure, deploy & release (Part 08)
 
+For the new `trqsh.uz` / `app.trqsh.uz` / `api.trqsh.uz` production deployment and GitHub/Google-only authentication, use [DOMAIN-AUTH.md](DOMAIN-AUTH.md). Earlier single-origin addresses and audit results below describe the previous deployment.
+
 Everything needed to run trqsh **locally**, ship it to the **cloud**, **release** it
 to users, and **observe** it.
 

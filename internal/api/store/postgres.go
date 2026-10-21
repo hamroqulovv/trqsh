@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib" // pgx database/sql driver
 )
 
@@ -93,6 +94,10 @@ func mapErr(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
+	var pgerr *pgconn.PgError
+	if errors.As(err, &pgerr) && pgerr.Code == "23505" {
+		return ErrConflict
+	}
 	return err
 }
 
@@ -104,25 +109,52 @@ func (p *PostgresStore) CreateUser(ctx context.Context, u User) (User, error) {
 		u.CreatedAt = time.Now()
 	}
 	_, err := p.db.ExecContext(ctx,
-		`INSERT INTO users (id, email, name, avatar_url, oauth_provider, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6)`,
-		u.ID, u.Email, u.Name, u.AvatarURL, u.OAuthProvider, u.CreatedAt)
-	return u, err
+		`INSERT INTO users (id, email, name, avatar_url, oauth_provider, oauth_subject, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		u.ID, strings.ToLower(strings.TrimSpace(u.Email)), u.Name, u.AvatarURL, u.OAuthProvider, u.OAuthSubject, u.CreatedAt)
+	return u, mapErr(err)
 }
 
 func (p *PostgresStore) GetUser(ctx context.Context, id string) (User, error) {
 	return p.scanUser(p.db.QueryRowContext(ctx,
-		`SELECT id,email,name,avatar_url,oauth_provider,created_at FROM users WHERE id=$1`, id))
+		`SELECT id,email,name,avatar_url,oauth_provider,oauth_subject,created_at FROM users WHERE id=$1`, id))
 }
 
 func (p *PostgresStore) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	return p.scanUser(p.db.QueryRowContext(ctx,
-		`SELECT id,email,name,avatar_url,oauth_provider,created_at FROM users WHERE lower(email)=lower($1)`, email))
+		`SELECT id,email,name,avatar_url,oauth_provider,oauth_subject,created_at FROM users WHERE lower(email)=lower($1)`, email))
+}
+
+func (p *PostgresStore) GetUserByOAuth(ctx context.Context, provider, subject string) (User, error) {
+	if subject == "" {
+		return User{}, ErrNotFound
+	}
+	return p.scanUser(p.db.QueryRowContext(ctx,
+		`SELECT id,email,name,avatar_url,oauth_provider,oauth_subject,created_at FROM users WHERE oauth_provider=$1 AND oauth_subject=$2`, provider, subject))
+}
+
+func (p *PostgresStore) BindOAuthSubject(ctx context.Context, id, provider, subject string) error {
+	if subject == "" {
+		return ErrConflict
+	}
+	result, err := p.db.ExecContext(ctx, `UPDATE users SET oauth_subject=$3
+		WHERE id=$1 AND oauth_provider=$2 AND (oauth_subject='' OR oauth_subject=$3)`, id, provider, subject)
+	if err != nil {
+		return mapErr(err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return ErrConflict
+	}
+	return nil
 }
 
 func (p *PostgresStore) scanUser(row *sql.Row) (User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.OAuthProvider, &u.CreatedAt)
+	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.OAuthProvider, &u.OAuthSubject, &u.CreatedAt)
 	return u, mapErr(err)
 }
 

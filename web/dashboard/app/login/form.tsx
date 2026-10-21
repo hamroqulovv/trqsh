@@ -1,38 +1,27 @@
-"use client";
-
-import { useActionState, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
   Check,
   Github,
-  Loader2,
   Terminal,
 } from "lucide-react";
-import { authenticate, type LoginState } from "./actions";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { buttonVariants } from "@/components/ui/button";
+import { dashboardPath } from "@/lib/paths";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-const API = process.env.TRQSH_API_URL || "https://api.trqsh.uz";
 const SITE = process.env.NEXT_PUBLIC_TRQSH_SITE_URL || "https://trqsh.uz";
 const TUNNEL_DOMAIN = process.env.NEXT_PUBLIC_TRQSH_BASE_DOMAIN || "trqsh.uz";
 
 export function LoginForm({
   next,
   providers,
+  error,
 }: {
   next: string;
   providers: string[];
+  error?: string;
 }) {
-  const [state, action, pending] = useActionState<LoginState, FormData>(
-    authenticate,
-    {},
-  );
-  const [creatingAccount, setCreatingAccount] = useState(false);
-
   return (
     <div className="flex min-h-svh flex-col bg-page">
       <a
@@ -136,12 +125,10 @@ export function LoginForm({
               id="login-heading"
               className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.045em]"
             >
-              {creatingAccount ? "Create your account" : "Welcome back"}
+              Sign in to trqsh
             </h1>
             <p className="mt-3 text-sm leading-6 text-secondary">
-              {creatingAccount
-                ? "Start with a free account. Your next tunnel is a command away."
-                : "Sign in to manage your tunnels, domains and connected devices."}
+              Continue with GitHub or Google using a verified email address.
             </p>
 
             {providers.length > 0 && (
@@ -149,7 +136,7 @@ export function LoginForm({
                 <div className="mt-8 flex flex-col gap-3">
                   {providers.includes("github") && (
                     <a
-                      href={`${API}/v1/auth/oauth/github?next=${encodeURIComponent(next)}`}
+                      href={`${dashboardPath("/login/oauth/github")}?next=${encodeURIComponent(next)}`}
                       className={buttonVariants({
                         variant: "outline",
                         className: "h-12 w-full",
@@ -161,7 +148,7 @@ export function LoginForm({
                   )}
                   {providers.includes("google") && (
                     <a
-                      href={`${API}/v1/auth/oauth/google?next=${encodeURIComponent(next)}`}
+                      href={`${dashboardPath("/login/oauth/google")}?next=${encodeURIComponent(next)}`}
                       className={buttonVariants({
                         variant: "outline",
                         className: "h-12 w-full",
@@ -177,95 +164,22 @@ export function LoginForm({
                     </a>
                   )}
                 </div>
-                <div className="my-6 flex items-center gap-4 text-xs text-muted">
-                  <span className="h-px flex-1 bg-border" />
-                  or continue with email
-                  <span className="h-px flex-1 bg-border" />
-                </div>
               </>
             )}
 
-            <form
-              action={action}
-              aria-label={creatingAccount ? "Create account" : "Sign in"}
-              aria-busy={pending}
-              className={`flex flex-col gap-5 ${providers.length === 0 ? "mt-8" : ""}`}
-            >
-              <input type="hidden" name="next" value={next} />
-              {creatingAccount && (
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="name" className="flex justify-between">
-                    Full name
-                    <span className="font-normal text-muted">Optional</span>
-                  </Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    type="text"
-                    autoComplete="name"
-                    placeholder="Your name"
-                    readOnly={pending}
-                    className="h-12 px-4 text-base sm:text-sm"
-                  />
-                </div>
-              )}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="email">Email address</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  placeholder="you@example.com"
-                  required
-                  readOnly={pending}
-                  aria-invalid={state.error ? true : undefined}
-                  aria-describedby={state.error ? "login-error" : undefined}
-                  className="h-12 px-4 text-base sm:text-sm"
-                />
-              </div>
-              {state.error && (
-                <p
-                  id="login-error"
-                  role="alert"
-                  className="rounded-md border border-border-strong bg-surface-2 px-4 py-3 text-sm leading-6 text-critical"
-                >
-                  {state.error}
-                </p>
-              )}
-              <Button type="submit" disabled={pending} className="h-12 w-full">
-                {pending ? (
-                  <>
-                    <Loader2
-                      className="h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                    Please wait...
-                  </>
-                ) : (
-                  <>
-                    {creatingAccount
-                      ? "Create free account"
-                      : "Continue with email"}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </>
-                )}
-              </Button>
-            </form>
-
-            <p className="mt-6 text-sm text-secondary">
-              {creatingAccount ? "Already have an account? " : "New to trqsh? "}
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => setCreatingAccount(!creatingAccount)}
-                className="font-semibold text-foreground underline-offset-4 hover:underline disabled:opacity-50"
-              >
-                {creatingAccount ? "Sign in" : "Create an account"}
-              </button>
+            {error && (
+              <p role="alert" className="mt-6 rounded-md border border-border-strong bg-surface-2 px-4 py-3 text-sm leading-6 text-critical">
+                {error}
+              </p>
+            )}
+            {providers.length === 0 && (
+              <p role="status" className="mt-8 rounded-md border border-border px-4 py-3 text-sm leading-6 text-secondary">
+                Sign-in is temporarily unavailable. Please try again later.
+              </p>
+            )}
+            <p className="mt-6 text-sm leading-6 text-secondary">
+              New here? Your account is created securely when you first continue
+              with GitHub or Google.
             </p>
             <div className="mt-8 border-t border-border pt-6">
               <a

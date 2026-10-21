@@ -6,7 +6,7 @@ export const dynamic = "force-static";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = site.siteUrl.replace(/\/$/, "");
-  const staticPaths = ["", "/pricing", "/download", "/docs", "/docs/api", "/docs/errors", "/terms", "/privacy"];
+  const staticPaths = ["", "/pricing", "/download", "/changelog", "/docs", "/docs/api", "/docs/errors", "/terms", "/privacy", "/cookies", "/acceptable-use"];
   const docPaths = mdSlugs.map((s) => `/docs/${s}`);
   const now = new Date();
   return [...staticPaths, ...docPaths].map((path) => ({

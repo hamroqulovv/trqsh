@@ -1,0 +1,23 @@
+{
+  "name": "trqsh-cinematic-ad",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Vertical trqsh launch film, built and rendered with Hyperframes",
+  "scripts": {
+    "assets": "node scripts/prepare-assets.mjs",
+    "audio": "python scripts/compose_audio.py",
+    "audio:fetch": "node scripts/download-sfx.mjs",
+    "audio:replace": "node scripts/replace-audio.mjs",
+    "preview": "node scripts/hyperframes.mjs preview --no-open",
+    "check": "node scripts/hyperframes.mjs check",
+    "render": "node scripts/hyperframes.mjs render --quality delivery --fps 60 --workers 1 --strict --output output/trqsh-cinematic-vertical-v3.mp4",
+    "qa": "node scripts/verify.mjs"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
+    "gsap": "^3.14.2",
+    "hyperframes": "0.8.164",
+    "three": "0.185.1"
+  }
+}

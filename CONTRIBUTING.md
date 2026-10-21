@@ -8,7 +8,7 @@ across all of it.
 
 Prerequisites (pinned in [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md)):
 
-- **Go 1.25.8+** (see `go.mod`)
+- **Go 1.26+** (see `go.mod`)
 - **Node 24 + pnpm 10** (frontends)
 - **Docker** (local stack, image builds)
 

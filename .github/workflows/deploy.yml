@@ -1,0 +1,76 @@
+name: Deploy
+
+# Ships each main commit to the production host once its images are in GHCR.
+# The host side is deploy/scripts/deploy-gateway.sh (forced SSH command) and
+# deploy/scripts/deploy-vps.sh; see deploy/AUTO-DEPLOY.md.
+on:
+  workflow_run:
+    workflows: [Images]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The host skips recreating the edge (and dropping tunnels) unless one of
+      # these paths changed, so the list must cover every package it links.
+      - name: Check deploy/scripts/edge-paths covers the edge binary
+        run: |
+          mapfile -t paths < deploy/scripts/edge-paths
+          missing=0
+          while read -r dir; do
+            rel=${dir#"$PWD"/}
+            covered=
+            for p in "${paths[@]}"; do
+              [[ $rel == "$p" || $rel == "$p"/* ]] && covered=1
+            done
+            [[ -n $covered ]] || { echo "::error::$rel is linked into trqshd but not in deploy/scripts/edge-paths"; missing=1; }
+          done < <(go list -deps -f '{{with .Module}}{{if .Main}}{{$.Dir}}{{end}}{{end}}' ./cmd/trqshd)
+          exit $missing
+
+      - name: Deploy over the forced-command gateway
+        env:
+          DEPLOY_HOST: ${{ secrets.TRQSH_DEPLOY_HOST }}
+          DEPLOY_KEY: ${{ secrets.TRQSH_DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.TRQSH_DEPLOY_KNOWN_HOSTS }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          key=$(mktemp) hosts=$(mktemp)
+          trap 'rm -f "$key" "$hosts"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$hosts"
+          set +e
+          printf '%s' "$GHCR_TOKEN" | ssh -F /dev/null -i "$key" -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$hosts" -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 "root@$DEPLOY_HOST" "deploy $SHA"
+          code=$?
+          set -e
+          case $code in
+            0) ;;
+            75) echo "::warning::Deployment is not enabled on the host yet (see deploy/AUTO-DEPLOY.md)" ;;
+            76) echo "::notice::$SHA was superseded by a newer main commit" ;;
+            *) exit "$code" ;;
+          esac

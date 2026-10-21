@@ -16,7 +16,7 @@ paths:
   /auth/signup:
     post:
       summary: Create an account (dev/email flow)
-      description: Available only when development authentication is enabled. Production deployments use configured OAuth providers.
+      description: Test-only endpoint, disabled by default. Requires explicit TRQSH_DEV_AUTH=1 in development and is always forbidden in production. Public accounts use GitHub or Google with a verified email.
       security: []
       requestBody:
         required: true
@@ -25,11 +25,12 @@ paths:
             schema: { $ref: '#/components/schemas/SignupRequest' }
       responses:
         "200": { description: Account created, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        "403": { description: Email-only authentication is disabled }
         "409": { description: User already exists }
   /auth/login:
     post:
       summary: Log in (dev/email flow)
-      description: Passwordless development-only email login. Disabled in production; use OAuth or device approval.
+      description: Test-only email login, disabled by default. Explicit development opt-in is required; production always rejects it. Use GitHub/Google OAuth or device approval.
       security: []
       requestBody:
         required: true
@@ -63,6 +64,20 @@ paths:
         content: { application/json: { schema: { type: object, properties: { refresh_token: { type: string } } } } }
       responses:
         "200": { description: Tokens, content: { application/json: { schema: { $ref: '#/components/schemas/Tokens' } } } }
+  /auth/providers:
+    get:
+      summary: List configured public sign-in providers
+      description: Available in production; returns only provider names and no credentials or internal status.
+      security: []
+      responses:
+        "200":
+          description: Configured OAuth providers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers: { type: array, items: { type: string, enum: [github, google] } }
   /auth/oauth/{provider}:
     get:
       summary: Begin an OAuth flow (github|google)
@@ -73,14 +88,16 @@ paths:
         "302": { description: Redirect to the provider }
   /auth/oauth/{provider}/callback:
     get:
-      summary: OAuth callback
+      summary: Complete a browser-bound OAuth flow with PKCE
+      description: Requires verified provider email and a stable provider ID. Redirects to the dashboard with a short-lived single-use exchange code; never returns tokens in a browser URL.
       security: []
       parameters:
         - { name: provider, in: path, required: true, schema: { type: string } }
         - { name: code, in: query, required: true, schema: { type: string } }
         - { name: state, in: query, required: true, schema: { type: string } }
       responses:
-        "200": { description: Tokens, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        "302": { description: Dashboard exchange or sign-in error redirect }
+        "400": { description: Invalid browser state or PKCE binding }
   /auth/device/code:
     post:
       summary: Start a device-authorization flow (CLI/GUI login)

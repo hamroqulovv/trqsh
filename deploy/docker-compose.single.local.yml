@@ -1,0 +1,20 @@
+# Local UI preview without OAuth credentials. All published ports stay loopback.
+# docker compose -f deploy/docker-compose.single.yml -f deploy/docker-compose.single.local.yml up -d --build --wait
+services:
+  trqsh:
+    build:
+      args:
+        TRQSH_PUBLIC_URL: http://localhost:3004
+        TRQSH_API_PUBLIC_URL: http://localhost:8081
+        TRQSH_APP_URL: http://localhost:3005
+        TRQSH_BASE_DOMAIN: lvh.me
+    environment:
+      TRQSH_ENV: development
+      TRQSH_DEV_AUTH: "0"
+      TRQSH_BASE_DOMAIN: lvh.me
+      TRQSH_API_PUBLIC_URL: http://localhost:8081
+      TRQSH_APP_URL: http://localhost:3005
+      TRQSH_QR_URL: http://localhost:3005/remote
+      TRQSH_SITE_URL: http://localhost:3004
+      NEXT_PUBLIC_TRQSH_SITE_URL: http://localhost:3004
+      TRQSH_REGIONS: '[{"code":"local","name":"Local Docker","continent":"AS","endpoint":"127.0.0.1:4443","default":true}]'
