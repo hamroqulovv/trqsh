@@ -23,10 +23,13 @@ import (
 // Renewal, OCSP stapling, storage and locking are handled by CertMagic. Certs
 // persist to disk (TRQSH_TLS_STORAGE_DIR) so restarts don't re-issue.
 type prodCertManager struct {
-	magic          *certmagic.Config
-	base           string
-	manageWildcard bool
-	storage        certmagic.Storage // non-nil when a Redis/File store was chosen
+	magic *certmagic.Config
+	// wild manages <base> + *.<base> without on-demand: CertMagic only adds
+	// names to the on-demand allowlist (never obtains them) when a Config has
+	// OnDemand set. It shares magic's cache, so handshakes find the wildcard.
+	wild    *certmagic.Config // nil without a DNS provider token
+	base    string
+	storage certmagic.Storage // non-nil when a Redis/File store was chosen
 }
 
 // certWarmer is implemented by cert managers that can pre-provision certs at
@@ -45,9 +48,16 @@ func newACMECertManager(cfg Config, log *slog.Logger, decide func(ctx context.Co
 	}
 	// CertMagic needs the cache to hand back the Config for each cert; the config
 	// is created just after, so the callback closes over the pointer.
-	var magic *certmagic.Config
+	var magic, wild *certmagic.Config
 	cache := certmagic.NewCache(certmagic.CacheOptions{
-		GetConfigForCert: func(certmagic.Certificate) (*certmagic.Config, error) {
+		GetConfigForCert: func(c certmagic.Certificate) (*certmagic.Config, error) {
+			if wild != nil {
+				for _, n := range c.Names {
+					if n == cfg.BaseDomain || n == "*."+cfg.BaseDomain {
+						return wild, nil // renewed by the managing config
+					}
+				}
+			}
 			return magic, nil
 		},
 	})
@@ -74,18 +84,20 @@ func newACMECertManager(cfg Config, log *slog.Logger, decide func(ctx context.Co
 		issuer.CA = certmagic.LetsEncryptStagingCA
 	}
 
-	manageWildcard := false
 	if cfg.CloudflareToken != "" {
 		issuer.DNS01Solver = &certmagic.DNS01Solver{
 			DNSManager: certmagic.DNSManager{
 				DNSProvider: &cloudflare.Provider{APIToken: cfg.CloudflareToken},
 			},
 		}
-		manageWildcard = true
+		wcfg := mcfg
+		wcfg.OnDemand = nil
+		wild = certmagic.New(cache, wcfg)
+		wild.Issuers = []certmagic.Issuer{certmagic.NewACMEIssuer(wild, issuer)}
 	}
 	magic.Issuers = []certmagic.Issuer{certmagic.NewACMEIssuer(magic, issuer)}
 
-	return &prodCertManager{magic: magic, base: cfg.BaseDomain, manageWildcard: manageWildcard, storage: storage}, nil
+	return &prodCertManager{magic: magic, wild: wild, base: cfg.BaseDomain, storage: storage}, nil
 }
 
 // buildCertStorage chooses where issued certs/keys and issuance locks live. When a
@@ -133,8 +145,8 @@ func (p *prodCertManager) TLSConfig() *tls.Config {
 // DNS provider is configured. Without one, subdomains fall back to on-demand
 // TLS-ALPN issuance, so this is best-effort and never fatal.
 func (p *prodCertManager) Warm(ctx context.Context) error {
-	if !p.manageWildcard {
+	if p.wild == nil {
 		return nil
 	}
-	return p.magic.ManageAsync(ctx, []string{p.base, "*." + p.base})
+	return p.wild.ManageAsync(ctx, []string{p.base, "*." + p.base})
 }

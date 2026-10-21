@@ -18,6 +18,7 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/trqsh-uz/trqsh/internal/entitlerpc"
+	"github.com/trqsh-uz/trqsh/internal/platform"
 	"github.com/trqsh-uz/trqsh/pkg/authz"
 	"github.com/trqsh-uz/trqsh/pkg/proto"
 	"github.com/trqsh-uz/trqsh/pkg/tunnel"
@@ -147,12 +148,15 @@ func (s *Server) allowTLSName(ctx context.Context, name string) bool {
 	if _, ok := s.cfg.Passthrough[name]; ok {
 		return false // its backend holds the certificate
 	}
-	base := strings.ToLower(s.cfg.BaseDomain)
-	if name == base || strings.HasSuffix(name, "."+base) {
-		return true // our own zone (also covered by the wildcard)
+	// Inside our zone only the control plane is always allowed; tunnel names are
+	// normally served by the wildcard and otherwise must be bound, like custom
+	// domains. Allowing every <x>.<base> let Certificate Transparency scanners
+	// (probing www.<seen name>, ...) burn the Let's Encrypt rate limit.
+	if platform.ControlPlaneHost(name, s.cfg.BaseDomain) {
+		return true
 	}
-	// Custom domain: allow only if bound on this edge or present in the shared
-	// registry — i.e. an agent proved control and the control plane verified it.
+	// Tunnel or custom domain: allow only if bound on this edge or present in the
+	// shared registry — i.e. an agent proved control and the control plane verified it.
 	if s.hub.LookupHost(name) != nil {
 		return true
 	}
