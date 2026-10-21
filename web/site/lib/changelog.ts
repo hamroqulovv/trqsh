@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 // Editorial descriptions summarize the linked, unmodified release notes.
 // Future releases get a useful fallback until an editorial description is added.
 const descriptions: Record<string, { title: string; summary: string; highlights?: string[] }> = {
+  "cli-0.2.7": {
+    title: "A friendlier console.",
+    summary: "Destructive commands ask for a quick Y/N instead of a magic word, common tunnel actions get one-key shortcuts, and results appear as framed cards.",
+    highlights: ["Confirm /uninstall, /down, /stop all and /logout with Y or N; /uninstall yes still skips the question.", "Press ? for the shortcut sheet and Tab to accept the suggested next step.", "Suggest tunnel targets from dev servers already running on localhost."],
+  },
   "cli-0.2.6": {
     title: "Home on trqsh.uz.",
     summary: "The CLI connects straight to trqsh.uz over QUIC with TCP fallback, signs in through GitHub or Google at app.trqsh.uz, and serves tunnels at <name>.trqsh.uz.",
