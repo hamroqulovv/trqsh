@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -16,18 +17,25 @@ import {
 import { TunnelPreview } from "@/components/tunnel-preview";
 import { HeroBackground } from "@/components/hero-background";
 import { HeroHeadline } from "@/components/hero-headline";
+import { HeroMotion } from "@/components/hero-motion";
+import { FeatureVignette } from "@/components/feature-vignettes";
+import { Magnetic } from "@/components/magnetic";
 import { Reveal } from "@/components/reveal";
+import { ScrambleText } from "@/components/scramble-text";
+import { SpotlightGroup } from "@/components/spotlight";
 import { Tilt } from "@/components/tilt";
 import { CodeBlock } from "@/components/code-block";
 import { buttonVariants } from "@/components/ui/button";
 import { planByCode } from "@/lib/plans";
 import { formatBytes } from "@/lib/format";
-import { signupUrl } from "@/lib/site";
+import { signupUrl, site } from "@/lib/site";
 import { cn } from "@/lib/utils";
+import "@/components/home.css";
 
 const capabilities = [
   {
     icon: Globe2,
+    scene: "share",
     title: "Share what you’re building.",
     description:
       "Give your local app a public HTTPS URL. Send a preview to a teammate, test on your phone, or demo your work.",
@@ -36,6 +44,7 @@ const capabilities = [
   },
   {
     icon: Webhook,
+    scene: "webhooks",
     title: "Bring webhooks to your desk.",
     description:
       "Receive events on localhost, inspect headers and payloads, and replay requests while you debug.",
@@ -44,13 +53,14 @@ const capabilities = [
   },
   {
     icon: Radio,
+    scene: "protocols",
     title: "Go beyond the browser.",
     description:
       "Connect SSH and databases with TCP. Use UDP and TLS tunnels on paid plans for the services your workflow needs.",
     href: "/docs/tcp-udp-tunnels",
     link: "TCP, UDP & TLS",
   },
-];
+] as const;
 
 const steps = [
   {
@@ -82,30 +92,72 @@ const steps = [
   },
 ];
 
+// Headings rise line by line from their own masks (see .mask-line).
+function MaskLines({ lines }: { lines: string[] }) {
+  return (
+    <>
+      {lines.map((line, index) => (
+        <span key={line} className="mask-line">
+          <span
+            className="mask-line-inner"
+            style={{ "--line": index } as CSSProperties}
+          >
+            {line}
+          </span>
+        </span>
+      ))}
+    </>
+  );
+}
+
+function Eyebrow({ text, className }: { text: string; className?: string }) {
+  return (
+    <p className={cn("eyebrow", className)}>
+      <ScrambleText text={text} />
+    </p>
+  );
+}
+
 export default function HomePage() {
   const free = planByCode("free")!;
   return (
     <>
       <section className="hero-section">
         <HeroBackground />
+        <HeroMotion />
         <div className="shell relative grid items-center gap-12 pb-16 pt-16 sm:pb-20 sm:pt-20 lg:grid-cols-[1.04fr_1fr] lg:gap-14 lg:pb-24 lg:pt-24">
-          <div className="min-w-0">
+          <div className="hero-copy min-w-0">
+            <Link href="/changelog" className="hero-badge hero-enter">
+              <span className="hero-badge-tag">Latest</span>
+              CLI v{site.version} release notes
+              <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            </Link>
             <HeroHeadline />
             <p className="hero-enter hero-enter-description mt-7 max-w-md text-base leading-relaxed text-secondary sm:text-lg">
               Share your work, receive webhooks, and connect your services. One
               command brings your local environment to the internet.
             </p>
-            <div className="hero-enter hero-enter-actions mt-8 flex flex-wrap gap-3">
-              <Link href="/download" className={buttonVariants({ size: "xl" })}>
-                <Download className="h-4 w-4" aria-hidden="true" /> Get trqsh
-              </Link>
-              <Link
-                href="/docs/quickstart"
-                className={buttonVariants({ variant: "outline", size: "xl" })}
-              >
-                Read the quickstart{" "}
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
+            <div className="hero-enter hero-enter-actions mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Magnetic className="w-full sm:w-auto">
+                <Link
+                  href="/download"
+                  className={cn(buttonVariants({ size: "xl" }), "w-full sm:w-auto")}
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" /> Get trqsh
+                </Link>
+              </Magnetic>
+              <Magnetic strength={0.2} className="w-full sm:w-auto">
+                <Link
+                  href="/docs/quickstart"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "xl" }),
+                    "w-full sm:w-auto",
+                  )}
+                >
+                  Read the quickstart{" "}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Magnetic>
             </div>
             <p className="hero-enter hero-enter-note mt-5 flex items-center gap-2 text-xs text-muted">
               <Check className="h-3.5 w-3.5" aria-hidden="true" /> Free to
@@ -141,10 +193,10 @@ export default function HomePage() {
             <Reveal
               key={item.title}
               delay={index * 90}
-              className="flex items-center gap-3.5"
+              className="platform-item flex items-center gap-3.5"
             >
               <item.icon
-                className="h-5 w-5 shrink-0 text-secondary"
+                className="draw-icon h-5 w-5 shrink-0 text-secondary"
                 strokeWidth={1.5}
                 aria-hidden="true"
               />
@@ -159,11 +211,9 @@ export default function HomePage() {
 
       <section className="shell section grid items-center gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
         <Reveal>
-          <p className="eyebrow">A small command. A bigger world.</p>
+          <Eyebrow text="A small command. A bigger world." />
           <h2 className="section-heading mt-5">
-            Local to live.
-            <br />
-            In a single step.
+            <MaskLines lines={["Local to live.", "In a single step."]} />
           </h2>
           <p className="mt-5 max-w-sm text-base leading-relaxed text-secondary">
             Your web app, your SSH session, your next integration. Choose a
@@ -174,13 +224,14 @@ export default function HomePage() {
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
           <div
-            className="mt-8 flex flex-wrap gap-2"
+            className="protocol-chips mt-8 flex flex-wrap gap-2"
             aria-label="Supported tunnel protocols"
           >
-            {["HTTP", "HTTPS", "TCP", "UDP", "TLS"].map((protocol) => (
+            {["HTTP", "HTTPS", "TCP", "UDP", "TLS"].map((protocol, index) => (
               <span
                 key={protocol}
-                className="rounded-md border border-border bg-surface-2 px-3 py-1.5 font-mono text-[10px] text-secondary"
+                className="protocol-chip rounded-md border border-border bg-surface-2 px-3 py-1.5 font-mono text-[10px] text-secondary"
+                style={{ "--i": index } as CSSProperties}
               >
                 {protocol}
               </span>
@@ -198,11 +249,9 @@ export default function HomePage() {
       <section id="product" className="shell section">
         <div className="mb-12 grid gap-7 lg:grid-cols-2 lg:items-end lg:gap-24">
           <Reveal>
-            <p className="eyebrow">01 / Made for your workflow</p>
+            <Eyebrow text="01 / Made for your workflow" />
             <h2 className="section-heading mt-5">
-              Stay in your flow.
-              <br />
-              Open up your work.
+              <MaskLines lines={["Stay in your flow.", "Open up your work."]} />
             </h2>
           </Reveal>
           <Reveal delay={100}>
@@ -216,15 +265,16 @@ export default function HomePage() {
             </Link>
           </Reveal>
         </div>
-        <div className="grid gap-5 md:grid-cols-3">
+        <SpotlightGroup className="grid gap-5 md:grid-cols-3">
           {capabilities.map((feature, index) => (
             <Reveal
               key={feature.title}
               as="article"
               delay={index * 100}
-              className="feature-card group flex flex-col"
+              className="feature-card spotlight group flex flex-col"
             >
-              <div className="mb-8 flex items-center justify-between">
+              <span className="spotlight-fill" aria-hidden="true" />
+              <div className="mb-6 flex items-center justify-between">
                 <span className="feature-icon inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface-2">
                   <feature.icon
                     className="h-5 w-5 text-foreground"
@@ -232,10 +282,11 @@ export default function HomePage() {
                     aria-hidden="true"
                   />
                 </span>
-                <span className="font-mono text-[10px] tracking-wider text-muted">
+                <span className="feature-index font-mono text-[10px] tracking-wider text-muted">
                   0{index + 1}
                 </span>
               </div>
+              <FeatureVignette kind={feature.scene} />
               <div className="relative flex flex-1 flex-col">
                 <h3 className="text-lg font-semibold tracking-tight">
                   {feature.title}
@@ -253,9 +304,9 @@ export default function HomePage() {
               </div>
             </Reveal>
           ))}
-        </div>
+        </SpotlightGroup>
         <Reveal className="mt-7 flex items-center justify-center gap-2 text-xs text-muted">
-          <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+          <Code2 className="draw-icon h-3.5 w-3.5" aria-hidden="true" />
           No deployment needed to share a preview.
         </Reveal>
       </section>
@@ -264,9 +315,9 @@ export default function HomePage() {
         <div className="shell section">
           <Reveal className="mb-12 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
             <div>
-              <p className="eyebrow">02 / From local to live</p>
+              <Eyebrow text="02 / From local to live" />
               <h2 className="section-heading mt-4">
-                Three steps. You’re connected.
+                <MaskLines lines={["Three steps. You’re connected."]} />
               </h2>
             </div>
             <Link href="/docs/quickstart" className="text-link shrink-0">
@@ -274,49 +325,53 @@ export default function HomePage() {
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Reveal>
-          <ol className="steps-grid relative grid gap-9 lg:grid-cols-3">
-            {steps.map((step, index) => (
-              <Reveal
-                as="li"
-                key={step.number}
-                delay={index * 120}
-                className="step-card min-w-0"
-              >
-                <span className="step-number relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border-strong bg-surface-2 font-mono text-xs text-secondary">
-                  {step.number}
-                </span>
-                <h3 className="mt-6 text-lg font-semibold tracking-tight">
-                  {step.title}
-                </h3>
-                <p className="mb-5 mt-2 min-h-[3rem] text-sm leading-relaxed text-secondary">
-                  {step.description}
-                </p>
-                <CodeBlock
-                  code={step.command}
-                  label={step.label}
-                  prompt
-                  className="bg-page"
-                />
-                <Link
-                  href={step.href}
-                  className="mt-3 inline-flex items-center gap-1.5 text-xs text-secondary hover:text-foreground"
+          <Reveal stage className="relative">
+            <span className="steps-rail" aria-hidden="true">
+              <span className="steps-rail-fill" />
+              <span className="steps-rail-packet" />
+            </span>
+            <ol className="steps-grid relative grid gap-9 lg:grid-cols-3">
+              {steps.map((step, index) => (
+                <li
+                  key={step.number}
+                  className="step-card min-w-0"
+                  style={{ "--i": index } as CSSProperties}
                 >
-                  Learn more{" "}
-                  <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                </Link>
-              </Reveal>
-            ))}
-          </ol>
+                  <span className="step-number relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border-strong bg-surface-2 font-mono text-xs text-secondary">
+                    {step.number}
+                  </span>
+                  <h3 className="mt-6 text-lg font-semibold tracking-tight">
+                    {step.title}
+                  </h3>
+                  <p className="mb-5 mt-2 min-h-[3rem] text-sm leading-relaxed text-secondary">
+                    {step.description}
+                  </p>
+                  <CodeBlock
+                    code={step.command}
+                    label={step.label}
+                    prompt
+                    wrap
+                    className="bg-page"
+                  />
+                  <Link
+                    href={step.href}
+                    className="text-link mt-3 text-xs font-normal text-secondary hover:text-foreground"
+                  >
+                    Learn more{" "}
+                    <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </Reveal>
         </div>
       </section>
 
       <section className="shell section grid items-center gap-10 lg:grid-cols-2 lg:gap-24">
         <Reveal>
-          <p className="eyebrow">03 / Room to get started</p>
+          <Eyebrow text="03 / Room to get started" />
           <h2 className="section-heading mt-4">
-            Start small.
-            <br />
-            Keep building.
+            <MaskLines lines={["Start small.", "Keep building."]} />
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-secondary">
             Try your first tunnel or build your next side project. The free plan
@@ -328,88 +383,108 @@ export default function HomePage() {
           </Link>
         </Reveal>
         <Reveal delay={120}>
-          <Tilt
-            max={3}
-            className="free-plan-card rounded-2xl border border-border p-7 sm:p-9"
-          >
-            <div className="flex items-start justify-between gap-5">
-              <div>
-                <p className="text-sm font-medium">{free.name} plan</p>
-                <p className="mt-2 text-5xl font-semibold tracking-[-0.055em]">
-                  $0
-                  <span className="ml-2 text-sm font-normal tracking-normal text-muted">
-                    forever
-                  </span>
-                </p>
-              </div>
-              <Layers3
-                className="h-6 w-6 text-muted"
-                strokeWidth={1.5}
-                aria-hidden="true"
-              />
-            </div>
-            <ul className="my-6 space-y-3 border-t border-border pt-6 text-sm text-secondary">
-              {[
-                `${free.max_concurrent_tunnels} concurrent tunnels`,
-                `${formatBytes(free.max_bandwidth_bytes_mo)} bandwidth per month`,
-                "HTTP, HTTPS, and TCP",
-                `${free.max_reserved_subdomains} reserved subdomain`,
-              ].map((feature) => (
-                <li key={feature} className="flex items-center gap-2.5">
-                  <Check
-                    className="h-4 w-4 text-foreground"
-                    aria-hidden="true"
-                  />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <a
-              href={signupUrl}
-              className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+          <SpotlightGroup>
+            <Tilt
+              max={3}
+              className="free-plan-card spotlight rounded-2xl border border-border p-7 sm:p-9"
             >
-              Create your free account{" "}
-              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-            </a>
-          </Tilt>
+              <span className="spotlight-fill" aria-hidden="true" />
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="text-sm font-medium">{free.name} plan</p>
+                  <p className="mt-2 text-5xl font-semibold tracking-[-0.055em]">
+                    <span className="sr-only">$0</span>
+                    <span aria-hidden="true">
+                      $
+                      <span className="price-roll">
+                        <span className="price-roll-strip">
+                          {[9, 8, 7, 6, 5, 4, 3, 2, 1, 0].map((digit) => (
+                            <span key={digit}>{digit}</span>
+                          ))}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="ml-2 text-sm font-normal tracking-normal text-muted">
+                      forever
+                    </span>
+                  </p>
+                </div>
+                <Layers3
+                  className="draw-icon h-6 w-6 text-muted"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                />
+              </div>
+              <ul className="my-6 space-y-3 border-t border-border pt-6 text-sm text-secondary">
+                {[
+                  `${free.max_concurrent_tunnels} concurrent tunnels`,
+                  `${formatBytes(free.max_bandwidth_bytes_mo)} bandwidth per month`,
+                  "HTTP, HTTPS, and TCP",
+                  `${free.max_reserved_subdomains} reserved subdomain`,
+                ].map((feature, index) => (
+                  <li
+                    key={feature}
+                    className="plan-feature flex items-center gap-2.5"
+                    style={{ "--i": index } as CSSProperties}
+                  >
+                    <Check
+                      className="draw-icon h-4 w-4 text-foreground"
+                      aria-hidden="true"
+                    />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={signupUrl}
+                className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+              >
+                Create your free account{" "}
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </Tilt>
+          </SpotlightGroup>
         </Reveal>
       </section>
 
       <section className="shell pb-16 sm:pb-24">
-        <Reveal className="cta-panel inverse-surface relative isolate flex flex-col items-start justify-between gap-8 overflow-hidden rounded-2xl px-7 py-10 sm:px-12 sm:py-14 lg:flex-row lg:items-center">
-          <div className="cta-orbits" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className="relative">
-            <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-white/60">
-              Ready when you are
-            </p>
-            <h2 className="text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-4xl">
-              Your next idea.
-              <br />
-              One command away.
-            </h2>
-          </div>
-          <div className="relative flex flex-wrap items-center gap-5">
-            <Link
-              href="/download"
-              className={cn(
-                buttonVariants({ size: "lg", variant: "outline" }),
-                "border-white bg-white text-primary hover:border-white hover:bg-white/90",
-              )}
-            >
-              Download trqsh <Download className="h-4 w-4" aria-hidden="true" />
-            </Link>
-            <Link
-              href="/docs/quickstart"
-              className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-white"
-            >
-              Quickstart <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
-        </Reveal>
+        <SpotlightGroup>
+          <Reveal className="cta-panel inverse-surface spotlight relative isolate flex flex-col items-start justify-between gap-8 overflow-hidden rounded-2xl px-7 py-10 sm:px-12 sm:py-14 lg:flex-row lg:items-center">
+            <span className="spotlight-fill" aria-hidden="true" />
+            <div className="cta-orbits" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="relative">
+              <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-white/60">
+                <ScrambleText text="Ready when you are" />
+              </p>
+              <h2 className="text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-4xl">
+                <MaskLines lines={["Your next idea.", "One command away."]} />
+              </h2>
+            </div>
+            <div className="relative flex w-full flex-col items-stretch gap-4 sm:w-auto sm:flex-row sm:items-center sm:gap-5">
+              <Magnetic className="w-full sm:w-auto">
+                <Link
+                  href="/download"
+                  className={cn(
+                    buttonVariants({ size: "lg", variant: "outline" }),
+                    "w-full border-white bg-white text-primary hover:border-white hover:bg-white/90 sm:w-auto",
+                  )}
+                >
+                  Download trqsh <Download className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Magnetic>
+              <Link
+                href="/docs/quickstart"
+                className="text-link justify-center font-normal text-white/80 hover:text-white sm:justify-start"
+              >
+                Quickstart <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
+          </Reveal>
+        </SpotlightGroup>
       </section>
     </>
   );

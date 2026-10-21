@@ -1,79 +1,74 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import { BackToTop } from "./back-to-top";
 import { Logo } from "./logo";
+import { Reveal } from "./reveal";
+import { SpotlightGroup } from "./spotlight";
 import { footerLegalNav, footerNav, site } from "@/lib/site";
-import { cn } from "@/lib/utils";
-
-const footerLinkClassName =
-  "inline-flex min-h-9 items-center gap-1.5 rounded-sm text-sm text-secondary transition-colors hover:text-foreground";
+import "./site-footer.css";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border bg-page">
-      <div className="shell pb-7 pt-12 sm:pt-16">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-16">
-          <div className="max-w-xs">
+    <footer className="site-footer">
+      <div className="shell">
+        <Reveal stage className="footer-main">
+          <div className="footer-item max-w-xs">
             <Link
               href="/"
               aria-label="trqsh home"
-              className="inline-flex rounded-sm text-foreground"
+              className="site-brand inline-flex rounded-sm text-foreground"
             >
               <Logo />
             </Link>
-            <p className="mt-4 text-sm leading-relaxed text-secondary">
-              {site.tagline}
+            <p className="footer-tagline">
+              Your localhost, live on the internet. Share apps, receive
+              webhooks and connect services from one command line.
             </p>
           </div>
-          <nav
-            className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 sm:gap-x-8"
-            aria-label="Footer navigation"
-          >
-            {footerNav.map((column, index) => (
-              <div
-                key={column.title}
-                className={cn(
-                  "min-w-0",
-                  index === footerNav.length - 1 && "col-span-2 sm:col-span-1",
-                )}
-              >
-                <h2 className="text-sm font-semibold text-foreground">
-                  {column.title}
-                </h2>
-                <ul
-                  className={cn(
-                    "mt-3 grid gap-y-1",
-                    index === footerNav.length - 1 &&
-                      "grid-cols-2 gap-x-6 sm:grid-cols-1",
-                  )}
-                >
-                  {column.links.map((link) => {
-                    const opensNewTab =
-                      link.external &&
-                      !link.href.startsWith(site.dashboardUrl);
 
+          <nav aria-label="Footer navigation" className="footer-columns">
+            {footerNav.map((group, index) => (
+              <div
+                key={group.title}
+                className="footer-item"
+                style={{ "--i": index + 1 } as CSSProperties}
+              >
+                <h2 className="footer-heading">{group.title}</h2>
+                <ul className="footer-links">
+                  {group.links.map((link) => {
+                    const newTab =
+                      link.external && !link.href.startsWith(site.dashboardUrl);
+                    const plain =
+                      link.external || link.href.startsWith("mailto:");
+                    const content = (
+                      <>
+                        {link.label}
+                        {newTab && (
+                          <>
+                            <ArrowUpRight
+                              className="h-3 w-3 shrink-0"
+                              aria-hidden="true"
+                            />
+                            <span className="sr-only"> (opens in a new tab)</span>
+                          </>
+                        )}
+                      </>
+                    );
                     return (
                       <li key={link.href}>
-                        {link.external ? (
+                        {plain ? (
                           <a
                             href={link.href}
-                            target={opensNewTab ? "_blank" : undefined}
-                            rel={opensNewTab ? "noopener noreferrer" : undefined}
-                            className={footerLinkClassName}
+                            target={newTab ? "_blank" : undefined}
+                            rel={newTab ? "noopener noreferrer" : undefined}
+                            className="footer-link"
                           >
-                            {link.label}
-                            {opensNewTab && (
-                              <>
-                                <ArrowUpRight
-                                  className="h-3 w-3 shrink-0 text-muted"
-                                  aria-hidden="true"
-                                />
-                                <span className="sr-only"> (opens in a new tab)</span>
-                              </>
-                            )}
+                            {content}
                           </a>
                         ) : (
-                          <Link href={link.href} className={footerLinkClassName}>
-                            {link.label}
+                          <Link href={link.href} className="footer-link">
+                            {content}
                           </Link>
                         )}
                       </li>
@@ -83,22 +78,56 @@ export function SiteFooter() {
               </div>
             ))}
           </nav>
-        </div>
-        <div className="mt-10 flex flex-col-reverse gap-3 border-t border-border pt-5 text-xs text-muted sm:mt-12 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} trqsh</p>
-          <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-6">
+        </Reveal>
+
+        <div className="footer-bottom">
+          <p>
+            © {new Date().getFullYear()} trqsh
+            <span aria-hidden="true"> · </span>
+            <Link href="/changelog" className="footer-link-quiet">
+              CLI v{site.version}
+            </Link>
+            <span aria-hidden="true"> · </span>
+            <a
+              href={site.githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer-link-quiet"
+            >
+              Apache-2.0
+              <span className="sr-only"> license on GitHub (opens in a new tab)</span>
+            </a>
+          </p>
+          <nav aria-label="Legal" className="footer-legal">
             {footerLegalNav.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="inline-flex min-h-9 items-center rounded-sm transition-colors hover:text-foreground"
-              >
+              <Link key={link.href} href={link.href} className="footer-link-quiet">
                 {link.label}
               </Link>
             ))}
           </nav>
+          <BackToTop />
         </div>
       </div>
+
+      {/* The wordmark rises letter by letter, then a soft shine passes over
+          it every few seconds and the pointer lights it from underneath. The
+          full glyphs stay visible, descender included. */}
+      <SpotlightGroup className="footer-wordmark-wrap">
+        <Reveal stage>
+          <p className="footer-wordmark" aria-hidden="true">
+            <span className="footer-wordmark-letters">
+              {Array.from("trqsh", (letter, index) => (
+                <span key={index} style={{ "--i": index } as CSSProperties}>
+                  {letter}
+                </span>
+              ))}
+            </span>
+            <span className="footer-wordmark-shine" data-spotlight="">
+              trqsh
+            </span>
+          </p>
+        </Reveal>
+      </SpotlightGroup>
     </footer>
   );
 }

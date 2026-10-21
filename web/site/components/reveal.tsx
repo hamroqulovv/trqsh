@@ -5,15 +5,21 @@ import { cn } from "@/lib/utils";
 
 // Content is visible on the server and without JavaScript. Only offscreen
 // content is put into a pending state, then revealed once as it enters view.
+// A `stage` keeps itself in place and only exposes the reveal-pending and
+// reveal-in classes, so CSS can choreograph its children.
 export function Reveal({
   children,
   className,
   delay = 0,
+  stage = false,
+  style,
   as: Tag = "div",
 }: {
   children: React.ReactNode;
   className?: string;
   delay?: number;
+  stage?: boolean;
+  style?: React.CSSProperties;
   as?: React.ElementType;
 }) {
   const ref = React.useRef<HTMLElement | null>(null);
@@ -62,8 +68,8 @@ export function Reveal({
   return (
     <Tag
       ref={ref as React.Ref<HTMLElement>}
-      className={cn("reveal", phase === "pending" && "reveal-pending", phase === "shown" && "reveal-in", className)}
-      style={{ "--reveal-delay": `${delay}ms` } as React.CSSProperties}
+      className={cn("reveal", stage && "reveal-stage", phase === "pending" && "reveal-pending", phase === "shown" && "reveal-in", className)}
+      style={{ ...style, "--reveal-delay": `${delay}ms` } as React.CSSProperties}
       onFocusCapture={() => setPhase("shown")}
     >
       {children}

@@ -59,7 +59,7 @@ export default function DownloadPage() {
           ].map(step => <article key={step.number} className="cli-next-step">
             <span className="font-mono text-xs text-muted">{step.number}</span><h3 className="mt-4 text-base font-semibold">{step.title}</h3>
             <p className="mb-5 mt-2 text-sm leading-relaxed text-secondary">{step.description}</p>
-            <CodeBlock code={step.code} label={step.label} />
+            <CodeBlock code={step.code} label={step.label} wrap />
             <p className="mt-4 text-xs leading-relaxed text-muted">{step.note}</p>
           </article>)}
         </div>

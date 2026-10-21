@@ -1,0 +1,945 @@
+/* Home page choreography. Shared motion primitives (reveal, spotlight,
+   magnetic, mask lines, draw icons) live in app/globals.css; everything here
+   belongs to one section of the landing page. */
+
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+
+/* The hero runs up behind the transparent header (72px) so the tunnel fills
+   the first screen; a soft fade keeps the navigation legible over it. */
+.hero-section {
+  margin-top: -72px;
+  padding-top: 72px;
+}
+.hero-tunnel-shade::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 150px;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--hero-background) / 0.9),
+    rgb(var(--hero-background) / 0)
+  );
+}
+
+/* The copy drifts up as the hero scrolls away and only starts to fade once
+   it is well on its way out, so it never looks disabled at rest. */
+.hero-copy {
+  transform: translate3d(0, calc(var(--hero-p, 0) * -64px), 0);
+  opacity: calc(1 - max(var(--hero-p, 0) - 0.2, 0) * 1.4);
+}
+.hero-tunnel {
+  transform: scale(calc(1 + var(--hero-p, 0) * 0.3));
+  transform-origin: 75% 50%;
+}
+
+.hero-badge {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+  border: 1px solid rgb(var(--border));
+  border-radius: 999px;
+  padding: 4px 12px 4px 4px;
+  background: rgb(var(--surface) / 0.7);
+  font-size: 12px;
+  color: rgb(var(--secondary-ink));
+  transition:
+    border-color 300ms ease,
+    color 300ms ease,
+    transform 500ms var(--ease-spring);
+}
+.hero-badge:hover {
+  border-color: rgb(var(--border-strong));
+  color: rgb(var(--foreground));
+  transform: translateY(-1px);
+}
+/* A short beam keeps circling the pill's border. */
+.hero-badge::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0 72%,
+    rgb(var(--foreground) / 0.9) 88%,
+    transparent 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: beam-spin 5s linear infinite;
+}
+.hero-badge-tag {
+  border-radius: 999px;
+  background: rgb(var(--foreground));
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(var(--page));
+}
+.hero-badge > svg {
+  transition: transform 400ms var(--ease-spring);
+}
+.hero-badge:hover > svg {
+  transform: translateX(3px);
+}
+
+/* Signals: requests emerge small and blurred at the tunnel's vanishing
+   point (--vx/--vy, published by the WebGL loop as the tunnel bends), then
+   accelerate out toward the viewer. */
+.hero-signals {
+  --cx: 75%;
+  --cy: 50%;
+  position: absolute;
+  inset: 0;
+  opacity: calc(1 - var(--hero-p, 0) * 1.6);
+  /* The tunnel can bend toward the copy; signals fade out before they reach
+     it so the headline always stays clean. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 36%, #000 54%);
+  mask-image: linear-gradient(90deg, transparent 36%, #000 54%);
+}
+.hero-signal {
+  position: absolute;
+  left: var(--cx);
+  top: var(--cy);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgb(var(--foreground) / 0.14);
+  border-radius: 999px;
+  padding: 5px 10px 5px 8px;
+  background: rgb(var(--hero-background) / 0.78);
+  box-shadow: 0 10px 30px -18px rgb(0 0 0 / 0.5);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  color: rgb(var(--secondary-ink));
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  translate: var(--vx, 0px) var(--vy, 0px);
+  animation: signal-fly 7.8s cubic-bezier(0.5, 0, 0.75, 0.4) infinite;
+  animation-delay: calc(1.8s + var(--i) * 1.3s);
+  animation-fill-mode: backwards;
+}
+.hero-signal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(var(--foreground));
+  box-shadow: 0 0 8px rgb(var(--foreground) / 0.6);
+}
+.hero-signal-method {
+  font-weight: 600;
+  color: rgb(var(--foreground));
+}
+.hero-signal-status {
+  border-radius: 4px;
+  background: rgb(var(--foreground) / 0.1);
+  padding: 2px 4px;
+  color: rgb(var(--foreground));
+}
+.hero-signal-time {
+  color: rgb(var(--muted-ink));
+}
+
+/* ── Protocol chips ───────────────────────────────────────────────────── */
+
+.protocol-chip {
+  display: inline-block;
+  transition:
+    opacity 500ms var(--ease-out),
+    transform 650ms var(--ease-spring),
+    border-color 200ms ease,
+    color 200ms ease;
+  transition-delay: calc(var(--reveal-delay, 0ms) + var(--i, 0) * 60ms + 450ms);
+}
+.reveal-pending .protocol-chip {
+  opacity: 0;
+  transform: translateY(8px) scale(0.9);
+}
+.reveal-in .protocol-chip:hover {
+  transition-delay: 0ms;
+  border-color: rgb(var(--border-strong));
+  color: rgb(var(--foreground));
+  transform: translateY(-2px);
+}
+
+/* ── Platform strip ───────────────────────────────────────────────────── */
+
+.platform-strip {
+  position: relative;
+  overflow: hidden;
+}
+/* A single packet of light runs along the top rule. */
+.platform-strip::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 220px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--foreground) / 0.8),
+    transparent
+  );
+  transform: translateX(-240px);
+  animation: strip-scan 7s var(--ease-in-out) 2s infinite;
+}
+.platform-item svg {
+  transition: transform 500ms var(--ease-spring);
+}
+.platform-item:hover svg {
+  transform: translateY(-2px) scale(1.08);
+}
+
+/* ── Capability cards ─────────────────────────────────────────────────── */
+
+.vignette {
+  position: relative;
+  height: 132px;
+  margin-bottom: 28px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--border));
+  border-radius: 12px;
+  background:
+    radial-gradient(rgb(var(--foreground) / 0.06) 1px, transparent 1px) 0 0 /
+      12px 12px,
+    rgb(var(--surface-2));
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  color: rgb(var(--secondary-ink));
+  transition: border-color 300ms ease;
+}
+.feature-card:hover .vignette {
+  border-color: rgb(var(--border-strong));
+}
+.reveal-pending .vignette *,
+.reveal-pending .vignette *::before,
+.reveal-pending .vignette *::after {
+  animation-play-state: paused !important;
+}
+
+/* Share: the preview URL rolls through subdomains, the page reloads, and a
+   teammate's cursor wanders over it. */
+.vs-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgb(var(--border));
+  padding: 8px 10px;
+  background: rgb(var(--surface));
+}
+.vs-dots {
+  display: flex;
+  gap: 4px;
+}
+.vs-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--border-strong));
+}
+.vs-url {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgb(var(--border));
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: rgb(var(--surface-2));
+  color: rgb(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+}
+.vs-url-text {
+  display: inline-flex;
+  min-width: 0;
+  line-height: 12px;
+}
+.vs-slot {
+  display: inline-block;
+  height: 12px;
+  overflow: hidden;
+}
+.vs-slot-strip {
+  display: flex;
+  flex-direction: column;
+  animation: slot-roll 7.5s var(--ease-out-expo) infinite;
+}
+.vs-slot-strip span {
+  height: 12px;
+}
+.vs-page {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 14px 12px;
+}
+.vs-line {
+  display: block;
+  width: var(--w);
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--foreground) / 0.1);
+  transform-origin: left;
+  animation: page-load 2.5s var(--ease-out-expo) infinite;
+  animation-delay: calc(var(--i) * 70ms);
+}
+.vs-line:first-of-type {
+  height: 9px;
+  background: rgb(var(--foreground) / 0.18);
+}
+.vs-live {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgb(var(--foreground));
+}
+.vs-live i,
+.vh-live i {
+  position: relative;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(var(--foreground));
+}
+.vs-live i::after,
+.vh-live i::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid rgb(var(--foreground) / 0.6);
+  animation: live-ping 2s var(--ease-out) infinite;
+}
+.vs-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 13px;
+  height: 13px;
+  color: rgb(var(--foreground));
+  fill: rgb(var(--surface));
+  animation: cursor-wander 7.5s var(--ease-in-out) infinite;
+}
+
+/* Webhooks: events arrive at the top of the inspector and push the log down;
+   the newest row flashes as it lands. */
+.vh-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgb(var(--border));
+  padding: 8px 12px;
+  background: rgb(var(--surface));
+  font-family: inherit;
+  color: rgb(var(--foreground));
+}
+.vh-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgb(var(--muted-ink));
+}
+.vh-window {
+  position: relative;
+  height: 99px;
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, #000 70%, transparent);
+}
+.vh-list {
+  animation: hook-ticker 6s var(--ease-out-expo) infinite;
+}
+.vh-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  height: 33px;
+  border-bottom: 1px solid rgb(var(--border) / 0.7);
+  padding: 0 12px;
+}
+.vh-method {
+  font-weight: 600;
+  color: rgb(var(--foreground));
+}
+.vh-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vh-status {
+  border: 1px solid rgb(var(--border-strong));
+  border-radius: 4px;
+  padding: 1px 4px;
+  color: rgb(var(--foreground));
+}
+.vh-time {
+  width: 30px;
+  text-align: right;
+  color: rgb(var(--muted-ink));
+}
+.vh-flash {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto;
+  height: 33px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--foreground) / 0.1),
+    rgb(var(--foreground) / 0.02)
+  );
+  box-shadow: inset 2px 0 0 rgb(var(--foreground));
+  pointer-events: none;
+  animation: hook-flash 2s ease-out infinite;
+}
+
+/* Protocols: three lanes, three rhythms — a steady TCP stream, bursty UDP
+   datagrams, and TLS records that pass a lock on the way through. */
+.vignette-lanes {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: 0 14px;
+}
+.vl-lane {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.vl-label {
+  color: rgb(var(--foreground));
+  font-weight: 600;
+}
+.vl-label .text-muted {
+  font-weight: 400;
+}
+.vl-track {
+  position: relative;
+  height: 14px;
+  container-type: inline-size;
+  background: linear-gradient(rgb(var(--border-strong)), rgb(var(--border-strong)))
+    center / 100% 1px no-repeat;
+}
+.vl-end {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border: 1px solid rgb(var(--border-strong));
+  border-radius: 2px;
+  background: rgb(var(--surface));
+}
+.vl-end-remote {
+  left: auto;
+  right: 0;
+  border-radius: 50%;
+}
+.vl-track i {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 10px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: rgb(var(--foreground));
+  opacity: 0;
+  animation: lane-packet 2.4s linear infinite;
+}
+.vl-stream i:nth-of-type(2) {
+  animation-delay: 0.8s;
+}
+.vl-stream i:nth-of-type(3) {
+  animation-delay: 1.6s;
+}
+.vl-burst i {
+  width: 5px;
+  border-radius: 50%;
+  height: 5px;
+  margin-top: -2.5px;
+  animation-duration: 2.6s;
+  animation-timing-function: cubic-bezier(0.3, 0.1, 0.4, 1);
+}
+.vl-burst i:nth-of-type(2) {
+  animation-delay: 0.12s;
+}
+.vl-burst i:nth-of-type(3) {
+  animation-delay: 0.26s;
+}
+.vl-secure i {
+  width: 14px;
+  animation-duration: 3.2s;
+  animation-timing-function: var(--ease-in-out);
+}
+.vl-secure i:nth-of-type(2) {
+  animation-delay: 1.6s;
+}
+.vl-secure i:nth-of-type(3) {
+  display: none;
+}
+.vl-lock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  padding: 1px;
+  border-radius: 3px;
+  background: rgb(var(--surface-2));
+  color: rgb(var(--muted-ink));
+  animation: lock-pulse 1.6s ease-out infinite;
+}
+
+/* ── Steps ────────────────────────────────────────────────────────────── */
+
+.steps-rail {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .steps-rail {
+    position: absolute;
+    top: 22px;
+    left: 22px;
+    display: block;
+    width: calc(66.666% + 16px);
+    height: 1px;
+    container-type: inline-size;
+    background: rgb(var(--border-strong));
+  }
+}
+.steps-rail-fill {
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--foreground) / 0.7);
+  transform-origin: left;
+  transition: transform 1000ms cubic-bezier(0.45, 0.05, 0.55, 0.95) 250ms;
+}
+.reveal-pending .steps-rail-fill {
+  transform: scaleX(0);
+}
+.steps-rail-packet {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 28px;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--foreground))
+  );
+  opacity: 0;
+  animation: rail-packet 4s var(--ease-in-out) 1.6s infinite;
+}
+.reveal-pending .steps-rail-packet {
+  animation-play-state: paused;
+}
+.step-card {
+  transition:
+    opacity 800ms var(--ease-out),
+    transform 900ms var(--ease-out-expo);
+  transition-delay: calc(var(--i, 0) * 500ms + 120ms);
+}
+.reveal-pending .step-card {
+  opacity: 0;
+  transform: translateY(20px);
+}
+.reveal-in .step-number {
+  animation: step-activate 900ms var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 500ms + 250ms);
+}
+
+/* ── Free plan ────────────────────────────────────────────────────────── */
+
+.price-roll {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  line-height: 1;
+  vertical-align: -0.08em;
+}
+.price-roll-strip {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(-9em);
+  transition: transform 1800ms var(--ease-out-expo) 350ms;
+}
+.price-roll-strip > span {
+  height: 1em;
+}
+.reveal-pending .price-roll-strip {
+  transform: none;
+}
+.plan-feature {
+  transition:
+    opacity 600ms var(--ease-out),
+    transform 700ms var(--ease-out-expo);
+  transition-delay: calc(var(--i, 0) * 90ms + 500ms);
+}
+.reveal-pending .plan-feature {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+.plan-feature .draw-icon > * {
+  transition-delay: calc(var(--i, 0) * 90ms + 650ms);
+}
+.free-plan-card::before {
+  animation: dots-drift 24s linear infinite;
+}
+
+/* ── Closing call to action ───────────────────────────────────────────── */
+
+.cta-panel.spotlight {
+  --spot-color: 255 255 255;
+}
+.cta-orbits {
+  translate: calc((var(--px, 0.5) - 0.5) * 36px)
+    calc((var(--py, 0.5) - 0.5) * 24px);
+  transition: translate 1200ms var(--ease-out);
+}
+.cta-orbits span {
+  animation: orbit-spin 40s linear infinite;
+}
+.cta-orbits span:nth-child(2) {
+  animation-duration: 28s;
+  animation-direction: reverse;
+}
+.cta-orbits span:nth-child(3) {
+  animation-duration: 18s;
+}
+/* A satellite rides each ring. */
+.cta-orbits span::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: 0 0 12px rgb(255 255 255 / 0.7);
+}
+.cta-orbits span:nth-child(2)::after {
+  top: -3px;
+  left: 50%;
+  opacity: 0.6;
+}
+.cta-orbits span:nth-child(3)::after {
+  top: auto;
+  bottom: 12%;
+  left: 14%;
+  opacity: 0.45;
+}
+
+/* ── Keyframes ────────────────────────────────────────────────────────── */
+
+@keyframes beam-spin {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+@keyframes signal-fly {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.25);
+    filter: blur(6px);
+  }
+  20% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  82% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(1.2);
+    filter: blur(2px);
+  }
+}
+@keyframes strip-scan {
+  0% {
+    transform: translateX(-240px);
+  }
+  55%,
+  100% {
+    transform: translateX(100vw);
+  }
+}
+@keyframes slot-roll {
+  0%,
+  28% {
+    transform: translateY(0);
+  }
+  33.3%,
+  61% {
+    transform: translateY(-25%);
+  }
+  66.6%,
+  94% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(-75%);
+  }
+}
+@keyframes page-load {
+  0% {
+    transform: scaleX(0);
+    opacity: 0.4;
+  }
+  30%,
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+@keyframes live-ping {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.5);
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+@keyframes cursor-wander {
+  0%,
+  100% {
+    transform: translate(150px, 70px);
+  }
+  20% {
+    transform: translate(70px, 36px);
+  }
+  26% {
+    transform: translate(70px, 36px) scale(0.85);
+  }
+  30% {
+    transform: translate(70px, 36px);
+  }
+  55% {
+    transform: translate(190px, 26px);
+  }
+  75% {
+    transform: translate(110px, 58px);
+  }
+  80% {
+    transform: translate(110px, 58px) scale(0.85);
+  }
+  84% {
+    transform: translate(110px, 58px);
+  }
+}
+@keyframes hook-ticker {
+  0%,
+  8% {
+    transform: translateY(-50%);
+  }
+  14%,
+  41% {
+    transform: translateY(-33.333%);
+  }
+  47%,
+  74% {
+    transform: translateY(-16.667%);
+  }
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes hook-flash {
+  0%,
+  24% {
+    opacity: 0;
+  }
+  34% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes lane-packet {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  8%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(calc(100cqw - 12px));
+  }
+}
+@keyframes lock-pulse {
+  0%,
+  35%,
+  100% {
+    color: rgb(var(--muted-ink));
+    transform: none;
+  }
+  50% {
+    color: rgb(var(--foreground));
+    transform: scale(1.25);
+  }
+}
+@keyframes rail-packet {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  10%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(calc(100cqw - 28px));
+  }
+}
+@keyframes step-activate {
+  0% {
+    transform: none;
+    box-shadow: 0 0 0 0 rgb(var(--foreground) / 0.25);
+  }
+  30% {
+    transform: scale(1.12);
+    border-color: rgb(var(--foreground));
+    color: rgb(var(--foreground));
+    box-shadow: 0 0 0 6px rgb(var(--foreground) / 0.08);
+  }
+  100% {
+    transform: none;
+    box-shadow: 0 0 0 0 rgb(var(--foreground) / 0);
+  }
+}
+@keyframes dots-drift {
+  to {
+    background-position: 14px 14px;
+  }
+}
+@keyframes orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1023px) {
+  .hero-signals {
+    --cx: 50%;
+    --cy: 75%;
+    -webkit-mask-image: linear-gradient(180deg, transparent 50%, #000 64%);
+    mask-image: linear-gradient(180deg, transparent 50%, #000 64%);
+  }
+  .hero-tunnel {
+    transform-origin: 50% 75%;
+  }
+  .hero-signal:nth-child(n + 5) {
+    display: none;
+  }
+}
+/* Phones: the steps become a vertical timeline. Each number sits in a left
+   gutter and a rule drawn downward joins it to the next one. */
+@media (max-width: 1023px) {
+  .steps-grid {
+    gap: 0;
+  }
+  .step-card {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    column-gap: 16px;
+    padding-bottom: 40px;
+  }
+  .step-card:last-child {
+    padding-bottom: 0;
+  }
+  .step-card > .step-number {
+    grid-row: 1 / span 5;
+    align-self: start;
+  }
+  .step-card > :not(.step-number) {
+    grid-column: 2;
+  }
+  .step-card > h3 {
+    margin-top: 9px;
+  }
+  .step-card::before {
+    content: "";
+    position: absolute;
+    top: 52px;
+    bottom: 8px;
+    left: 21.5px;
+    width: 1px;
+    background: linear-gradient(
+      180deg,
+      rgb(var(--foreground) / 0.45),
+      rgb(var(--border-strong))
+    );
+    transform-origin: top;
+    transition: transform 1000ms var(--ease-in-out);
+    transition-delay: calc(var(--i, 0) * 500ms + 450ms);
+  }
+  .step-card:last-child::before {
+    content: none;
+  }
+  .reveal-pending .step-card::before {
+    transform: scaleY(0);
+  }
+}
+
+/* The floating requests are a wide-screen flourish; on phones they would
+   crowd the tunnel and run off the edge. */
+@media (max-width: 639px) {
+  .hero-signals {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-signals,
+  .steps-rail-packet,
+  .vs-cursor {
+    display: none;
+  }
+  .hero-copy,
+  .hero-tunnel {
+    transform: none;
+    opacity: 1;
+  }
+}

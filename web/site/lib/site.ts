@@ -49,13 +49,16 @@ export const loginUrl = `${dashboardUrl}/login`;
 export const oauthUrl = (provider: "github" | "google") =>
   `${apiUrl}/v1/auth/oauth/${provider}`;
 
+// The header keeps only the destinations people come for. Changelog,
+// references and legal pages live in the footer.
 export const primaryNav = [
-  { label: "Pricing", href: "/pricing" },
-  { label: "Download", href: "/download" },
   { label: "Docs", href: "/docs" },
-  { label: "Changelog", href: "/changelog" },
+  { label: "Download", href: "/download" },
+  { label: "Pricing", href: "/pricing" },
 ] as const;
 
+// Four even groups, so the footer reads as a 2×2 grid on phones and four
+// columns on wider screens. Contact lives under Community.
 export const footerNav: {
   title: string;
   links: { label: string; href: string; external?: boolean }[];
@@ -69,7 +72,7 @@ export const footerNav: {
     ],
   },
   {
-    title: "Documentation",
+    title: "Docs",
     links: [
       { label: "Quickstart", href: "/docs/quickstart" },
       { label: "CLI reference", href: "/docs/cli-reference" },
@@ -80,10 +83,17 @@ export const footerNav: {
   {
     title: "Resources",
     links: [
-      { label: "GitHub", href: site.githubUrl, external: true },
       { label: "Changelog", href: "/changelog" },
       { label: "Troubleshooting", href: "/docs/troubleshooting" },
       { label: "Security", href: "/docs/security" },
+    ],
+  },
+  {
+    title: "Community",
+    links: [
+      { label: "GitHub", href: site.githubUrl, external: true },
+      { label: "Telegram", href: site.telegramUrl, external: true },
+      { label: "Email", href: `mailto:${site.supportEmail}` },
     ],
   },
 ];
@@ -93,5 +103,4 @@ export const footerLegalNav = [
   { label: "Privacy", href: "/privacy" },
   { label: "Cookies", href: "/cookies" },
   { label: "Acceptable use", href: "/acceptable-use" },
-  { label: "Contact", href: `mailto:${site.supportEmail}` },
 ] as const;

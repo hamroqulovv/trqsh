@@ -32,9 +32,16 @@
     --series-5: 180 180 185;
     --grid: 229 229 232;
     --baseline: 180 180 185;
+    /* Motion tokens. One vocabulary for every transition on the site. */
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --glint-alpha: 0.28;
   }
 
   :root.dark {
+    --glint-alpha: 0.55;
     color-scheme: dark;
     --page: 12 12 14;
     --surface: 18 18 21;
@@ -118,7 +125,7 @@
     @apply text-4xl font-semibold leading-[1.08] tracking-[-0.055em] sm:text-6xl;
   }
   .text-link {
-    @apply inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline;
+    @apply inline-flex items-center gap-2 text-sm font-medium text-foreground;
   }
   .tabular {
     font-variant-numeric: tabular-nums;
@@ -183,25 +190,219 @@
   );
   transform: translateX(-160%) skewX(-15deg);
 }
-.ui-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px -10px rgb(var(--foreground) / 0.3);
-}
-.ui-button:hover::before {
-  transform: translateX(380%) skewX(-15deg);
-  transition: transform 650ms ease;
+/* Lift and shine only where a real pointer hovers; on touch screens they
+   would stick after a tap. */
+@media (hover: hover) {
+  .ui-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px -10px rgb(var(--foreground) / 0.3);
+  }
+  .ui-button:hover::before {
+    transform: translateX(380%) skewX(-15deg);
+    transition: transform 650ms ease;
+  }
 }
 .ui-button:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(0) scale(0.97);
+  transition-duration: 90ms;
 }
 .ui-button > svg,
 .text-link > svg {
   flex-shrink: 0;
-  transition: transform 220ms ease;
+  transition:
+    transform 220ms ease,
+    translate 500ms var(--ease-out);
 }
-.ui-button:hover > svg:last-child,
-.text-link:hover > svg:last-child {
-  transform: translateX(3px);
+/* Arrows leave through one edge and return through the opposite one. */
+.ui-button:hover > .lucide-arrow-right,
+.text-link:hover > .lucide-arrow-right {
+  animation: icon-through-x 560ms var(--ease-out) both;
+}
+.ui-button:hover > .lucide-arrow-up-right,
+.text-link:hover > .lucide-arrow-up-right {
+  animation: icon-through-diagonal 560ms var(--ease-out) both;
+}
+.ui-button:hover > .lucide-download {
+  animation: icon-through-y 620ms var(--ease-out) both;
+}
+/* The underline settles up into place instead of blinking on. */
+.text-link {
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 8px;
+  transition:
+    text-decoration-color 300ms ease,
+    text-underline-offset 400ms var(--ease-out);
+}
+.text-link:hover {
+  text-decoration-color: currentColor;
+  text-underline-offset: 4px;
+}
+
+/* Magnetic wrappers pull a control toward the pointer, then spring back. */
+.magnetic {
+  display: inline-flex;
+  margin: -12px;
+  padding: 12px;
+  translate: var(--mag-x, 0px) var(--mag-y, 0px);
+  transition: translate 650ms var(--ease-spring);
+}
+.magnetic.is-magnetic {
+  transition: translate 160ms var(--ease-out);
+}
+.magnetic .ui-button > svg {
+  translate: calc(var(--mag-x, 0px) * 0.45) calc(var(--mag-y, 0px) * 0.45);
+}
+
+/* Spotlight surfaces: a soft fill and a lit border follow the pointer. */
+.spotlight {
+  --spot-color: var(--foreground);
+  position: relative;
+  isolation: isolate;
+}
+.spotlight::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: radial-gradient(
+    260px circle at var(--mx, -999px) var(--my, -999px),
+    rgb(var(--spot-color) / 0.55),
+    transparent 65%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.spotlight-fill {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    420px circle at var(--mx, -999px) var(--my, -999px),
+    rgb(var(--spot-color) / 0.06),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+[data-spot] .spotlight::after,
+[data-spot].spotlight::after,
+[data-spot] .spotlight > .spotlight-fill,
+[data-spot].spotlight > .spotlight-fill {
+  opacity: 1;
+}
+
+/* Lucide icons that draw their strokes in. Every stroke in the 24px icon set
+   is shorter than 100 units, so one dash covers each shape completely. */
+.draw-icon > * {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1100ms var(--ease-in-out);
+  transition-delay: calc(var(--reveal-delay, 0ms) + 200ms);
+}
+.reveal-pending .draw-icon > * {
+  stroke-dashoffset: 100;
+}
+
+/* Headings rise line by line out of their own masks. */
+.mask-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
+}
+.mask-line-inner {
+  display: inline-block;
+  transform-origin: 0 100%;
+  transition:
+    transform 1100ms var(--ease-out-expo),
+    opacity 700ms var(--ease-out);
+  transition-delay: calc(var(--reveal-delay, 0ms) + var(--line, 0) * 90ms + 80ms);
+}
+.reveal-pending .mask-line-inner {
+  opacity: 0;
+  transform: translateY(105%) rotate(2deg);
+}
+
+/* Terminal-style decoding text: glyphs resolve left to right. */
+.scramble-glyph {
+  color: rgb(var(--muted-ink) / 0.7);
+}
+
+/* Copy buttons: the clipboard turns into a check that draws itself, and the
+   label rolls to its new state. */
+.copy-button {
+  transition:
+    color 200ms ease,
+    background-color 200ms ease,
+    border-color 300ms ease,
+    transform 300ms var(--ease-spring);
+}
+.copy-button:active {
+  transform: scale(0.94);
+}
+.copy-button[data-status="copied"] {
+  border-color: rgb(var(--foreground) / 0.5);
+  color: rgb(var(--foreground));
+}
+.copy-icon {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+}
+.copy-icon > svg {
+  position: absolute;
+  inset: 0;
+  transition:
+    transform 450ms var(--ease-spring),
+    opacity 200ms ease;
+}
+.copy-icon-done > * {
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  transition: stroke-dashoffset 450ms var(--ease-out) 90ms;
+}
+.copy-button[data-status="copied"] .copy-icon-idle {
+  opacity: 0;
+  transform: scale(0.5) rotate(-30deg);
+}
+.copy-button:not([data-status="copied"]) .copy-icon-done {
+  opacity: 0;
+  transform: scale(0.5) rotate(30deg);
+}
+.copy-button[data-status="copied"] .copy-icon-done > * {
+  stroke-dashoffset: 0;
+}
+.copy-label {
+  display: inline-block;
+  animation: copy-label-in 380ms var(--ease-out-expo) both;
+}
+.copy-label[data-initial] {
+  animation: none;
+}
+@keyframes copy-label-in {
+  from {
+    opacity: 0;
+    transform: translateY(70%);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
 }
 .card-hover {
   transition:
@@ -216,39 +417,246 @@
 .page-enter {
   animation: page-appear 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+/* Header. The outer box is a constant 72px band that lets clicks through;
+   the bar inside it carries the surface. On marketing pages the bar lifts
+   into a floating island once the page scrolls; on the home page it starts
+   fully transparent over the hero. */
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 72px;
+  pointer-events: none;
+}
+.header-bar {
+  position: relative;
+  height: 72px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-bottom-color: rgb(var(--border));
+  border-radius: 0;
+  background: rgb(var(--page) / 0.86);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  pointer-events: auto;
   transition:
-    box-shadow 300ms ease,
-    background-color 300ms ease;
+    height 600ms var(--ease-out-expo),
+    margin 600ms var(--ease-out-expo),
+    border-radius 600ms var(--ease-out-expo),
+    border-color 400ms ease,
+    background-color 400ms ease,
+    box-shadow 500ms ease;
 }
-.header-inner {
-  transition: height 300ms cubic-bezier(0.22, 1, 0.36, 1);
+.site-header[data-overlay] .header-bar {
+  border-color: transparent;
+  background-color: rgb(var(--page) / 0);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
-.header-scrolled {
+.site-header[data-variant="island"][data-scrolled] .header-bar {
+  height: 56px;
+  margin: 8px max(12px, calc((100% - 1120px) / 2)) 0;
+  border-color: rgb(var(--border));
+  border-radius: 16px;
+  background-color: rgb(var(--page) / 0.72);
+  box-shadow:
+    0 18px 40px -24px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+.site-header[data-variant="bar"][data-scrolled] .header-bar {
   box-shadow: 0 8px 24px -18px rgb(var(--foreground) / 0.25);
 }
-.header-scrolled .header-inner {
-  height: 64px;
+.header-inner {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  transition: padding 600ms var(--ease-out-expo);
 }
+@media (min-width: 1024px) {
+  .header-inner {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+  }
+}
+.site-header[data-variant="island"][data-scrolled] .header-inner {
+  padding-inline: 14px 10px;
+}
+.header-inner > * {
+  animation: header-in 900ms var(--ease-out-expo) both;
+}
+.header-inner > :nth-child(2) {
+  animation-delay: 70ms;
+}
+.header-inner > :last-child {
+  animation-delay: 140ms;
+}
+.header-icon {
+  position: relative;
+  height: 36px;
+  width: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: rgb(var(--secondary-ink));
+  transition:
+    color 200ms ease,
+    background-color 200ms ease,
+    transform 400ms var(--ease-spring);
+}
+.header-icon:hover {
+  background: rgb(var(--accent));
+  color: rgb(var(--foreground));
+}
+.header-icon:active {
+  transform: scale(0.92);
+}
+.header-icon .lucide-github {
+  transition: transform 500ms var(--ease-spring);
+}
+.header-icon:hover .lucide-github {
+  transform: rotate(-10deg) scale(1.08);
+}
+
+/* The mark is a prompt: the chevron leans forward and the cursor blinks. */
 .site-brand svg {
-  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 450ms var(--ease-spring);
 }
 .site-brand:hover svg {
-  transform: rotate(-7deg);
+  transform: rotate(-7deg) scale(1.04);
 }
+.logo-chevron {
+  transition: transform 450ms var(--ease-spring);
+}
+.site-brand:hover .logo-chevron {
+  transform: translateX(1.5px);
+}
+.site-brand:hover .logo-cursor {
+  animation: logo-cursor 900ms steps(1) infinite;
+}
+.logo-letter {
+  display: inline-block;
+}
+.site-brand:hover .logo-letter {
+  animation: letter-hop 520ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 35ms);
+}
+
+/* One highlight glides between navigation items. */
+.nav-pill {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 0;
+  width: var(--pill-w, 0px);
+  height: 36px;
+  margin-top: -18px;
+  border-radius: 9px;
+  background: rgb(var(--accent));
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.92;
+  translate: var(--pill-x, 0px) 0;
+  transition:
+    translate 480ms var(--ease-out-expo),
+    width 480ms var(--ease-out-expo),
+    scale 300ms var(--ease-out),
+    opacity 220ms ease;
+}
+.nav-pill[data-visible="true"] {
+  opacity: 1;
+  scale: 1;
+}
+.nav-pill[data-instant] {
+  transition:
+    scale 300ms var(--ease-out),
+    opacity 220ms ease;
+}
+/* The current section is marked with a small dot under its label. */
 .nav-link::after {
   content: "";
   position: absolute;
-  inset: auto 0 16px;
-  height: 1px;
+  left: 50%;
+  bottom: 1px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
   background: currentColor;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 250ms ease;
+  opacity: 0;
+  transform: scale(0);
+  transition:
+    opacity 200ms ease,
+    transform 400ms var(--ease-spring);
 }
-.nav-link:hover::after,
 .nav-link[aria-current="page"]::after {
-  transform: scaleX(1);
+  opacity: 1;
+  transform: none;
+}
+
+/* Two bars fold into a cross. */
+.burger-lines {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 12px;
+}
+.burger-lines span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1.5px;
+  border-radius: 2px;
+  background: currentColor;
+  transition:
+    top 260ms var(--ease-out),
+    transform 480ms var(--ease-spring),
+    width 300ms var(--ease-out);
+}
+.burger-lines span:first-child {
+  top: 2px;
+}
+.burger-lines span:last-child {
+  top: 8.5px;
+  width: 70%;
+}
+.burger[aria-expanded="true"] .burger-lines span {
+  top: 5.25px;
+  width: 100%;
+}
+.burger[aria-expanded="true"] .burger-lines span:first-child {
+  transform: rotate(45deg);
+}
+.burger[aria-expanded="true"] .burger-lines span:last-child {
+  transform: rotate(-45deg);
+}
+
+/* Theme icons turn through each other as the theme changes. */
+.theme-icon {
+  position: absolute;
+  transition:
+    transform 600ms var(--ease-spring),
+    opacity 300ms ease;
+}
+.theme-icon-sun,
+.dark .theme-icon-moon {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.4);
+}
+.dark .theme-icon-sun,
+.theme-icon-moon {
+  opacity: 1;
+  transform: none;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  z-index: 9999;
 }
 .scroll-progress {
   background: linear-gradient(
@@ -260,8 +668,55 @@
   pointer-events: none;
 }
 .mobile-menu {
-  animation: menu-appear 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  position: absolute;
+  inset: 100% 0 auto;
+  padding: 6px 12px 0;
+  pointer-events: auto;
+  /* Backwards only: a filled opacity keeps the menu on a compositing path
+     that lets the page behind it show through the card. */
+  animation: menu-appear 320ms var(--ease-out-expo) backwards;
   transform-origin: top;
+}
+.mobile-menu-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgb(var(--border));
+  border-radius: 18px;
+  padding: 10px 14px 12px;
+  background: rgb(var(--page) / 0.94);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow: 0 24px 60px -30px rgb(0 0 0 / 0.55);
+}
+.mobile-menu-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgb(var(--border));
+  padding: 15px 4px;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgb(var(--secondary-ink));
+  transition: color 200ms ease;
+}
+.mobile-menu-link[aria-current="page"],
+.mobile-menu-link:hover {
+  color: rgb(var(--foreground));
+}
+.mobile-menu-link svg {
+  color: rgb(var(--muted-ink));
+  transition: transform 400ms var(--ease-spring);
+}
+.mobile-menu-link:hover svg {
+  transform: translateX(3px);
+}
+.mobile-menu[data-closing] {
+  animation: menu-disappear 200ms ease both;
+}
+.mobile-menu-item {
+  animation: menu-item-in 520ms var(--ease-out-expo) both;
+  animation-delay: calc(var(--i, 0) * 45ms + 60ms);
 }
 
 /* The tunnel and its readable foreground follow the site's active theme. */
@@ -341,18 +796,49 @@
   -webkit-background-clip: text;
   color: transparent;
 }
+/* Character mode: each glyph surfaces from a blur, then a glint travels
+   along the accent line every few seconds. */
+.animated-chars {
+  display: inline-block;
+  white-space: nowrap;
+}
+.animated-char {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  animation: char-rise 1100ms var(--ease-out-expo) both;
+  animation-delay: var(--char-delay, 0ms);
+}
+.hero-title-accent .animated-char {
+  --char-color: rgb(var(--secondary-ink));
+  --char-color: color-mix(
+    in oklab,
+    rgb(var(--foreground)) calc(100% - var(--char) / var(--chars) * 70%),
+    rgb(var(--muted-ink))
+  );
+  color: var(--char-color);
+  animation:
+    char-rise 1100ms var(--ease-out-expo) both,
+    char-glint 7s var(--ease-in-out) infinite;
+  animation-delay:
+    var(--char-delay, 0ms),
+    calc(2400ms + var(--char) * 45ms);
+}
 .hero-enter {
-  animation: fade-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: hero-rise 1000ms var(--ease-out-expo) both;
   animation-delay: 60ms;
 }
-.hero-enter-actions {
-  animation-delay: 450ms;
-}
 .hero-enter-description {
-  animation-delay: 350ms;
+  animation-delay: 650ms;
+}
+.hero-enter-actions {
+  animation-delay: 800ms;
 }
 .hero-enter-note {
-  animation-delay: 550ms;
+  animation-delay: 950ms;
+}
+.hero-enter-note svg > * {
+  stroke-dasharray: 30;
+  animation: stroke-draw 700ms var(--ease-out) 1300ms both;
 }
 .platform-strip {
   background: rgb(var(--surface) / 0.65);
@@ -377,8 +863,14 @@
   opacity: 1;
   transform: translateY(0);
 }
-.reveal:focus-within {
+.reveal:focus-within,
+.reveal-in:hover {
   transition-delay: 0ms;
+}
+/* A stage stays put and lets its children choreograph the entrance. */
+.reveal-stage.reveal-pending {
+  opacity: 1;
+  transform: none;
 }
 .feature-card {
   position: relative;
@@ -403,24 +895,53 @@
   opacity: 0.25;
   transition: opacity 350ms ease;
 }
-.feature-card:hover,
 .feature-card:focus-within {
   border-color: rgb(var(--border-strong));
   transform: translateY(-5px);
   box-shadow: 0 20px 45px -30px rgb(var(--foreground) / 0.18);
 }
-.feature-card:hover::before,
 .feature-card:focus-within::before {
   opacity: 1;
 }
+@media (hover: hover) {
+  .feature-card:hover {
+    border-color: rgb(var(--border-strong));
+    transform: translateY(-5px);
+    box-shadow: 0 20px 45px -30px rgb(var(--foreground) / 0.18);
+  }
+  .feature-card:hover::before {
+    opacity: 1;
+  }
+}
 .feature-icon {
   transition:
-    transform 300ms ease,
-    border-color 300ms ease;
+    transform 500ms var(--ease-spring),
+    border-color 300ms ease,
+    background-color 300ms ease;
 }
-.feature-card:hover .feature-icon {
-  transform: rotate(-6deg);
-  border-color: rgb(var(--border-strong));
+.feature-icon svg > * {
+  stroke-dasharray: 100;
+}
+@media (hover: hover) {
+  .feature-card:hover .feature-icon {
+    transform: translateY(-2px) rotate(-6deg);
+    border-color: rgb(var(--border-strong));
+    background: rgb(var(--surface));
+  }
+  .feature-card:hover .feature-icon svg > * {
+    animation: stroke-redraw 1000ms var(--ease-in-out) both;
+  }
+}
+.feature-index {
+  transition:
+    color 300ms ease,
+    letter-spacing 500ms var(--ease-out);
+}
+@media (hover: hover) {
+  .feature-card:hover .feature-index {
+    color: rgb(var(--foreground));
+    letter-spacing: 0.2em;
+  }
 }
 .step-card {
   position: relative;
@@ -428,11 +949,15 @@
 .step-number {
   transition:
     background-color 250ms ease,
-    border-color 250ms ease;
+    border-color 250ms ease,
+    transform 500ms var(--ease-spring);
 }
-.step-card:hover .step-number {
-  background: rgb(var(--surface));
-  border-color: rgb(var(--foreground) / 0.35);
+@media (hover: hover) {
+  .step-card:hover .step-number {
+    background: rgb(var(--surface));
+    border-color: rgb(var(--foreground) / 0.35);
+    transform: translateY(-2px);
+  }
 }
 .free-plan-card {
   position: relative;
@@ -462,6 +987,9 @@
     rotateY(var(--ry, 0deg));
   transition: transform 180ms ease-out;
 }
+.tilt:not(:hover) {
+  transition: transform 700ms var(--ease-spring);
+}
 
 /* The terminal demonstrates a real command without suggesting a live session. */
 .tunnel-card {
@@ -489,13 +1017,20 @@
   background: rgb(var(--page));
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
   transform: translateX(calc(var(--protocol-index, 0) * 100%));
-  transition: transform 350ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 520ms var(--ease-spring);
+}
+.protocol-selector button {
+  transition:
+    color 200ms ease,
+    transform 300ms var(--ease-spring);
+}
+.protocol-selector button:active {
+  transform: scale(0.94);
 }
 .terminal-command {
   display: inline-block;
   vertical-align: middle;
   white-space: nowrap;
-  animation: terminal-type 950ms steps(18, end) both;
 }
 .terminal-caret {
   display: inline-block;
@@ -503,22 +1038,59 @@
   color: #a1a1aa;
   animation: caret-blink 1100ms steps(1) infinite;
 }
+.terminal-session[data-stage="typing"] .terminal-caret {
+  animation: none;
+  opacity: 0.9;
+}
+.terminal-session[data-stage="typing"] .terminal-row {
+  opacity: 0;
+  animation: none;
+}
 .terminal-row {
-  animation: fade-rise 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: 550ms;
+  animation: terminal-row-in 520ms var(--ease-out-expo) both;
+  animation-delay: 120ms;
 }
 .terminal-row:nth-child(2) {
-  animation-delay: 700ms;
+  animation-delay: 260ms;
 }
 .terminal-row:nth-child(3) {
-  animation-delay: 850ms;
+  animation-delay: 400ms;
+}
+.terminal-url {
+  position: relative;
+  overflow: hidden;
+}
+.terminal-url::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.1) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: url-sheen 1200ms var(--ease-out) 1100ms both;
+}
+.terminal-session[data-stage="typing"] .terminal-url::after {
+  animation: none;
 }
 .terminal-status-dot {
+  position: relative;
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: #e4e4e7;
   box-shadow: 0 0 0 3px rgb(255 255 255 / 0.07);
+}
+.terminal-status-dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  animation: status-ping 2.4s var(--ease-out) infinite;
 }
 .connection-track {
   position: absolute;
@@ -530,13 +1102,34 @@
 .connection-line {
   stroke: rgb(var(--border-strong));
   stroke-width: 1;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1400ms var(--ease-in-out) 300ms;
 }
+.reveal-pending .connection-line {
+  stroke-dashoffset: 100;
+}
+/* A request leaves the machine, a response comes back; each node lights up
+   as a packet arrives. Both loops share one 3.2s clock. */
 .connection-packet {
-  stroke: rgb(var(--foreground) / 0.55);
+  stroke: rgb(var(--foreground) / 0.75);
   stroke-width: 2;
   stroke-linecap: round;
-  stroke-dasharray: 4 96;
-  animation: connection-flow 3s linear infinite;
+  stroke-dasharray: 8 92;
+  animation: packet-out 3.2s linear infinite;
+}
+.connection-packet-back {
+  stroke: rgb(var(--foreground) / 0.45);
+  animation-name: packet-back;
+}
+.connection-node {
+  transition: transform 400ms var(--ease-spring);
+}
+.connection-node-remote {
+  animation: node-hit 3.2s linear infinite;
+}
+.connection-node-local {
+  animation: node-hit 3.2s linear -1.6s infinite;
 }
 .connection-node {
   position: relative;
@@ -560,9 +1153,10 @@
   content: "";
   position: absolute;
   inset: -5px;
-  border: 1px solid rgb(var(--foreground) / 0.14);
+  border: 1px solid rgb(var(--foreground) / 0.2);
   border-radius: 16px;
-  animation: connection-ring 3s ease-out infinite;
+  /* Pulses as each packet passes through the middle of the line. */
+  animation: connection-ring 1.6s ease-out 0.26s infinite;
 }
 .cta-panel {
   background: #141416;
@@ -590,6 +1184,256 @@
   inset: 24%;
 }
 
+@keyframes char-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em) scale(0.9);
+    filter: blur(12px);
+  }
+  55% {
+    filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+@keyframes char-rise-lite {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes char-glint {
+  0%,
+  7%,
+  100% {
+    color: var(--char-color);
+    text-shadow: 0 0 0 transparent;
+  }
+  3% {
+    color: rgb(var(--foreground));
+    text-shadow: 0 0 22px rgb(var(--foreground) / var(--glint-alpha));
+  }
+}
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+@keyframes header-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes stroke-draw {
+  from {
+    stroke-dashoffset: var(--stroke-length, 30);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes stroke-redraw {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  45% {
+    stroke-dashoffset: -100;
+  }
+  46% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes icon-through-x {
+  0% {
+    transform: none;
+    opacity: 1;
+  }
+  45% {
+    transform: translateX(85%);
+    opacity: 0;
+  }
+  46% {
+    transform: translateX(-85%);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes icon-through-diagonal {
+  0% {
+    transform: none;
+    opacity: 1;
+  }
+  45% {
+    transform: translate(80%, -80%);
+    opacity: 0;
+  }
+  46% {
+    transform: translate(-80%, 80%);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes icon-through-y {
+  0% {
+    transform: none;
+    opacity: 1;
+  }
+  45% {
+    transform: translateY(90%);
+    opacity: 0;
+  }
+  46% {
+    transform: translateY(-90%);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes logo-cursor {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes letter-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes menu-disappear {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes menu-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+@keyframes terminal-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+@keyframes url-sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes status-ping {
+  0% {
+    opacity: 0.8;
+    transform: scale(0.4);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+@keyframes packet-out {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+    animation-timing-function: var(--ease-in-out);
+  }
+  4%,
+  42% {
+    opacity: 1;
+  }
+  46% {
+    stroke-dashoffset: 8;
+    opacity: 0;
+  }
+  100% {
+    stroke-dashoffset: 8;
+    opacity: 0;
+  }
+}
+@keyframes packet-back {
+  0%,
+  50% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+    animation-timing-function: var(--ease-in-out);
+  }
+  54%,
+  92% {
+    opacity: 1;
+  }
+  96%,
+  100% {
+    stroke-dashoffset: 8;
+    opacity: 0;
+  }
+}
+@keyframes node-hit {
+  0%,
+  44%,
+  70%,
+  100% {
+    transform: none;
+    border-color: rgb(var(--border-strong));
+    color: rgb(var(--secondary-ink));
+  }
+  48% {
+    transform: scale(1.08);
+    border-color: rgb(var(--foreground));
+    color: rgb(var(--foreground));
+  }
+}
 @keyframes word-rise {
   from {
     opacity: 0;
@@ -683,17 +1527,6 @@
     width: calc(100% - 48px);
   }
 }
-@media (min-width: 1024px) {
-  .steps-grid::before {
-    content: "";
-    position: absolute;
-    top: 22px;
-    left: 22px;
-    width: calc(66.666% + 16px);
-    height: 1px;
-    background: rgb(var(--border-strong));
-  }
-}
 @media (max-width: 1023px) {
   .hero-tunnel-shade {
     background: linear-gradient(
@@ -707,11 +1540,32 @@
 }
 @media (max-width: 639px) {
   .hero-portal {
-    min-height: 310px;
+    min-height: 230px;
+  }
+  /* Two lines that never wrap: size the headline to the phone's width. */
+  .hero-headline {
+    font-size: clamp(2rem, 10.6vw, 2.75rem);
   }
   .feature-card {
-    min-height: 280px;
-    padding: 24px;
+    min-height: 0;
+    padding: 22px;
+  }
+  /* Phones get the same choreography without blur filters, which are the
+     expensive part on small GPUs. */
+  .animated-char {
+    animation-name: char-rise-lite;
+  }
+  .hero-title-accent .animated-char {
+    animation-name: char-rise-lite, char-glint;
+  }
+  .hero-enter {
+    animation-name: fade-rise;
+  }
+  /* Magnetic pull is pointer-only, so its capture margin is dropped and
+     wrapped buttons can span the full width. */
+  .magnetic {
+    margin: 0;
+    padding: 0;
   }
 }
 
@@ -1042,8 +1896,12 @@
     transition: none !important;
   }
   .reveal,
-  .tilt {
+  .tilt,
+  .mask-line-inner {
     opacity: 1 !important;
     transform: none !important;
+  }
+  .magnetic {
+    translate: none !important;
   }
 }

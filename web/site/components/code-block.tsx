@@ -8,11 +8,14 @@ export function CodeBlock({
   label,
   className,
   prompt = false,
+  wrap = false,
 }: {
   code: string;
   label?: string;
   className?: string;
   prompt?: boolean;
+  /** Let long commands wrap onto more lines instead of scrolling sideways. */
+  wrap?: boolean;
 }) {
   const lines = code.replace(/\n$/, "").split("\n");
   return (
@@ -29,7 +32,10 @@ export function CodeBlock({
         <CopyButton value={code} />
       </div>
       <pre
-        className="overflow-x-auto px-4 py-4 font-mono text-xs leading-7 sm:text-[0.8rem]"
+        className={cn(
+          "overflow-x-auto px-4 py-4 font-mono text-xs leading-7 sm:text-[0.8rem]",
+          wrap && "whitespace-pre-wrap [overflow-wrap:anywhere]",
+        )}
         tabIndex={0}
         aria-label={label ?? "Terminal command"}
       >

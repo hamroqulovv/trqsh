@@ -16,14 +16,24 @@ export function CopyButton({
   const [status, setStatus] = React.useState<"idle" | "copied" | "error">(
     "idle",
   );
+  // The label only rolls in after the first change, not on page load.
+  const [changed, setChanged] = React.useState(false);
   const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
   React.useEffect(() => () => clearTimeout(timer.current), []);
 
+  const text =
+    status === "copied"
+      ? "Copied"
+      : status === "error"
+        ? "Copy failed"
+        : (label ?? "Copy");
+
   return (
     <button
       type="button"
+      data-status={status}
       aria-label={
         status === "copied"
           ? "Copied to clipboard"
@@ -33,6 +43,7 @@ export function CopyButton({
       }
       onClick={async () => {
         clearTimeout(timer.current);
+        setChanged(true);
         try {
           await navigator.clipboard.writeText(value);
           setStatus("copied");
@@ -42,21 +53,21 @@ export function CopyButton({
         timer.current = setTimeout(() => setStatus("idle"), 2500);
       }}
       className={cn(
-        "inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-2.5 text-xs text-secondary transition-colors hover:bg-accent hover:text-foreground",
+        "copy-button inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-md border border-border-strong bg-surface px-2.5 text-xs text-secondary hover:bg-accent hover:text-foreground",
         className,
       )}
     >
-      {status === "copied" ? (
-        <Check className="h-3.5 w-3.5" aria-hidden="true" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-      )}
-      <span aria-live="polite">
-        {status === "copied"
-          ? "Copied"
-          : status === "error"
-            ? "Copy failed"
-            : (label ?? "Copy")}
+      <span className="copy-icon" aria-hidden="true">
+        <Copy className="copy-icon-idle h-3.5 w-3.5" />
+        <Check className="copy-icon-done h-3.5 w-3.5" />
+      </span>
+      <span
+        key={text}
+        className="copy-label"
+        data-initial={changed ? undefined : ""}
+        aria-live="polite"
+      >
+        {text}
       </span>
     </button>
   );

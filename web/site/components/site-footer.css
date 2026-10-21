@@ -1,0 +1,271 @@
+/* Site footer: brand and link columns, a quiet bottom line, and a large
+   wordmark that closes the page. No rules or boxes; spacing does the work. */
+
+.site-footer {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--page));
+}
+
+.footer-main {
+  display: grid;
+  gap: 48px;
+  padding-top: 72px;
+}
+.footer-item {
+  transition:
+    opacity 700ms var(--ease-out),
+    transform 900ms var(--ease-out-expo);
+  transition-delay: calc(var(--i, 0) * 90ms + 60ms);
+}
+.reveal-pending .footer-item {
+  opacity: 0;
+  transform: translateY(14px);
+}
+.footer-tagline {
+  margin-top: 18px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgb(var(--secondary-ink));
+}
+
+.footer-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px 24px;
+}
+.footer-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--foreground));
+}
+.footer-links {
+  display: grid;
+  margin-top: 12px;
+}
+.footer-link {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  color: rgb(var(--secondary-ink));
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 7px;
+  transition:
+    color 200ms ease,
+    text-decoration-color 300ms ease,
+    text-underline-offset 400ms var(--ease-out);
+}
+.footer-link svg {
+  color: rgb(var(--muted-ink));
+  transition: transform 450ms var(--ease-spring);
+}
+.footer-link:hover {
+  color: rgb(var(--foreground));
+  text-decoration-color: rgb(var(--foreground) / 0.35);
+  text-underline-offset: 4px;
+}
+.footer-link:hover svg {
+  transform: translate(2px, -2px);
+}
+
+.footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 28px;
+  margin-top: 56px;
+  font-size: 13px;
+  color: rgb(var(--muted-ink));
+}
+.footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+.footer-link-quiet {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  transition: color 200ms ease;
+}
+.footer-bottom p .footer-link-quiet {
+  display: inline;
+}
+.footer-link-quiet:hover {
+  color: rgb(var(--foreground));
+}
+
+.back-to-top {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  color: rgb(var(--secondary-ink));
+  transition: color 200ms ease;
+}
+.back-to-top:hover {
+  color: rgb(var(--foreground));
+}
+.back-to-top-icon {
+  display: inline-flex;
+  height: 28px;
+  width: 28px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgb(var(--accent));
+  transition: background-color 200ms ease;
+}
+.back-to-top:hover .back-to-top-icon {
+  background: rgb(var(--foreground) / 0.14);
+}
+.back-to-top:hover .back-to-top-icon svg {
+  animation: icon-through-up 560ms var(--ease-out) both;
+}
+
+/* ── Wordmark ─────────────────────────────────────────────────────────── */
+
+.footer-wordmark-wrap {
+  margin-top: 24px;
+  padding-bottom: clamp(12px, 3vw, 36px);
+}
+.footer-wordmark {
+  position: relative;
+  margin: 0;
+  /* Room below the baseline so the tail of the "q" is never cut. */
+  padding: 0 0 0.08em;
+  font-size: clamp(5rem, 33vw, 23rem);
+  font-weight: 700;
+  font-kerning: none;
+  letter-spacing: -0.06em;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  user-select: none;
+}
+/* Each glyph carries the same vertical gradient, so the word reads as one
+   surface while every letter can move on its own. */
+.footer-wordmark-letters span {
+  display: inline-block;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--foreground) / 0.92) 10%,
+    rgb(var(--foreground) / 0.38) 95%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  transition:
+    transform 1400ms var(--ease-out-expo),
+    opacity 900ms var(--ease-out),
+    filter 1000ms var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 90ms + 120ms);
+}
+.reveal-pending .footer-wordmark-letters span {
+  opacity: 0;
+  transform: translateY(32%) scale(0.96);
+  filter: blur(10px);
+}
+/* An unsplit copy on top carries the shine and the pointer light. */
+.footer-wordmark-shine {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  color: transparent;
+  background-image:
+    radial-gradient(
+      320px circle at var(--mx, -999px) var(--my, -999px),
+      rgb(var(--foreground) / 0.55),
+      transparent 70%
+    ),
+    linear-gradient(
+      100deg,
+      transparent 42%,
+      rgb(var(--foreground) / 0.45) 50%,
+      transparent 58%
+    );
+  background-repeat: no-repeat;
+  background-size:
+    100% 100%,
+    250% 100%;
+  background-position:
+    0 0,
+    150% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  pointer-events: none;
+  transition: opacity 600ms ease 1200ms;
+  animation: wordmark-shine 8s var(--ease-in-out) 3s infinite;
+}
+.reveal-pending .footer-wordmark-shine {
+  opacity: 0;
+  transition-delay: 0ms;
+}
+
+@media (min-width: 640px) {
+  .footer-columns {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .footer-link {
+    min-height: 32px;
+  }
+}
+@media (min-width: 1024px) {
+  .footer-main {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 64px;
+    padding-top: 80px;
+  }
+}
+@media (max-width: 639px) {
+  /* Same rise on phones, without the blur filter. */
+  .reveal-pending .footer-wordmark-letters span {
+    filter: none;
+  }
+}
+@media (max-width: 767px) {
+  /* Phones: copyright, then legal links, then back to top, all left-aligned. */
+  .footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+@keyframes wordmark-shine {
+  0% {
+    background-position:
+      0 0,
+      150% 0;
+  }
+  30%,
+  100% {
+    background-position:
+      0 0,
+      -50% 0;
+  }
+}
+@keyframes icon-through-up {
+  0% {
+    transform: none;
+    opacity: 1;
+  }
+  45% {
+    transform: translateY(-110%);
+    opacity: 0;
+  }
+  46% {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
