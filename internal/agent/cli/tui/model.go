@@ -624,7 +624,7 @@ func (m model) submit() (tea.Model, tea.Cmd) {
 		// A typed free-form value (a port) wins over a suggestion the user
 		// didn't pick: "/http 80" must not start 8080 just because it's listed.
 		_, typed := parseLine(m.input.Value())
-		if !(m.menuFreeform && !m.menuMoved && len(typed) > 0) {
+		if !m.menuFreeform || m.menuMoved || len(typed) == 0 {
 			m.input.SetValue(sel.insert)
 			m.input.CursorEnd()
 			if !sel.run { // a command that still needs arguments: complete, keep editing
@@ -731,7 +731,7 @@ func (m *model) refreshMenu() {
 			m.menuItems = m.portMenu(port)
 			return
 		}
-		if c := v[0]; !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+		if c := v[0]; (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
 			return
 		}
 		v = "/" + v
