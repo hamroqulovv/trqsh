@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/brand/trqsh-logo-rounded.svg" width="160" height="160" alt="trqsh logo" />
+<img src="assets/brand/trqsh-logo-rounded.svg?v=41c1715b161a" width="160" height="160" alt="trqsh logo" />
 
 # trqsh
 
