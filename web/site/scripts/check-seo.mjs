@@ -85,14 +85,50 @@ function attributes(tag) {
   return out;
 }
 
+/**
+ * Text of an HTML fragment: everything outside "<" ... ">". It scans instead of
+ * replacing tag patterns, so split or nested tags such as "<scr<b>ipt>" cannot
+ * reform into markup.
+ */
+function textOf(fragment) {
+  let text = "";
+  let inTag = false;
+  for (const char of fragment) {
+    if (char === "<") inTag = true;
+    else if (char === ">" && inTag) inTag = false;
+    else if (!inTag) text += char;
+  }
+  return decode(text).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The HTML without its <script> and <style> elements, found by scanning for an
+ * opening tag and then the next end tag. End tags may carry whitespace or
+ * attributes ("</script >"), so they are matched up to the closing ">".
+ */
+function withoutCode(html) {
+  const opening = /<(script|style)(?=[\s/>])/gi;
+  const closing = { script: /<\/script\b[^>]*>/gi, style: /<\/style\b[^>]*>/gi };
+  let out = "";
+  let position = 0;
+  for (let open = opening.exec(html); open; open = opening.exec(html)) {
+    out += html.slice(position, open.index);
+    const end = closing[open[1].toLowerCase()];
+    end.lastIndex = open.index;
+    const close = end.exec(html);
+    position = close ? close.index + close[0].length : html.length;
+    opening.lastIndex = position;
+  }
+  return out + html.slice(position);
+}
+
 function parsePage(html) {
   const head = html.match(/<head[\s\S]*?<\/head>/i)?.[0] ?? "";
   const metas = [...head.matchAll(/<meta\b[^>]*>/gi)].map((match) => attributes(match[0]));
   const links = [...head.matchAll(/<link\b[^>]*>/gi)].map((match) => attributes(match[0]));
   const content = (key) =>
     metas.filter((meta) => meta.name === key || meta.property === key).map((meta) => meta.content ?? "");
-  const text = (fragment) => decode(fragment.replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
-  const withoutCode = html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
+  const markup = withoutCode(html);
   return {
     lang: html.match(/<html[^>]*\blang="([^"]*)"/i)?.[1],
     title: decode(head.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ""),
@@ -100,14 +136,14 @@ function parsePage(html) {
     canonicals: links.filter((link) => link.rel === "canonical").map((link) => link.href),
     headings: [...html.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi)].map((match) => ({
       level: Number(match[1]),
-      text: text(match[2]),
+      text: textOf(match[2]),
     })),
     jsonLd: [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)].map(
       (match) => match[1],
     ),
-    anchors: [...withoutCode.matchAll(/<a\b[^>]*\bhref="([^"]*)"/gi)].map((match) => decode(match[1])),
+    anchors: [...markup.matchAll(/<a\b[^>]*\bhref="([^"]*)"/gi)].map((match) => decode(match[1])),
     ids: new Set([...html.matchAll(/\b(?:id|name)="([^"]+)"/g)].map((match) => match[1])),
-    visibleText: text(withoutCode.replace(/<head[\s\S]*?<\/head>/i, "")).length,
+    visibleText: textOf(markup.slice(Math.max(0, markup.search(/<body\b/i)))).length,
     attributeUrls: [...html.matchAll(/\b(?:href|src|content)="(https?:\/\/[^"]+)"/g)].map((match) => match[1]),
   };
 }
