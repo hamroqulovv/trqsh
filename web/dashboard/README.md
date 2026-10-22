@@ -60,7 +60,12 @@ changing development environment values; rebuild after build-time changes.
 - **Auth** — the JWT session lives in **httpOnly cookies** set by a Server Action on login;
   `middleware.ts` guards protected routes. Browser JavaScript cannot read the session cookies: reads happen in
   Server Components via `lib/api.ts`, writes go through Server Actions, and a 401
-  transparently refreshes and retries.
+  transparently refreshes and retries. A session the API rejects (401) is sent through
+  `/session/expired`, which clears the cookies before showing the sign-in page, so a stale
+  refresh token can never bounce between `/login` and the app. An unreachable or slow API
+  (requests time out after 15 s) shows a retry page and keeps the session. Logging out also
+  revokes the refresh token on the API. Pages tell a failed request apart from an empty
+  account (`components/load-error.tsx`) rather than showing zeros.
 - **Data** — `lib/api.ts` is a typed client for the control API (see
   [`docs/openapi.yaml`](../../docs/openapi.yaml)). No direct Postgres/Redis access.
 - **Billing** — the billing screen embeds Stripe: plan cards open **Checkout** and
@@ -71,6 +76,18 @@ changing development environment values; rebuild after build-time changes.
   `localStorage.theme` preference on the same origin, synchronize across tabs, and
   follow the system setting until a preference is saved. A head script applies the
   palette before the first paint, including when application JavaScript is delayed.
+- **Workspace UI** — the signed-in shell reuses the site's motion vocabulary (the
+  `--ease-*` tokens, spring and expo curves, spotlight borders, the drawn-check copy button,
+  the circular theme reveal). Navigation is a sidebar (a drawer below `lg`) with a gliding hover
+  highlight and a sliding active bar. `⌘/Ctrl K` or `/` opens a command palette; `g` then a
+  letter jumps to a page (the letters are in `components/nav-config.ts` and listed under
+  Settings). Mutations report through toasts (`components/toast.tsx`) and destructive ones ask
+  first through `useConfirm()` (`components/confirm.tsx`); both, and the palette, are mounted
+  once in `components/providers.tsx`. Dialogs and drawers are native `<dialog>` elements, so
+  focus trapping and Escape come from the browser. The tunnels page re-fetches every 10 s while
+  the tab is visible (`components/live-refresh.tsx`). Status is never colour alone: the palette
+  is monochrome, so states use shape (dashed, hollow, hatched). `prefers-reduced-motion` turns
+  every animation and transition off, and figures render as plain text.
 - **Login** — an animated ASCII horizon adapts the supplied GradientASCII shader
   to the shared neutral palette. It covers the complete viewport behind the
   header, content, and footer. Hovering adds a local glow and decodes nearby
@@ -99,7 +116,8 @@ Run from `web/dashboard/`:
 app/(dashboard)/   protected app: overview, tunnels, domains, keys, usage,
                    inspect, billing, team, settings (each page + its actions)
 app/login/         public login (email dev flow + OAuth links)
-components/         nav, topbar, tiles, charts, ui/ primitives (shadcn-style)
+components/         shell (sidebar, topbar, palette), tiles, charts, toasts/confirm,
+                   ui/ primitives (shadcn-style)
 lib/               api client, session cookies, error mapping, formatting
 middleware.ts      route protection
 ```

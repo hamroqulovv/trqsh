@@ -1,47 +1,46 @@
-import { LogOut } from "lucide-react";
-import { PlanBadge } from "@/components/plan-badge";
+import { SearchButton } from "@/components/command-palette";
 import { MobileNav } from "@/components/mobile-nav";
+import { PageTitle } from "@/components/page-title";
+import { ScrollProgress } from "@/components/scroll-progress";
+import { OrgChip, SidebarFooter, type SidebarUsage } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { logout } from "@/app/actions";
+import { UserMenu } from "@/components/user-menu";
 import type { Org, User } from "@/lib/api";
 
-export function Topbar({ org, user }: { org: Org; user: User }) {
+const PLAN_LABELS: Record<string, string> = {
+  free: "Free",
+  pro: "Pro",
+  team: "Team",
+  payg: "Pay-as-you-go",
+};
+
+export function Topbar({
+  org,
+  user,
+  usage,
+}: {
+  org: Org;
+  user: User;
+  usage: SidebarUsage | null;
+}) {
   return (
-    <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-2 border-b border-border bg-page/80 px-4 backdrop-blur sm:px-6">
-      <div className="flex min-w-0 items-center gap-2">
-        <MobileNav />
-        <span className="truncate text-sm font-medium">{org.name}</span>
-        <PlanBadge plan={org.plan} />
-      </div>
-      <div className="flex shrink-0 items-center gap-2.5">
-        <ThemeToggle />
-        <span className="hidden max-w-[32vw] truncate text-sm text-secondary md:block">
-          {user.email}
-        </span>
-        {user.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={user.avatar_url}
-            alt={user.name || user.email}
-            referrerPolicy="no-referrer"
-            className="h-8 w-8 rounded-full border border-border-strong object-cover"
+    <header className="sticky top-0 z-30 border-b border-border bg-page/80 backdrop-blur-xl">
+      <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <MobileNav header={<OrgChip org={org} />} footer={<SidebarFooter org={org} usage={usage} />} />
+        <PageTitle orgName={org.name} />
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <SearchButton />
+          <ThemeToggle />
+          <UserMenu
+            name={user.name}
+            email={user.email}
+            avatarUrl={user.avatar_url}
+            orgName={org.name}
+            planLabel={PLAN_LABELS[org.plan] ?? org.plan}
           />
-        ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-semibold text-primary">
-            {(user.name || user.email).charAt(0).toUpperCase()}
-          </div>
-        )}
-        <form action={logout}>
-          <button
-            type="submit"
-            title="Log out"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-sm text-secondary transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Log out</span>
-          </button>
-        </form>
+        </div>
       </div>
+      <ScrollProgress />
     </header>
   );
 }
