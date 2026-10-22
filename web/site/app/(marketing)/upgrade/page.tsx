@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   title: "Upgrade",
   description:
     "Upgrade your trqsh plan — message us on Telegram and we'll activate it.",
+  // A step in a flow, not a destination: keep it out of search results.
+  robots: { index: false, follow: true },
 };
 
 export default async function UpgradePage({
@@ -35,6 +37,8 @@ export default async function UpgradePage({
       Message us on Telegram at{" "}
       <a
         href={site.telegramUrl}
+        target="_blank"
+        rel="noopener noreferrer"
         className="font-medium text-primary hover:underline"
       >
         @{site.telegram}
@@ -58,7 +62,7 @@ export default async function UpgradePage({
           href="/pricing"
           className="mb-8 inline-flex items-center gap-1.5 text-sm text-secondary transition-colors hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to pricing
         </Link>
 
@@ -97,8 +101,9 @@ export default async function UpgradePage({
           rel="noopener noreferrer"
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
-          <Send className="h-4 w-4" />
+          <Send className="h-4 w-4" aria-hidden="true" />
           Continue on Telegram
+          <span className="sr-only"> (opens in a new tab)</span>
         </a>
 
         <ol className="mt-8 flex flex-col gap-4">
@@ -113,7 +118,7 @@ export default async function UpgradePage({
         </ol>
 
         <div className="mt-8 flex items-start gap-2 border-t border-border pt-5 text-sm text-secondary">
-          <Check className="mt-0.5 h-4 w-4 shrink-0 text-good" />
+          <Check className="mt-0.5 h-4 w-4 shrink-0 text-good" aria-hidden="true" />
           <span>
             Include the{" "}
             <span className="font-medium text-foreground">

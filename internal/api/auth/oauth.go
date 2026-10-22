@@ -23,6 +23,9 @@ type OAuthUser struct {
 	Name      string
 	AvatarURL string
 	Provider  string
+	// AlternateEmails are the account's other verified addresses (GitHub only).
+	// They can match an existing TRQSH account but never create one.
+	AlternateEmails []string
 }
 
 var ErrUnverifiedEmail = errors.New("oauth: sign-in requires a verified email address")
@@ -176,6 +179,7 @@ func (p OAuthProvider) fetchUser(ctx context.Context, accessToken string) (OAuth
 		avatar = raw.Picture
 	}
 	subject := raw.Subject
+	var alternates []string
 	switch p.Name {
 	case "github":
 		subject = raw.ID.String()
@@ -184,7 +188,7 @@ func (p OAuthProvider) fetchUser(ctx context.Context, accessToken string) (OAuth
 		}
 		// Public-profile emails carry no verification flag. Always ask GitHub
 		// for its verified primary email; never trust the profile address alone.
-		raw.Email, err = p.fetchGitHubEmail(ctx, accessToken)
+		raw.Email, alternates, err = p.fetchGitHubEmails(ctx, accessToken)
 		if err != nil {
 			return OAuthUser{}, err
 		}
@@ -203,26 +207,30 @@ func (p OAuthProvider) fetchUser(ctx context.Context, accessToken string) (OAuth
 	if err != nil || address.Address != raw.Email || !strings.Contains(raw.Email, "@") {
 		return OAuthUser{}, ErrUnverifiedEmail
 	}
-	return OAuthUser{Subject: subject, Email: raw.Email, Name: name, AvatarURL: avatar, Provider: p.Name}, nil
+	return OAuthUser{Subject: subject, Email: raw.Email, Name: name, AvatarURL: avatar, Provider: p.Name, AlternateEmails: alternates}, nil
 }
 
-// fetchGitHubEmail returns the account's primary verified email via the
-// user:email scope. A public profile address alone never proves verification.
-func (p OAuthProvider) fetchGitHubEmail(ctx context.Context, accessToken string) (string, error) {
+// maxAlternateEmails bounds how many secondary addresses are used for account lookup.
+const maxAlternateEmails = 10
+
+// fetchGitHubEmails returns the account's primary verified email, plus its other
+// verified addresses, via the user:email scope. A public profile address alone
+// never proves verification, and unverified addresses are never returned.
+func (p OAuthProvider) fetchGitHubEmails(ctx context.Context, accessToken string) (string, []string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.EmailsURL, nil)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := httpClient().Do(req)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("oauth userinfo: emails status %d", resp.StatusCode)
+		return "", nil, fmt.Errorf("oauth userinfo: emails status %d", resp.StatusCode)
 	}
 	var emails []struct {
 		Email    string `json:"email"`
@@ -230,14 +238,29 @@ func (p OAuthProvider) fetchGitHubEmail(ctx context.Context, accessToken string)
 		Verified bool   `json:"verified"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&emails); err != nil {
-		return "", err
+		return "", nil, err
 	}
+	primary := ""
 	for _, e := range emails {
 		if e.Verified && e.Primary {
-			return e.Email, nil
+			primary = strings.ToLower(strings.TrimSpace(e.Email))
+			break
 		}
 	}
-	return "", ErrUnverifiedEmail
+	if primary == "" {
+		return "", nil, ErrUnverifiedEmail
+	}
+	var others []string
+	for _, e := range emails {
+		addr := strings.ToLower(strings.TrimSpace(e.Email))
+		if !e.Verified || e.Primary || addr == primary || len(others) == maxAlternateEmails {
+			continue
+		}
+		if parsed, err := mail.ParseAddress(addr); err == nil && parsed.Address == addr {
+			others = append(others, addr)
+		}
+	}
+	return primary, others, nil
 }
 
 // NewPKCEVerifier returns an independent, cryptographically random RFC 7636

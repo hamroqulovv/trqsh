@@ -19,6 +19,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        <noscript>
+          <style>{".count-pending{opacity:1!important}"}</style>
+        </noscript>
       </head>
       <body className="min-h-screen">{children}</body>
     </html>

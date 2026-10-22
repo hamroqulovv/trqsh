@@ -114,6 +114,7 @@ paths:
         content: { application/json: { schema: { type: object, properties: { user_code: { type: string } } } } }
       responses:
         "200": { description: Approved }
+        "400": { description: "invalid_device_code (never issued, or already approved) | expired_token. No API key is created." }
   /auth/device/token:
     post:
       summary: Poll for the device API key
@@ -248,6 +249,7 @@ paths:
         "201":
           description: Pairing code + viewer URL
           content: { application/json: { schema: { $ref: '#/components/schemas/RemoteSession' } } }
+        "429": { description: The org already has the maximum number of live pairing sessions }
   /remote/sessions/{code}/agent:
     get:
       summary: Console (agent) side event stream — inbound commands/presence/ended (SSE)
@@ -280,13 +282,15 @@ paths:
       summary: Phone/browser side event stream — transcript/state/presence/ended (SSE, public)
       description: >
         No login: the code itself, embedded in the QR/link the console shows, is the
-        capability. Replays recent transcript + the last known state on connect.
+        capability (matched case-insensitively, dashes optional). Replays recent
+        transcript + the last known state on connect.
       security: []
       parameters:
         - { name: code, in: path, required: true, schema: { type: string } }
       responses:
         "200": { description: "text/event-stream of RemoteEvent frames" }
         "404": { description: No such session, or it has expired/ended }
+        "429": { description: The session already has the maximum number of viewers, or has just ended }
   /remote/sessions/{code}/command:
     post:
       summary: Phone/browser side — send a command to the paired console (public)
@@ -298,6 +302,7 @@ paths:
         content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 240 } } } } }
       responses:
         "204": { description: Delivered to the attached console }
+        "400": { description: Text is empty, over 240 bytes, or contains control characters }
         "404": { description: No such session, or it has expired/ended }
         "409": { description: No console is currently attached to this session }
   /billing/checkout:

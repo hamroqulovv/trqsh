@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import { CheckCircle2, MonitorSmartphone } from "lucide-react";
+import { ArrowRight, CheckCircle2, MonitorSmartphone } from "lucide-react";
 import { approveDeviceAction, type ApproveState } from "./actions";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { dashboardPath } from "@/lib/paths";
 
 /** The approve step for a signed-in user: confirm the code shown in the desktop
  *  app, which links the polling device to this account. */
@@ -13,22 +14,27 @@ export function DeviceApprove({ code }: { code: string }) {
 
   if (state.ok) {
     return (
-      <div className="flex flex-col items-center gap-3 text-center">
-        <CheckCircle2 className="h-10 w-10 text-good" />
+      <div role="status" className="rise-sm flex flex-col items-center gap-4 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground text-page">
+          <CheckCircle2 className="draw-icon h-6 w-6" aria-hidden="true" />
+        </span>
         <div>
-          <p className="font-medium text-foreground">Device connected</p>
+          <p className="font-medium">Device connected</p>
           <p className="mt-1 text-sm text-secondary">
-            You can return to the trqsh app — it&apos;s signing you in now.
+            You can close this tab and return to the trqsh app. It&apos;s signing you in now.
           </p>
         </div>
+        <a href={dashboardPath("/")} className={buttonVariants({ variant: "outline", size: "sm" })}>
+          Open the dashboard <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
       </div>
     );
   }
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <div className="flex items-center gap-3 rounded-md border border-border bg-accent/40 p-3 text-sm text-secondary">
-        <MonitorSmartphone className="h-5 w-5 shrink-0 text-primary" />
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-accent/50 p-3 text-sm text-secondary">
+        <MonitorSmartphone className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
         A device is asking to sign in to your trqsh account. Confirm the code it&apos;s showing.
       </div>
       <div className="flex flex-col gap-1.5">
@@ -42,12 +48,19 @@ export function DeviceApprove({ code }: { code: string }) {
           placeholder="WDJB-MJHT"
           autoComplete="off"
           autoCapitalize="characters"
-          className="text-center font-mono text-lg tracking-widest"
+          spellCheck={false}
+          aria-invalid={!!state.error}
+          aria-describedby={state.error ? "user_code_error" : undefined}
+          className="h-11 text-center font-mono text-lg uppercase tracking-widest sm:h-11"
           required
         />
       </div>
-      {state.error && <p className="text-sm text-critical">{state.error}</p>}
-      <Button type="submit" disabled={pending}>
+      {state.error && (
+        <p id="user_code_error" role="alert" className="text-sm font-medium">
+          {state.error}
+        </p>
+      )}
+      <Button type="submit" loading={pending}>
         {pending ? "Approving…" : "Approve device"}
       </Button>
     </form>

@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // remotePairing tracks the daemon's one active /qr session.
@@ -39,6 +40,57 @@ type remoteWireEvent struct {
 }
 
 var errRemoteEnded = errors.New("remote session ended")
+
+// maxRemoteCommandBytes mirrors the relay's cap on one viewer command.
+const maxRemoteCommandBytes = 240
+
+// validRemoteCode reports whether code is shaped like a relay pairing code.
+// The code is spliced into request paths, so anything outside the code
+// alphabet (slashes, dots, query characters) from a misbehaving relay is
+// rejected before it can steer a request somewhere else.
+func validRemoteCode(code string) bool {
+	if code == "" || len(code) > 32 {
+		return false
+	}
+	for _, c := range code {
+		if (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+// SafeRemoteCommand reports whether a command relayed from a paired viewer is
+// plain printable text. The console echoes it into the user's terminal, so
+// control characters (ESC/OSC sequences, newlines), invisible format
+// characters (bidi overrides, line separators) and invalid UTF-8 are refused
+// here even though the relay already refuses them: the daemon and console
+// don't rely on the network side for terminal safety.
+func SafeRemoteCommand(cmd string) bool {
+	if strings.TrimSpace(cmd) == "" || len(cmd) > maxRemoteCommandBytes {
+		return false
+	}
+	for _, r := range cmd {
+		if unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) || r == unicode.ReplacementChar {
+			return false
+		}
+	}
+	return true
+}
+
+// endRemote tears down the active pairing (relay session, local pump) and
+// tells the console it ended. key is the credential the pairing was opened
+// with, so callers that are about to clear the credential (logout) can end
+// the session first. Reports whether a pairing was active.
+func (l *LocalAPI) endRemote(key string) bool {
+	old := l.swapRemote(nil)
+	if old == nil {
+		return false
+	}
+	endRemoteSession(key, old.code)
+	old.cancel()
+	return true
+}
 
 // swapRemote atomically replaces the active pairing (nil to clear) and
 // returns whatever was previously active, if anything.
@@ -87,7 +139,7 @@ func (l *LocalAPI) remoteStart(w http.ResponseWriter, r *http.Request) {
 		URL       string `json:"url"`
 		ExpiresAt string `json:"expires_at"`
 	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<16)).Decode(&out); err != nil || out.Code == "" {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<16)).Decode(&out); err != nil || !validRemoteCode(out.Code) {
 		apiWriteJSON(w, http.StatusBadGateway, map[string]string{"error": "bad response from cloud"})
 		return
 	}
@@ -129,11 +181,7 @@ func (l *LocalAPI) remoteStart(w http.ResponseWriter, r *http.Request) {
 // rather than a stray "disconnected" presence from the pump dropping out
 // from under them a moment earlier.
 func (l *LocalAPI) remoteStop(w http.ResponseWriter, r *http.Request) {
-	old := l.swapRemote(nil)
-	if old != nil {
-		endRemoteSession(storedAPIKey(), old.code)
-		old.cancel()
-	}
+	l.endRemote(storedAPIKey())
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -175,11 +223,18 @@ func (l *LocalAPI) remotePublish(w http.ResponseWriter, r *http.Request) {
 // itself ends. attached is signaled (once, non-blocking) the first time the
 // stream actually connects, so remoteStart can wait for it.
 func (l *LocalAPI) pumpRemote(ctx context.Context, key, code string, attached chan<- struct{}) {
-	backoff := time.Second
+	const minBackoff, maxBackoff = time.Second, 30 * time.Second
+	backoff := minBackoff
 	for ctx.Err() == nil {
+		started := time.Now()
 		err := l.pumpRemoteOnce(ctx, key, code, attached)
 		if ctx.Err() != nil {
 			return
+		}
+		// A stream that held for a while was healthy: restart the backoff.
+		// Quick failures back off exponentially instead of hammering the relay.
+		if time.Since(started) > 10*time.Second {
+			backoff = minBackoff
 		}
 		if errors.Is(err, errRemoteEnded) {
 			if old := l.swapRemote(nil); old != nil && old.code != code {
@@ -196,6 +251,7 @@ func (l *LocalAPI) pumpRemote(ctx context.Context, key, code string, attached ch
 			return
 		case <-time.After(backoff):
 		}
+		backoff = min(backoff*2, maxBackoff)
 	}
 }
 
@@ -213,8 +269,11 @@ func (l *LocalAPI) pumpRemoteOnce(ctx context.Context, key, code string, attache
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusNotFound {
-		return errRemoteEnded // the session expired or was ended from elsewhere
+	switch resp.StatusCode {
+	case http.StatusNotFound, http.StatusUnauthorized, http.StatusForbidden:
+		// The session expired or was ended from elsewhere, or the key behind it
+		// was revoked: retrying can never succeed, so the pairing is over.
+		return errRemoteEnded
 	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("remote agent stream: status %d", resp.StatusCode)
@@ -237,6 +296,9 @@ func (l *LocalAPI) pumpRemoteOnce(ctx context.Context, key, code string, attache
 		}
 		switch ev.Type {
 		case "command":
+			if !SafeRemoteCommand(ev.Command) {
+				continue
+			}
 			l.broadcast(Event{Type: "remote", Remote: &RemoteEvent{Kind: "command", Command: ev.Command}})
 		case "presence":
 			l.broadcast(Event{Type: "remote", Remote: &RemoteEvent{Kind: "presence", Connected: ev.Connected}})

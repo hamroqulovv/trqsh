@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { normalizePairingCode } from "@/lib/remote";
 
 // qr.<base>'s bare landing page: reached when a phone can't scan the QR and
 // the code was typed in by hand instead of arriving already in the URL
@@ -12,11 +13,18 @@ import { Input } from "@/components/ui/input";
 export default function RemoteLandingPage() {
   const router = useRouter();
   const [code, setCode] = useState("");
+  const [invalid, setInvalid] = useState(false);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const trimmed = code.trim();
-    if (trimmed) router.push(`/remote/${encodeURIComponent(trimmed)}`);
+    // Accept any case and with or without dashes; reject what cannot be a code
+    // here instead of sending the person to a viewer that can only fail.
+    const normalized = normalizePairingCode(code);
+    if (!normalized) {
+      setInvalid(true);
+      return;
+    }
+    router.push(`/remote/${normalized}`);
   }
 
   return (
@@ -38,7 +46,12 @@ export default function RemoteLandingPage() {
             <Input
               id="pair_code"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setInvalid(false);
+              }}
+              aria-invalid={invalid}
+              maxLength={32}
               placeholder="WDJB-MJHT-QP7K"
               autoComplete="off"
               autoCapitalize="characters"
@@ -47,6 +60,11 @@ export default function RemoteLandingPage() {
               required
             />
           </div>
+          {invalid && (
+            <p role="alert" className="mt-2 text-xs text-critical">
+              That doesn&apos;t look like a pairing code — it has 12 letters and digits, like WDJB-MJHT-QP7K.
+            </p>
+          )}
           <Button type="submit" className="mt-4 w-full">
             Connect
           </Button>

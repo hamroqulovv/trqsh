@@ -6,13 +6,13 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       className={cn(
-        "flex h-9 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-foreground",
-        "placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-page",
+        "flex h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-base text-foreground transition-[border-color,box-shadow] duration-200 sm:h-9 sm:text-sm",
+        "placeholder:text-muted hover:border-foreground/40 focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/15",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  ),
 );
 Input.displayName = "Input";

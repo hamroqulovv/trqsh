@@ -3,6 +3,12 @@ import {
   packetLabelPosition, packetOnRoute, routeCurves, routePath, routes, scenarios,
 } from "./signal-geometry";
 
+// The server and the browser can disagree in the last digits of Math.sin and
+// Math.hypot. Everything this scene writes into its markup is rounded, so the
+// server HTML and the first client render stay identical (no hydration mismatch).
+const r = (value: number) => Math.round(value * 100) / 100;
+const r4 = (value: number) => Math.round(value * 10000) / 10000;
+
 function ClientGlyph({ index }: { index: number }) {
   if (index === 0) return <path d="M-9-7h18v14H-9zM-9-2H9" />;
   if (index === 1) return <path d="M0-5v7m-6 3 6-3 6 3M0-10a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M-6 5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M6 5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5" />;
@@ -24,7 +30,7 @@ export function SignalScene({
     return {
       ...packet,
       ...packetOnRoute(packet.route, initialTime, layout, packet.direction === 1 ? phase : 1 - phase, packet.direction),
-      opacity: clamp(phase * 10) * clamp((1 - phase) * 10) * 0.25,
+      opacity: r4(clamp(phase * 10) * clamp((1 - phase) * 10) * 0.25),
     };
   });
   const lead = packetOnRoute(frame.branch * lanes + 4, initialTime, layout, frame.progress, frame.responding ? 1 : -1, 0.12);
@@ -52,7 +58,7 @@ export function SignalScene({
           <linearGradient
             key={index} id={`${prefix}-trace-${index}`} data-trail-gradient=""
             gradientUnits="userSpaceOnUse"
-            x1={trace.tail.x} y1={trace.tail.y} x2={trace.point.x} y2={trace.point.y}
+            x1={r(trace.tail.x)} y1={r(trace.tail.y)} x2={r(trace.point.x)} y2={r(trace.point.y)}
           >
             <stop offset="0" stopColor="currentColor" stopOpacity="0" />
             <stop offset="0.8" stopColor="currentColor" stopOpacity="0.7" />
@@ -88,14 +94,14 @@ export function SignalScene({
           {particles.map((packet, index) => (
             <g key={index} data-ambient="" opacity={packet.opacity}>
               <path d={packet.trail} stroke={`url(#${prefix}-trace-${index})`} strokeWidth="1.5" />
-              <circle cx={packet.point.x} cy={packet.point.y} r="2" fill="currentColor" />
+              <circle cx={r(packet.point.x)} cy={r(packet.point.y)} r="2" fill="currentColor" />
             </g>
           ))}
-          <g data-lead="" opacity={frame.opacity}>
+          <g data-lead="" opacity={r4(frame.opacity)}>
             <path d={lead.trail} stroke={`url(#${prefix}-trace-6)`} strokeWidth="10" opacity="0.08" />
             <path d={lead.trail} stroke={`url(#${prefix}-trace-6)`} strokeWidth={compact ? 3 : 2.6} />
-            <circle cx={lead.point.x} cy={lead.point.y} r="10" fill="currentColor" opacity="0.09" />
-            <circle cx={lead.point.x} cy={lead.point.y} r="3.5" fill="currentColor" />
+            <circle cx={r(lead.point.x)} cy={r(lead.point.y)} r="10" fill="currentColor" opacity="0.09" />
+            <circle cx={r(lead.point.x)} cy={r(lead.point.y)} r="3.5" fill="currentColor" />
           </g>
         </g>
 
@@ -108,8 +114,8 @@ export function SignalScene({
           <path data-cursor="" d="M2 7h9" opacity={frame.step === 1 ? 0 : 1} className="signal-glyph" />
           <g data-work="" opacity={frame.step === 1 ? 1 : 0} className="signal-glyph">
             {[-7, 0, 7].map((x, index) => {
-              const barHeight = 5 + (Math.sin(initialTime * 10 + index * 1.4) * 0.5 + 0.5) * 15;
-              return <path key={x} d={`M${x} ${-barHeight / 2}v${barHeight}`} />;
+              const barHeight = r(5 + (Math.sin(initialTime * 10 + index * 1.4) * 0.5 + 0.5) * 15);
+              return <path key={x} d={`M${x} ${r(-barHeight / 2)}v${barHeight}`} />;
             })}
           </g>
           <text
@@ -156,8 +162,8 @@ export function SignalScene({
         ))}
 
         <g
-          data-packet-label="" opacity={frame.opacity}
-          transform={`translate(${labelPosition.x} ${labelPosition.y})`}
+          data-packet-label="" opacity={r4(frame.opacity)}
+          transform={`translate(${r(labelPosition.x)} ${r(labelPosition.y)})`}
         >
           <rect x={compact ? -76 : -66} y="-17" width={compact ? 152 : 132} height="32" rx="6" className="signal-packet-shell" />
           <text y="4" textAnchor="middle" className="signal-packet-text">{frame.packetLabel}</text>

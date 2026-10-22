@@ -1,67 +1,67 @@
 "use client";
 
 import * as React from "react";
-import { Menu, Waypoints, X } from "lucide-react";
-import { Nav } from "./nav";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
+import { Logo } from "@/components/logo";
+import { Nav } from "@/components/nav";
+import { Modal } from "@/components/ui/modal";
 
-// Hamburger + slide-in drawer for the dashboard on phones/tablets. The desktop
-// sidebar is hidden below md; this provides the same navigation there.
-export function MobileNav() {
+// A drawer for the sidebar below lg. It is a native dialog, so focus is
+// trapped and Escape closes it; picking a link closes it too.
+export function MobileNav({
+  header,
+  footer,
+}: {
+  header: React.ReactNode;
+  footer: React.ReactNode;
+}) {
   const [open, setOpen] = React.useState(false);
-
-  // Lock body scroll while the drawer is open.
-  React.useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  const pathname = usePathname();
+  React.useEffect(() => setOpen(false), [pathname]);
 
   return (
-    <div className="md:hidden">
+    <div className="lg:hidden">
       <button
         type="button"
-        aria-label="Open menu"
+        aria-label="Open navigation"
+        aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border-strong bg-surface/60 text-secondary transition-colors hover:bg-accent hover:text-foreground"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-secondary transition-[color,background-color,border-color,transform] duration-200 hover:border-border-strong hover:bg-accent hover:text-foreground active:scale-90"
       >
-        <Menu className="h-4 w-4" />
+        <Menu className="h-4 w-4" aria-hidden="true" />
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        label="Navigation"
+        placement="left"
+        className="flex h-dvh w-[19rem] max-w-[86vw] flex-col border-r border-border-strong bg-surface shadow-[0_0_80px_-20px_rgb(0_0_0/0.6)]"
+      >
+        <div className="flex h-16 shrink-0 items-center justify-between pl-5 pr-3">
+          <Link href="/" aria-label="trqsh overview" onClick={() => setOpen(false)}>
+            <Logo />
+          </Link>
           <button
-            aria-label="Close menu"
+            type="button"
+            data-autofocus
+            aria-label="Close navigation"
             onClick={() => setOpen(false)}
-            className="absolute inset-0 h-full w-full cursor-default animate-fade-in bg-black/60 backdrop-blur-sm"
-          />
-          <div className="absolute left-0 top-0 flex h-full w-72 max-w-[82%] animate-slide-in-left flex-col border-r border-border bg-surface">
-            <div className="flex h-14 items-center justify-between px-5">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Waypoints className="h-4 w-4" />
-                </div>
-                <span className="font-semibold tracking-tight">trqsh</span>
-              </div>
-              <button
-                type="button"
-                aria-label="Close menu"
-                onClick={() => setOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-secondary transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {/* A click on any nav link bubbles up here and closes the drawer. */}
-            <div className="overflow-y-auto py-2" onClick={() => setOpen(false)}>
-              <Nav />
-            </div>
-          </div>
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-secondary transition-[color,background-color,transform] duration-200 hover:bg-accent hover:text-foreground active:scale-90"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
-      )}
+        {header}
+        {/* A click on any link bubbles up here, so even the current page closes the drawer. */}
+        <div className="mt-6 min-h-0 flex-1 overflow-y-auto pb-4" onClick={() => setOpen(false)}>
+          <Nav label="Mobile navigation" />
+        </div>
+        <div className="border-t border-border">{footer}</div>
+      </Modal>
     </div>
   );
 }

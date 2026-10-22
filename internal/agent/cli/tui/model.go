@@ -424,7 +424,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case loginStartedMsg:
 		m.loginActive = true
 		url := firstNonEmpty(msg.d.VerificationURIComplete, msg.d.VerificationURI)
-		m.appendLines(
+		// The approval URL and code are a credential in flight: show them here
+		// only, never in the transcript a paired viewer mirrors.
+		m.appendLocalLines(
 			"  "+stTitle.Render("Sign in"),
 			"  "+stDim.Render("open ")+stURL.Render(url),
 			"  "+stDim.Render("code ")+stKey.Render(msg.d.UserCode),
@@ -670,7 +672,7 @@ func (m *model) pushHistory(line string) {
 
 // run executes a slash-command line, either typed locally (remote=false) or
 // received from a paired phone (remote=true — see handleRemoteEvent). Remote
-// commands are checked against remoteBlocked first: they never even reach
+// commands are checked against remoteAllowed first: they never even reach
 // the echo line, since running them at all is the thing being refused, not
 // just how it's displayed.
 func (m model) run(line string, remote bool) (tea.Model, tea.Cmd) {
@@ -679,8 +681,13 @@ func (m model) run(line string, remote bool) (tea.Model, tea.Cmd) {
 	}
 	name, args := parseLine(line)
 	cmd, ok := lookupCommand(name)
-	if remote && ok && remoteBlocked[cmd.name] {
+	if remote && ok && !remoteAllowed[cmd.name] {
 		m.appendLines(stWarn.Render("  ⚠ blocked: ") + stKey.Render("/"+cmd.name) + stDim.Render(" only runs from the laptop"))
+		m.relayout()
+		return m, nil
+	}
+	if remote && ok && cmd.name == "http" && (len(args) == 0 || !remoteTunnelTarget(args[0])) {
+		m.appendLines(stWarn.Render("  ⚠ blocked: ") + stKey.Render("/http") + stDim.Render(" from the phone can only share a port on this machine"))
 		m.relayout()
 		return m, nil
 	}
@@ -691,7 +698,12 @@ func (m model) run(line string, remote bool) (tea.Model, tea.Cmd) {
 	if remote {
 		chevron = "  📱 "
 	}
-	m.appendLines("", stKey.Render(chevron)+stEcho.Render(line))
+	// The echo is mirrored to any paired viewer: never print a pasted key.
+	echo := line
+	if ok && cmd.name == "login" && len(args) > 0 {
+		echo = "/login ••••••••"
+	}
+	m.appendLines("", stKey.Render(chevron)+stEcho.Render(echo))
 	if !ok {
 		hint := stDim.Render("   type ") + stKey.Render("/") + stDim.Render(" to browse commands")
 		if guess := suggestCommand(name); guess != "" {
@@ -944,7 +956,7 @@ func (m *model) handleEvent(ev agent.Event) tea.Cmd {
 // "remote" Event over the same stream as everything else (see
 // internal/agent/remoteapi.go's pump). "command" runs exactly like a locally
 // typed line — through the same run() a submitted line goes through, subject
-// to the same remoteBlocked allow-list — so a paired phone is a second
+// to the same remoteAllowed list — so a paired phone is a second
 // keyboard into this console, not a separate code path.
 func (m *model) handleRemoteEvent(ev *agent.RemoteEvent) tea.Cmd {
 	if ev == nil {
@@ -962,6 +974,12 @@ func (m *model) handleRemoteEvent(ev *agent.RemoteEvent) tea.Cmd {
 		m.remoteCode, m.remoteURL, m.remoteConnected = "", "", false
 		m.appendLines(stDim.Render("  📱 pairing ended"))
 	case "command":
+		// Terminal safety net: the relay and daemon already refuse these, but
+		// the console is the one that echoes into a real terminal.
+		if !agent.SafeRemoteCommand(ev.Command) {
+			m.appendLines(stWarn.Render("  ⚠ blocked: ") + stDim.Render("a phone command with control characters"))
+			return nil
+		}
 		updated, cmd := m.run(ev.Command, true)
 		*m = updated.(model)
 		return cmd
@@ -1025,6 +1043,15 @@ func (m *model) appendLines(lines ...string) {
 		m.vp.SetContent(strings.Join(m.transcript, "\n"))
 		m.vp.GotoBottom()
 	}
+}
+
+// appendLocalLines is appendLines for text that must stay on this terminal —
+// it is not queued for a paired viewer's mirror.
+func (m *model) appendLocalLines(lines ...string) {
+	code := m.remoteCode
+	m.remoteCode = ""
+	m.appendLines(lines...)
+	m.remoteCode = code
 }
 
 // maxInputRows caps how tall the input box can grow with a long or wrapped

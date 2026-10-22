@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { api, type DnsInstructions } from "@/lib/api";
+import { errorMessage, type ActionResult } from "@/lib/action-result";
 
 export interface ReserveState {
   error?: string;
   ok?: boolean;
+  /** The subdomain just reserved, so the UI can name it in a toast. */
+  subdomain?: string;
 }
 
 export async function reserveSubdomainAction(_prev: ReserveState, fd: FormData): Promise<ReserveState> {
@@ -14,21 +17,21 @@ export async function reserveSubdomainAction(_prev: ReserveState, fd: FormData):
   try {
     await api.reserveSubdomain(sub);
     revalidatePath("/domains");
-    return { ok: true };
+    return { ok: true, subdomain: sub };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Could not reserve subdomain." };
+    return { error: errorMessage(e, "Could not reserve subdomain.") };
   }
 }
 
-export async function releaseSubdomainAction(fd: FormData): Promise<void> {
-  const id = String(fd.get("id") || "");
-  if (!id) return;
+export async function releaseSubdomainAction(id: string): Promise<ActionResult> {
+  if (!id) return { ok: false, error: "Missing subdomain." };
   try {
     await api.releaseSubdomain(id);
-  } catch {
-    /* surfaced on next render */
+    revalidatePath("/domains");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e, "Could not release the subdomain.") };
   }
-  revalidatePath("/domains");
 }
 
 export interface AddDomainState {
@@ -45,17 +48,19 @@ export async function addDomainAction(_prev: AddDomainState, fd: FormData): Prom
     revalidatePath("/domains");
     return { dns: r.dns_instructions, domain: r.domain.domain };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Could not add domain." };
+    return { error: errorMessage(e, "Could not add domain.") };
   }
 }
 
-export async function verifyDomainAction(fd: FormData): Promise<void> {
-  const id = String(fd.get("id") || "");
-  if (!id) return;
+export async function verifyDomainAction(id: string): Promise<ActionResult> {
+  if (!id) return { ok: false, error: "Missing domain." };
   try {
-    await api.verifyDomain(id);
-  } catch {
-    /* surfaced on next render */
+    const d = await api.verifyDomain(id);
+    revalidatePath("/domains");
+    return d?.verified_at
+      ? { ok: true, message: "Domain verified." }
+      : { ok: false, error: "DNS records were not found yet. Changes can take a few minutes to propagate." };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e, "Could not verify the domain.") };
   }
-  revalidatePath("/domains");
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -117,6 +118,90 @@ func TestDeviceRedisExpiry(t *testing.T) {
 	// Expiry must also consume the record, matching the in-process store.
 	if _, err := store.Poll(old.DeviceCode); err != auth.ErrDeviceUnknown {
 		t.Fatalf("Poll after expiry-consume = %v, want ErrDeviceUnknown", err)
+	}
+}
+
+// TestDeviceRedisCheck mirrors the in-process store: Check says whether a code
+// can still be approved and never changes the flow.
+func TestDeviceRedisCheck(t *testing.T) {
+	_, rdb := newTestRedis(t)
+	store := newRedisDeviceStore(rdb, discardLogger())
+	req := store.Create()
+
+	if err := store.Check("NEVER-ISSUED"); err != auth.ErrDeviceUnknown {
+		t.Fatalf("Check(unknown) = %v, want ErrDeviceUnknown", err)
+	}
+	if err := store.Check(req.UserCode); err != nil {
+		t.Fatalf("Check(fresh) = %v, want nil", err)
+	}
+	if _, err := store.Poll(req.DeviceCode); err != auth.ErrDevicePending {
+		t.Fatalf("Poll after Check = %v, want ErrDevicePending (Check must not approve)", err)
+	}
+
+	if err := store.Approve(req.UserCode, "org_1", "key"); err != nil {
+		t.Fatalf("Approve: %v", err)
+	}
+	if err := store.Check(req.UserCode); err != auth.ErrDeviceUnknown {
+		t.Fatalf("Check(already approved) = %v, want ErrDeviceUnknown", err)
+	}
+}
+
+// Codes are typed by hand. The in-process store always accepted any case and
+// surrounding space; the Redis store (multi-replica deployments) must too.
+func TestDeviceRedisNormalizesUserCode(t *testing.T) {
+	_, rdb := newTestRedis(t)
+	store := newRedisDeviceStore(rdb, discardLogger())
+	req := store.Create()
+
+	typed := "  " + strings.ToLower(req.UserCode) + "\n"
+	if err := store.Check(typed); err != nil {
+		t.Fatalf("Check(%q) = %v, want nil", typed, err)
+	}
+	if err := store.Approve(typed, "org_1", "key"); err != nil {
+		t.Fatalf("Approve(%q) = %v, want nil", typed, err)
+	}
+}
+
+// A second approval must not replace the key the CLI is about to receive.
+func TestDeviceRedisApproveOnce(t *testing.T) {
+	_, rdb := newTestRedis(t)
+	store := newRedisDeviceStore(rdb, discardLogger())
+	req := store.Create()
+
+	if err := store.Approve(req.UserCode, "org_1", "first-key"); err != nil {
+		t.Fatalf("first Approve: %v", err)
+	}
+	if err := store.Approve(req.UserCode, "org_2", "second-key"); err != auth.ErrDeviceUnknown {
+		t.Fatalf("second Approve = %v, want ErrDeviceUnknown", err)
+	}
+	if key, err := store.Poll(req.DeviceCode); err != nil || key != "first-key" {
+		t.Fatalf("Poll = %q, %v; want first-key", key, err)
+	}
+}
+
+func TestDeviceRedisCheckExpired(t *testing.T) {
+	_, rdb := newTestRedis(t)
+	store := newRedisDeviceStore(rdb, discardLogger())
+
+	old := auth.DeviceRequest{
+		DeviceCode: "dc_old3",
+		UserCode:   "OLD-CODE3",
+		CreatedAt:  time.Now().Add(-(auth.DeviceTTL + time.Minute)),
+	}
+	buf, err := json.Marshal(old)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	ctx := t.Context()
+	if err := rdb.Set(ctx, store.codeKey(old.DeviceCode), buf, time.Hour).Err(); err != nil {
+		t.Fatalf("seed redis: %v", err)
+	}
+	if err := rdb.Set(ctx, store.userKey(old.UserCode), old.DeviceCode, time.Hour).Err(); err != nil {
+		t.Fatalf("seed redis: %v", err)
+	}
+
+	if err := store.Check(old.UserCode); err != auth.ErrDeviceExpired {
+		t.Fatalf("Check(expired) = %v, want ErrDeviceExpired", err)
 	}
 }
 

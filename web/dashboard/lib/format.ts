@@ -2,18 +2,22 @@
 export function formatBytes(n: number): string {
   if (!n || n < 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1);
+  let i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1);
+  // Rounding can carry a value up to the next unit ("1024 KB"); promote it so
+  // the figure reads "1.0 MB" instead.
+  if (i < units.length - 1 && Math.round((n / Math.pow(1024, i)) * 10) / 10 >= 1024) i++;
   const v = n / Math.pow(1024, i);
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }
 
-/** Compact number, e.g. 12_500 -> "12.5K". */
+/** Compact number, e.g. 12_500 -> "12.5K", 999_999 -> "1M". */
 export function formatNumber(n: number): string {
   if (n < 1000) return String(n);
   const units = ["", "K", "M", "B"];
-  const i = Math.min(Math.floor(Math.log10(n) / 3), units.length - 1);
+  let i = Math.min(Math.floor(Math.log10(n) / 3), units.length - 1);
+  if (i < units.length - 1 && Math.round((n / Math.pow(1000, i)) * 10) / 10 >= 1000) i++;
   const v = n / Math.pow(1000, i);
-  return `${v >= 100 ? Math.round(v) : v.toFixed(1)}${units[i]}`;
+  return `${v >= 100 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, "")}${units[i]}`;
 }
 
 /** ISO timestamp -> short local date. */

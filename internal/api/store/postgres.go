@@ -108,9 +108,14 @@ func (p *PostgresStore) CreateUser(ctx context.Context, u User) (User, error) {
 	if u.CreatedAt.IsZero() {
 		u.CreatedAt = time.Now()
 	}
+	// One statement so a user and its first linked identity are created together.
 	_, err := p.db.ExecContext(ctx,
-		`INSERT INTO users (id, email, name, avatar_url, oauth_provider, oauth_subject, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		`WITH new_user AS (
+		   INSERT INTO users (id, email, name, avatar_url, oauth_provider, oauth_subject, created_at)
+		   VALUES ($1,$2,$3,$4,$5::text,$6::text,$7) RETURNING id
+		 )
+		 INSERT INTO user_identities (provider, subject, user_id)
+		 SELECT $5::text, $6::text, id FROM new_user WHERE $5::text <> '' AND $6::text <> ''`,
 		u.ID, strings.ToLower(strings.TrimSpace(u.Email)), u.Name, u.AvatarURL, u.OAuthProvider, u.OAuthSubject, u.CreatedAt)
 	return u, mapErr(err)
 }
@@ -130,26 +135,53 @@ func (p *PostgresStore) GetUserByOAuth(ctx context.Context, provider, subject st
 		return User{}, ErrNotFound
 	}
 	return p.scanUser(p.db.QueryRowContext(ctx,
-		`SELECT id,email,name,avatar_url,oauth_provider,oauth_subject,created_at FROM users WHERE oauth_provider=$1 AND oauth_subject=$2`, provider, subject))
+		`SELECT u.id,u.email,u.name,u.avatar_url,u.oauth_provider,u.oauth_subject,u.created_at
+		 FROM user_identities i JOIN users u ON u.id=i.user_id
+		 WHERE i.provider=$1 AND i.subject=$2`, provider, subject))
 }
 
-func (p *PostgresStore) BindOAuthSubject(ctx context.Context, id, provider, subject string) error {
-	if subject == "" {
+func (p *PostgresStore) LinkOAuthIdentity(ctx context.Context, userID, provider, subject string) error {
+	if provider == "" || subject == "" {
 		return ErrConflict
 	}
-	result, err := p.db.ExecContext(ctx, `UPDATE users SET oauth_subject=$3
-		WHERE id=$1 AND oauth_provider=$2 AND (oauth_subject='' OR oauth_subject=$3)`, id, provider, subject)
+	// Re-linking the same account is a no-op (the WHERE keeps the row touched, so
+	// it still counts as affected); a provider account owned by another user
+	// updates nothing, and a second account from the same provider trips the
+	// (user_id, provider) unique index.
+	result, err := p.db.ExecContext(ctx,
+		`INSERT INTO user_identities (provider, subject, user_id) VALUES ($1,$2,$3)
+		 ON CONFLICT (provider, subject) DO UPDATE SET user_id = user_identities.user_id
+		 WHERE user_identities.user_id = EXCLUDED.user_id`, provider, subject, userID)
 	if err != nil {
 		return mapErr(err)
 	}
-	n, err := result.RowsAffected()
-	if err != nil {
+	if n, err := result.RowsAffected(); err != nil {
 		return err
-	}
-	if n != 1 {
+	} else if n != 1 {
 		return ErrConflict
 	}
-	return nil
+	// Keep the first-sign-in columns complete for accounts that predate subjects.
+	_, err = p.db.ExecContext(ctx,
+		`UPDATE users SET oauth_subject=$3 WHERE id=$1 AND oauth_provider=$2 AND oauth_subject=''`, userID, provider, subject)
+	return err
+}
+
+func (p *PostgresStore) ListOAuthProviders(ctx context.Context, userID string) ([]string, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT provider FROM user_identities WHERE user_id=$1 ORDER BY created_at, provider`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out = append(out, name)
+	}
+	return out, rows.Err()
 }
 
 func (p *PostgresStore) scanUser(row *sql.Row) (User, error) {
