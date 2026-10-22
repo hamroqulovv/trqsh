@@ -114,6 +114,7 @@ paths:
         content: { application/json: { schema: { type: object, properties: { user_code: { type: string } } } } }
       responses:
         "200": { description: Approved }
+        "400": { description: "invalid_device_code (never issued, or already approved) | expired_token. No API key is created." }
   /auth/device/token:
     post:
       summary: Poll for the device API key

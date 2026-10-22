@@ -82,34 +82,68 @@ func (s *redisDeviceStore) Create() *auth.DeviceRequest {
 	return req
 }
 
-// Approve links a user_code to an org and the minted API key. It does not
-// itself reject an expired flow (matching the in-process store: expiry is
-// only enforced lazily, at Poll) — KeepTTL preserves the original Create TTL
-// so approving does not extend an abandoned flow's lifetime.
-func (s *redisDeviceStore) Approve(userCode, orgID, apiKey string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
-	defer cancel()
-
-	deviceCode, err := s.rdb.Get(ctx, s.userKey(userCode)).Result()
+// load resolves a typed user_code to its device_code and stored record. Any
+// failure — a code that was never issued, a vanished record, or Redis being
+// unavailable — is ErrDeviceUnknown, so the flow fails closed.
+func (s *redisDeviceStore) load(ctx context.Context, userCode string) (string, auth.DeviceRequest, error) {
+	var req auth.DeviceRequest
+	deviceCode, err := s.rdb.Get(ctx, s.userKey(auth.NormalizeUserCode(userCode))).Result()
 	if err == redis.Nil {
-		return auth.ErrDeviceUnknown
+		return "", req, auth.ErrDeviceUnknown
 	}
 	if err != nil {
 		s.warn(err)
-		return auth.ErrDeviceUnknown
+		return "", req, auth.ErrDeviceUnknown
 	}
 
 	raw, err := s.rdb.Get(ctx, s.codeKey(deviceCode)).Result()
 	if err == redis.Nil {
-		return auth.ErrDeviceUnknown
+		return "", req, auth.ErrDeviceUnknown
 	}
 	if err != nil {
 		s.warn(err)
-		return auth.ErrDeviceUnknown
+		return "", req, auth.ErrDeviceUnknown
 	}
-	var req auth.DeviceRequest
 	if err := json.Unmarshal([]byte(raw), &req); err != nil {
 		s.warn(err)
+		return "", req, auth.ErrDeviceUnknown
+	}
+	return deviceCode, req, nil
+}
+
+// Check reports whether userCode can still be approved, without side effects.
+func (s *redisDeviceStore) Check(userCode string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+	defer cancel()
+
+	_, req, err := s.load(ctx, userCode)
+	switch {
+	case err != nil:
+		return err
+	case req.Approved:
+		return auth.ErrDeviceUnknown
+	case time.Since(req.CreatedAt) > auth.DeviceTTL:
+		return auth.ErrDeviceExpired
+	}
+	return nil
+}
+
+// Approve links a user_code to an org and the minted API key. It does not
+// itself reject an expired flow (matching the in-process store: expiry is
+// only enforced lazily, at Poll; callers use Check first) — KeepTTL preserves
+// the original Create TTL so approving does not extend an abandoned flow's
+// lifetime. An already-approved flow is refused so a second approval cannot
+// replace the key the CLI is about to receive. The read-then-write is not
+// atomic across replicas; the caller revokes the key it minted if this fails.
+func (s *redisDeviceStore) Approve(userCode, orgID, apiKey string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+	defer cancel()
+
+	deviceCode, req, err := s.load(ctx, userCode)
+	if err != nil {
+		return err
+	}
+	if req.Approved {
 		return auth.ErrDeviceUnknown
 	}
 

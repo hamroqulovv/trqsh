@@ -40,8 +40,22 @@ const DeviceTTL = 10 * time.Minute
 // necessarily the replica Approve() landed on.
 type DeviceStore interface {
 	Create() *DeviceRequest
+	// Check reports whether userCode names a flow that can still be approved,
+	// without changing it: nil, ErrDeviceUnknown (never issued, or already
+	// approved), or ErrDeviceExpired. Callers run it before minting the API key
+	// that Approve hands over, so a bad code never creates a credential.
+	Check(userCode string) error
+	// Approve links a user_code to an org and the minted API key. It fails with
+	// ErrDeviceUnknown if the code is unknown or was already approved.
 	Approve(userCode, orgID, apiKey string) error
 	Poll(deviceCode string) (string, error)
+}
+
+// NormalizeUserCode canonicalises a typed user_code (case and surrounding
+// space are not significant). Every DeviceStore must look codes up this way, so
+// the in-process and Redis-backed stores accept exactly the same input.
+func NormalizeUserCode(userCode string) string {
+	return strings.ToUpper(strings.TrimSpace(userCode))
 }
 
 var _ DeviceStore = (*deviceStore)(nil)
@@ -73,16 +87,37 @@ func (d *deviceStore) Create() *DeviceRequest {
 	return req
 }
 
-// Approve links a user_code to an org and the minted API key.
+// Check reports whether userCode can still be approved, without side effects.
+func (d *deviceStore) Check(userCode string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	req := d.lookup(userCode)
+	switch {
+	case req == nil || req.Approved:
+		return ErrDeviceUnknown
+	case time.Since(req.CreatedAt) > DeviceTTL:
+		return ErrDeviceExpired
+	}
+	return nil
+}
+
+// lookup finds a flow by user_code; the caller holds d.mu.
+func (d *deviceStore) lookup(userCode string) *DeviceRequest {
+	dc, ok := d.byUser[NormalizeUserCode(userCode)]
+	if !ok {
+		return nil
+	}
+	return d.byDevice[dc]
+}
+
+// Approve links a user_code to an org and the minted API key. An already
+// approved flow is refused: the first key is the one the CLI will receive, and
+// a second approval (a double submit) must not replace it.
 func (d *deviceStore) Approve(userCode, orgID, apiKey string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	dc, ok := d.byUser[strings.ToUpper(strings.TrimSpace(userCode))]
-	if !ok {
-		return ErrDeviceUnknown
-	}
-	req := d.byDevice[dc]
-	if req == nil {
+	req := d.lookup(userCode)
+	if req == nil || req.Approved {
 		return ErrDeviceUnknown
 	}
 	req.Approved = true

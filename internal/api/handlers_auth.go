@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/trqsh-uz/trqsh/internal/api/auth"
@@ -427,19 +428,33 @@ func (s *Server) handleDeviceApprove(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
+	userCode := auth.NormalizeUserCode(req.UserCode)
+	// Reject a code that cannot be approved before minting anything: every
+	// wrong, expired or already-used code would otherwise leave a live
+	// "cli-device" credential in the org that no device will ever receive.
+	if err := s.auth.Devices().Check(userCode); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	// Mint an API key for the org so the CLI can authenticate as an agent.
 	gen, err := auth.GenerateAPIKey()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if _, err := s.store.CreateAPIKey(r.Context(), store.APIKey{
+	key, err := s.store.CreateAPIKey(r.Context(), store.APIKey{
 		OrgID: p.OrgID, Name: "cli-device", Prefix: gen.Prefix, Hash: gen.Hash,
-	}); err != nil {
+	})
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := s.auth.Devices().Approve(req.UserCode, p.OrgID, gen.Full); err != nil {
+	if err := s.auth.Devices().Approve(userCode, p.OrgID, gen.Full); err != nil {
+		// The flow ended between Check and Approve (it expired, or a concurrent
+		// request approved it first). Nothing will deliver this key, so retire it.
+		if rerr := s.store.RevokeAPIKey(r.Context(), key.ID, p.OrgID, time.Now()); rerr != nil {
+			s.log.Error("device approve: could not revoke an undelivered key", "key", key.ID, "org", p.OrgID, "err", rerr)
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
