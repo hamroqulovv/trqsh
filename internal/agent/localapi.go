@@ -141,6 +141,12 @@ func (l *LocalAPI) Handler() http.Handler {
 		apiWriteJSON(w, http.StatusOK, l.sessionInfo())
 	})
 	mux.HandleFunc("POST /logout", func(w http.ResponseWriter, r *http.Request) {
+		// A pairing is a delegation of this signed-in console: end it (while the
+		// credential still exists to authorize that) before signing out, so a
+		// phone can't keep driving a console that is no longer the same account.
+		if l.endRemote(storedAPIKey()) {
+			l.broadcast(Event{Type: "remote", Remote: &RemoteEvent{Kind: "ended"}})
+		}
 		if err := l.core.Logout(r.Context()); err != nil {
 			apiWriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return

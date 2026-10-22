@@ -376,16 +376,35 @@ func renderPairQR(m *model, url, code string) {
 	)
 }
 
-// remoteBlocked lists commands a paired phone can never run, even though
-// everything else executes exactly like locally typed input (see run() in
-// model.go): process lifecycle (down, quit) so a phone can't pull the rug
-// out from under whoever's at the laptop, account credentials (login,
-// logout), anything touching the running binary or local data (update,
-// uninstall), and pairing management itself (qr) so a phone can't end or
-// replace its own session.
-var remoteBlocked = map[string]bool{
-	"qr": true, "login": true, "logout": true, "setup": true,
-	"uninstall": true, "update": true, "down": true, "quit": true,
+// remoteAllowed is the explicit set of commands a paired phone may run;
+// everything else (a command added later included) is refused until someone
+// opts it in here. Allowed: read-only views (status, ls, requests, whoami,
+// help, version) and the tunnel lifecycle the viewer exists for (http, start,
+// stop). Deliberately absent: credentials (login, logout, setup), the binary
+// and local data (update, uninstall), process lifecycle (down, quit), pairing
+// itself (qr), account changes (subdomains, domains), raw TCP/UDP exposure
+// (tcp, udp), and commands that act on the laptop (open, copy, clear, pin,
+// unpin, theme, config).
+var remoteAllowed = map[string]bool{
+	"status": true, "ls": true, "requests": true, "whoami": true,
+	"help": true, "version": true,
+	"http": true, "start": true, "stop": true,
+}
+
+// remoteTunnelTarget reports whether a tunnel started from a paired phone
+// points at this machine only. Without this a link holder could publish any
+// host the laptop can reach (a router admin page, a cloud metadata address,
+// another machine's SSH) through the user's account.
+func remoteTunnelTarget(arg string) bool {
+	host, port, err := net.SplitHostPort(normalizeAddr(arg))
+	if err != nil || !isPort(port) {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func cmdCopy(m *model, args []string) tea.Cmd {

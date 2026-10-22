@@ -13,7 +13,7 @@ This differs from sharing a QR that simply opens a tunnel URL.
 
 The printed URL reflects the deployment's configured QR origin. Hosted and local installations may use different hosts or paths; prefer that full URL over guessing `qr.trqsh.uz`.
 
-The console also displays a short pairing code. Enter it on the deployment's remote page when scanning is unavailable.
+The console also displays a short pairing code. Enter it on the deployment's remote page when scanning is unavailable. Codes are not case-sensitive and the dashes are optional.
 
 ## What the viewer can do
 
@@ -28,13 +28,21 @@ The remote viewer mirrors recent transcript lines and shows connection/tunnel st
 
 It is a trqsh command interface, **not a general operating-system shell**. Starting an HTTP tunnel does not start the HTTP app itself.
 
-The console blocks remote credential, binary and lifecycle actions: `login`, `logout`, `update`, `uninstall`, `down`, `quit` and `qr`, including aliases that resolve to them.
+The viewer may run only an explicit allowlist: `status`, `ls`, `requests`, `whoami`, `help`, `version`, `http`, `start` and `stop` (and their aliases). Everything else is refused on the console, including any command added in the future, until it is deliberately allowed. In particular a phone cannot sign in or out, run `setup`, `update` or `uninstall`, stop the daemon (`down`, `quit`), manage pairing (`qr`), change subdomains or domains, open raw `tcp`/`udp` tunnels, or read `config`.
+
+`/http` from the viewer can only share a port on the console's own machine (`3000`, `localhost:3000`, `127.0.0.1:3000`, `[::1]:3000`). Pointing a tunnel at another host or a LAN address must be done from the laptop.
+
+Commands must be plain printable text of at most 240 bytes; control characters are rejected.
 
 ## Access and lifetime
 
 The pairing code/URL is the viewer's access capability. Viewers do not need a separate login. Anyone holding that link can view shared console information and issue allowed commands while the pairing is active.
 
 The current pairing lifetime is **30 minutes**. Run `/qr` again for a fresh pairing when necessary; a new pairing replaces the daemon's previous one.
+
+Up to 16 viewers can watch one pairing at a time, and one organization can hold up to 10 live pairings. Signing out of the console (`/logout`) ends its pairing.
+
+The device-approval link and code shown during `/login` and any key pasted after `/login` are never mirrored to the viewer.
 
 The relay keeps up to 200 recent transcript lines and the last state snapshot in the API process. Pairings do not survive an API restart. The local console must remain attached to execute remote input.
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { dashboardPath } from "@/lib/paths";
+import { safeHttpURL } from "@/lib/remote";
 
 // Mirrors internal/api/remote.go's remoteEvent/remoteState/remoteTunnel wire
 // shapes — this is the one place in the dashboard that talks SSE instead of
@@ -42,7 +43,13 @@ export function RemoteViewer({ code }: { code: string }) {
   const [state, setState] = useState<RemoteState | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Follow new output only while the reader is at the bottom; scrolling up to
+  // read something must not be undone by the next line arriving.
+  const pinned = useRef(true);
+  // Bumped by "Try again" to open a fresh connection.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let closedByServer = false;
@@ -93,23 +100,35 @@ export function RemoteViewer({ code }: { code: string }) {
     return () => {
       if (!closedByServer) es.close();
     };
-  }, [code]);
+  }, [code, attempt]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    const el = scrollRef.current;
+    if (el && pinned.current) el.scrollTo({ top: el.scrollHeight });
   }, [lines]);
 
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     setSending(true);
+    setSendError("");
     try {
-      await fetch(dashboardPath(`/api/remote/${encodeURIComponent(code)}/command`), {
+      const res = await fetch(dashboardPath(`/api/remote/${encodeURIComponent(code)}/command`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: trimmed }),
       });
-      setInput("");
+      if (res.ok) {
+        setInput("");
+      } else if (res.status === 409) {
+        setSendError("The console isn't attached right now.");
+      } else if (res.status === 429) {
+        setSendError("Too many requests — wait a moment.");
+      } else {
+        setSendError("Couldn't send that command.");
+      }
+    } catch {
+      setSendError("Couldn't reach the relay.");
     } finally {
       setSending(false);
     }
@@ -140,6 +159,18 @@ export function RemoteViewer({ code }: { code: string }) {
             <WifiOff className="h-8 w-8 text-critical" />
             <p className="font-medium">Couldn&apos;t connect</p>
             <p className="text-sm text-secondary">Check the code, or run /qr again for a fresh one.</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => {
+                setPhase("connecting");
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Try again
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -166,27 +197,35 @@ export function RemoteViewer({ code }: { code: string }) {
                   </div>
                   {state.tunnels.length > 0 && (
                     <div className="flex flex-col gap-2">
-                      {state.tunnels.map((t) => (
+                      {state.tunnels.map((t) => {
+                        // Only http(s) addresses become links; anything else is plain text.
+                        const href = safeHttpURL(t.public_url);
+                        return (
                         <div
                           key={t.id}
                           className="flex items-center justify-between gap-2 rounded-md border border-border bg-page px-3 py-2 text-sm"
                         >
                           <div className="min-w-0">
-                            <a
-                              href={t.public_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block truncate font-mono text-primary"
-                            >
-                              {t.public_url}
-                            </a>
+                            {href ? (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="block truncate font-mono text-primary"
+                              >
+                                {t.public_url}
+                              </a>
+                            ) : (
+                              <span className="block truncate font-mono text-secondary">{t.public_url}</span>
+                            )}
                             <div className="truncate text-xs text-muted">→ {t.local_addr}</div>
                           </div>
                           <Badge variant={t.status === "online" ? "good" : "outline"} className="shrink-0">
                             {t.requests} req
                           </Badge>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </>
@@ -198,6 +237,13 @@ export function RemoteViewer({ code }: { code: string }) {
 
           <div
             ref={scrollRef}
+            role="log"
+            aria-label="Console output"
+            tabIndex={0}
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+            }}
             className="min-h-[30vh] max-h-[45vh] flex-1 overflow-y-auto rounded-lg border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-secondary"
           >
             {lines.length === 0 ? (
@@ -226,11 +272,17 @@ export function RemoteViewer({ code }: { code: string }) {
               autoComplete="off"
               className="font-mono"
               disabled={!agentConnected}
+              maxLength={240}
             />
             <Button type="submit" size="icon" disabled={!agentConnected || sending || !input.trim()}>
               <Send className="h-4 w-4" />
             </Button>
           </form>
+          {sendError && (
+            <p role="alert" className="text-xs text-critical">
+              {sendError}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {QUICK_ACTIONS.map((a) => (
               <Button

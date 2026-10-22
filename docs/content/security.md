@@ -50,7 +50,9 @@ A QR pairing URL/code is a temporary capability: anyone holding it can view the 
 
 Share it only with someone you trust and end it using `/qr stop`. The current relay temporarily holds console transcript/state in the Control API process. This is distinct from a cloud HTTP-body archive.
 
-See [QR remote control](/docs/remote-control) for lifetime and blocked commands.
+The code carries about 58 bits of randomness. A viewer can run only an allowlist of commands, `/http` from a viewer can target only this machine, and control characters in commands or relayed output are stripped so a viewer cannot inject terminal escape sequences into your console. Treat the link like a password anyway: anything the console prints while paired (such as `/whoami`) is visible to whoever holds it.
+
+See [QR remote control](/docs/remote-control) for lifetime and the allowed commands.
 
 ## Account isolation and limits
 

@@ -20,9 +20,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/trqsh-uz/trqsh/internal/api/auth"
@@ -38,6 +40,19 @@ const remoteSessionTTL = 30 * time.Minute
 // viewer that connects mid-session, so a phone joining late has context
 // instead of a blank screen, without the backlog growing unbounded.
 const remoteBacklogLimit = 200
+
+// Abuse bounds. The viewer side is reachable by anyone holding a code, and the
+// agent side by any signed-in key, so every per-session / per-org resource is
+// capped.
+const (
+	remoteMaxViewers       = 16   // concurrent viewer streams per session
+	remoteMaxSessionsOrg   = 10   // live sessions per org
+	remoteMaxCommandBytes  = 240  // one typed/tapped command
+	remoteMaxPublishLines  = 500  // lines in one publish
+	remoteMaxLineBytes     = 2000 // one transcript line (longer is truncated)
+	remoteMaxTunnels       = 100  // tunnels in one state snapshot
+	remoteMaxStateFieldLen = 512  // any string in a state snapshot
+)
 
 // Extend the HTTP server's write deadline as the stream sends events or its
 // 25-second heartbeat. This keeps active SSE alive beyond WriteTimeout while
@@ -89,23 +104,46 @@ func newRemoteHub() *remoteHub {
 	return h
 }
 
+// create opens a session for orgID, or returns nil when the org already holds
+// remoteMaxSessionsOrg live ones. A code collision (vanishingly unlikely at
+// ~58 bits) is retried rather than overwriting another live session.
 func (h *remoteHub) create(orgID string) *remoteSession {
+	now := time.Now()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	live := 0
+	for _, s := range h.sessions {
+		if s.orgID == orgID && now.Before(s.expiresAt) {
+			live++
+		}
+	}
+	if live >= remoteMaxSessionsOrg {
+		return nil
+	}
+	code := newRemoteCode()
+	for h.sessions[code] != nil {
+		code = newRemoteCode()
+	}
 	s := &remoteSession{
-		code:      newRemoteCode(),
+		code:      code,
 		orgID:     orgID,
-		createdAt: time.Now(),
-		expiresAt: time.Now().Add(remoteSessionTTL),
+		createdAt: now,
+		expiresAt: now.Add(remoteSessionTTL),
 		viewers:   make(map[int]chan remoteEvent),
 	}
-	h.mu.Lock()
 	h.sessions[s.code] = s
-	h.mu.Unlock()
 	return s
 }
 
 // get returns the session for code, or nil if it doesn't exist or has
 // expired (lazily reaped here, same pattern as the device store's Poll).
+// The code is canonicalized first, so a phone keyboard's lowercase or a
+// code typed without dashes still resolves.
 func (h *remoteHub) get(code string) *remoteSession {
+	code, ok := canonicalRemoteCode(code)
+	if !ok {
+		return nil
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	s := h.sessions[code]
@@ -173,14 +211,17 @@ type remoteSession struct {
 // attachAgent registers the (single) daemon connection, replacing any prior
 // one — an agent reconnecting after a network blip keeps the same session
 // rather than orphaning it.
-func (s *remoteSession) attachAgent() chan remoteEvent {
+func (s *remoteSession) attachAgent() (chan remoteEvent, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.ended {
+		return nil, false
+	}
 	ch := make(chan remoteEvent, 32)
 	s.agentCh = ch
 	s.agentConnected = true
 	s.broadcastViewersLocked(remoteEvent{Type: "presence", Connected: true})
-	return ch
+	return ch, true
 }
 
 // detachAgent unregisters ch if it's still the current agent connection (a
@@ -198,10 +239,15 @@ func (s *remoteSession) detachAgent(ch chan remoteEvent) {
 
 // addViewer registers a new phone/browser connection and replays recent
 // context (backlog + last known state + current presence) so it isn't
-// staring at a blank page.
-func (s *remoteSession) addViewer() (int, chan remoteEvent) {
+// staring at a blank page. It refuses (false) once the session has ended —
+// a viewer registered after endSession would never be closed — or when the
+// session already has remoteMaxViewers streams.
+func (s *remoteSession) addViewer() (int, chan remoteEvent, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.ended || len(s.viewers) >= remoteMaxViewers {
+		return 0, nil, false
+	}
 	id := s.nextViewer
 	s.nextViewer++
 	ch := make(chan remoteEvent, 32)
@@ -213,7 +259,7 @@ func (s *remoteSession) addViewer() (int, chan remoteEvent) {
 		ch <- remoteEvent{Type: "state", State: s.state}
 	}
 	ch <- remoteEvent{Type: "presence", Connected: s.agentConnected}
-	return id, ch
+	return id, ch, true
 }
 
 func (s *remoteSession) removeViewer(id int) {
@@ -295,17 +341,145 @@ func (s *remoteSession) endSession() {
 // guessing over a 30-minute TTL even before the shared /v1 rate limiter,
 // while still short enough to type by hand if the camera can't scan.
 func newRemoteCode() string {
-	const alphabet = "BCDFGHJKLMNPQRSTVWXZ0123456789"
-	b := make([]byte, 12)
-	_, _ = rand.Read(b)
-	out := make([]byte, 0, 14)
-	for i, c := range b {
+	// 240 = 8 × 30 is the largest multiple of the alphabet size that fits in a
+	// byte; bytes at or above it are rejected so every character is uniform
+	// (a plain `% 30` would favor the first 16 characters).
+	const limit = 240
+	raw := make([]byte, 0, remoteCodeChars)
+	buf := make([]byte, 24)
+	for len(raw) < remoteCodeChars {
+		if _, err := rand.Read(buf); err != nil {
+			// crypto/rand failing means no safe code can be made; an all-zero
+			// predictable code must never reach a client.
+			panic("remote: crypto/rand unavailable: " + err.Error())
+		}
+		for _, c := range buf {
+			if c < limit && len(raw) < remoteCodeChars {
+				raw = append(raw, remoteCodeAlphabet[int(c)%len(remoteCodeAlphabet)])
+			}
+		}
+	}
+	return formatRemoteCode(raw)
+}
+
+const (
+	remoteCodeAlphabet = "BCDFGHJKLMNPQRSTVWXZ0123456789"
+	remoteCodeChars    = 12
+)
+
+func formatRemoteCode(raw []byte) string {
+	out := make([]byte, 0, remoteCodeChars+2)
+	for i, c := range raw {
 		if i > 0 && i%4 == 0 {
 			out = append(out, '-')
 		}
-		out = append(out, alphabet[int(c)%len(alphabet)])
+		out = append(out, c)
 	}
 	return string(out)
+}
+
+// canonicalRemoteCode normalizes what a person typed or a link carried
+// (any case, optional dashes/spaces) to the stored XXXX-XXXX-XXXX form, and
+// reports false for anything that could not be a code — so malformed input
+// never even reaches the session map.
+func canonicalRemoteCode(in string) (string, bool) {
+	if len(in) > 32 {
+		return "", false
+	}
+	raw := make([]byte, 0, remoteCodeChars)
+	for i := 0; i < len(in); i++ {
+		c := in[i]
+		switch {
+		case c == '-' || c == ' ':
+			continue
+		case c >= 'a' && c <= 'z':
+			c -= 'a' - 'A'
+		}
+		if strings.IndexByte(remoteCodeAlphabet, c) < 0 {
+			return "", false
+		}
+		raw = append(raw, c)
+	}
+	if len(raw) != remoteCodeChars {
+		return "", false
+	}
+	return formatRemoteCode(raw), true
+}
+
+// cleanRemoteText drops control characters (ESC, CSI, C1, DEL, newlines…) and
+// invalid UTF-8 from text that will be shown in a terminal or browser, keeping
+// tabs as spaces. Terminal escape sequences smuggled through a relayed
+// command or line are the concern; max truncates (in bytes, on a rune
+// boundary) when > 0.
+func cleanRemoteText(s string, max int) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r == '\t':
+			r = ' '
+		case r < 0x20 || (r >= 0x7f && r < 0xa0) || r == utf8.RuneError:
+			continue
+		case r == ' ' || r == ' ' || (r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069):
+			continue // line separators and bidi overrides: spoof what a line says
+		}
+		if max > 0 && b.Len()+utf8.RuneLen(r) > max {
+			break
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// cleanRemoteURL keeps only absolute http(s) URLs: the viewer renders this as
+// a link, and a javascript:/data: URL there would run in the viewer origin.
+func cleanRemoteURL(raw string) string {
+	raw = cleanRemoteText(raw, remoteMaxStateFieldLen)
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ""
+	}
+	return raw
+}
+
+// sanitizeRemoteEvent rebuilds an agent publish from scratch, copying only the
+// fields a publish may carry and bounding each. Anything else in the body
+// (command, connected, unknown fields) is discarded, so an agent can't forge a
+// presence or command frame to viewers.
+func sanitizeRemoteEvent(ev remoteEvent) (remoteEvent, bool) {
+	switch ev.Type {
+	case "lines":
+		if len(ev.Lines) > remoteMaxPublishLines {
+			ev.Lines = ev.Lines[len(ev.Lines)-remoteMaxPublishLines:]
+		}
+		out := remoteEvent{Type: "lines", Lines: make([]string, 0, len(ev.Lines))}
+		for _, l := range ev.Lines {
+			out.Lines = append(out.Lines, cleanRemoteText(l, remoteMaxLineBytes))
+		}
+		return out, true
+	case "state":
+		if ev.State == nil {
+			return remoteEvent{}, false
+		}
+		st := &remoteState{
+			Online:  ev.State.Online,
+			Edge:    cleanRemoteText(ev.State.Edge, remoteMaxStateFieldLen),
+			Tunnels: make([]remoteTunnel, 0, min(len(ev.State.Tunnels), remoteMaxTunnels)),
+		}
+		for i, t := range ev.State.Tunnels {
+			if i >= remoteMaxTunnels {
+				break
+			}
+			st.Tunnels = append(st.Tunnels, remoteTunnel{
+				ID:        cleanRemoteText(t.ID, remoteMaxStateFieldLen),
+				PublicURL: cleanRemoteURL(t.PublicURL),
+				LocalAddr: cleanRemoteText(t.LocalAddr, remoteMaxStateFieldLen),
+				Status:    cleanRemoteText(t.Status, remoteMaxStateFieldLen),
+				Requests:  max(t.Requests, 0),
+			})
+		}
+		return remoteEvent{Type: "state", State: st}, true
+	}
+	return remoteEvent{}, false
 }
 
 // --- handlers: agent side (authenticated — JWT or API key) ---
@@ -313,6 +487,10 @@ func newRemoteCode() string {
 func (s *Server) handleRemoteCreate(w http.ResponseWriter, r *http.Request) {
 	p, _ := auth.PrincipalFrom(r.Context())
 	sess := s.remote.create(p.OrgID)
+	if sess == nil {
+		writeError(w, http.StatusTooManyRequests, "too many active pairing sessions; end one with /qr stop")
+		return
+	}
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"code":       sess.code,
 		"url":        s.qrBase() + "/" + sess.code,
@@ -325,7 +503,7 @@ func (s *Server) handleRemoteCreate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) remoteSessionForAgent(w http.ResponseWriter, r *http.Request) *remoteSession {
 	p, _ := auth.PrincipalFrom(r.Context())
 	sess := s.remote.get(chi.URLParam(r, "code"))
-	if sess == nil || sess.orgID != p.OrgID {
+	if sess == nil || p.OrgID == "" || sess.orgID != p.OrgID {
 		writeError(w, http.StatusNotFound, "no such session")
 		return nil
 	}
@@ -344,7 +522,11 @@ func (s *Server) handleRemoteAgentStream(w http.ResponseWriter, r *http.Request)
 	}
 	// The daemon treats the response headers as its readiness signal. Attach
 	// before flushing them so a viewer connecting immediately sees it online.
-	ch := sess.attachAgent()
+	ch, ok := sess.attachAgent()
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such session")
+		return
+	}
 	defer sess.detachAgent(ch)
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -393,11 +575,12 @@ func (s *Server) handleRemotePublish(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &ev) {
 		return
 	}
-	if ev.Type != "lines" && ev.Type != "state" {
-		writeError(w, http.StatusBadRequest, "type must be lines or state")
+	clean, ok := sanitizeRemoteEvent(ev)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "type must be lines or state, with a valid payload")
 		return
 	}
-	sess.publish(ev)
+	sess.publish(clean)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -423,7 +606,11 @@ func (s *Server) handleRemoteViewerStream(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
-	id, ch := sess.addViewer()
+	id, ch, ok := sess.addViewer()
+	if !ok {
+		writeError(w, http.StatusTooManyRequests, "session is full or has ended")
+		return
+	}
 	defer sess.removeViewer(id)
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -475,11 +662,15 @@ func (s *Server) handleRemoteCommand(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if len(req.Text) == 0 || len(req.Text) > 240 {
-		writeError(w, http.StatusBadRequest, "text must be 1-240 characters")
+	// Control characters (ESC/OSC sequences, newlines) never belong in a typed
+	// command: the console echoes it into the user's terminal, so refuse
+	// rather than silently rewrite what will run.
+	text := strings.TrimSpace(req.Text)
+	if text == "" || len(text) > remoteMaxCommandBytes || cleanRemoteText(text, 0) != text {
+		writeError(w, http.StatusBadRequest, "text must be 1-240 printable characters")
 		return
 	}
-	if !sess.command(req.Text) {
+	if !sess.command(text) {
 		writeError(w, http.StatusConflict, "no console currently attached to this session")
 		return
 	}

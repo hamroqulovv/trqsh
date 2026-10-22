@@ -85,7 +85,7 @@ func TestSetupFailureAllowsRetry(t *testing.T) {
 	if m.setup.stage != "welcome" || !strings.Contains(m.setup.note, "failed") {
 		t.Fatal("failure trapped user")
 	}
-	if !remoteBlocked["setup"] {
+	if remoteAllowed["setup"] {
 		t.Fatal("remote setup allowed")
 	}
 }

@@ -106,7 +106,7 @@ func TestHandleEventCollectsTraffic(t *testing.T) {
 
 // TestRemoteCommandBlocklist proves a paired-phone command runs through the
 // exact same run() as locally typed input for an allowed command, but a
-// remoteBlocked one (e.g. logout) is refused outright — never even reaching
+// non-allowlisted one (e.g. logout) is refused outright — never even reaching
 // lookupCommand's execution, just a warning line.
 func TestRemoteCommandBlocklist(t *testing.T) {
 	m := &model{}
