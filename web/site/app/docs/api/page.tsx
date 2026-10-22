@@ -6,6 +6,7 @@ import { CodeBlock } from "@/components/code-block";
 import { cn } from "@/lib/utils";
 import { site } from "@/lib/site";
 import { DocsToc } from "@/components/docs-toc";
+import { DocsBreadcrumb } from "@/components/docs-breadcrumb";
 
 export const metadata: Metadata = {
   title: "Control API reference",
@@ -31,7 +32,7 @@ export default function ApiReferencePage() {
   return (
     <div className="docs-page-grid" id="docs-top">
       <div className="min-w-0">
-        <nav aria-label="Breadcrumb" className="docs-breadcrumb"><Link href="/docs">Documentation</Link><span aria-hidden="true">/</span>Control API</nav>
+        <DocsBreadcrumb slug="api" />
         <header className="docs-article-header">
         <div className="docs-page-meta"><span>Reference</span><span>{operationCount} operations · v{spec.version}</span></div>
         <h1>{spec.title}</h1>

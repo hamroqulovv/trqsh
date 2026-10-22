@@ -24,19 +24,30 @@ export const metadata: Metadata = {
     "expose localhost",
   ],
   authors: [{ name: "trqsh" }],
+  // "./" resolves against each route, so every page names itself as its own
+  // canonical URL (query strings dropped) and shares it as og:url. Social card
+  // titles and descriptions are left unset on purpose: Next inherits them from
+  // each page's own title and description. A page that defines its own
+  // `openGraph` replaces this block, including the generated share image.
+  alternates: { canonical: "./" },
   openGraph: {
     type: "website",
-    url: site.siteUrl,
+    url: "./",
     siteName: site.name,
-    title: `${site.name} — ${site.tagline}`,
-    description: site.description,
+    locale: "en_US",
   },
-  twitter: {
-    card: "summary_large_image",
-    title: `${site.name} — ${site.tagline}`,
-    description: site.description,
+  twitter: { card: "summary_large_image" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
-  robots: { index: true, follow: true },
 };
 
 export const viewport = {

@@ -1,9 +1,12 @@
 import { Fragment, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
-// The full sentence stays available to assistive technology while each visual
-// word (or, with split="chars", each glyph) enters independently. Words keep
-// their space in the layout throughout and never break mid-word.
+// Each visual word (or, with split="chars", each glyph) enters independently.
+// Words keep their space in the layout throughout and never break mid-word.
+//
+// The text is rendered once, aria-hidden, so crawlers read a clean heading. Use
+// it only inside a heading that carries the full sentence as its aria-label,
+// which is what assistive technology announces.
 export function AnimatedText({
   text,
   className,
@@ -27,7 +30,6 @@ export function AnimatedText({
       className={cn("animated-text", className)}
       style={{ "--chars": Math.max(chars - 1, 1) } as CSSProperties}
     >
-      <span className="sr-only">{text}</span>
       <span aria-hidden="true">
         {words.map((word, index) => (
           <Fragment key={`${word}-${index}`}>

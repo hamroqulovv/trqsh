@@ -13,7 +13,7 @@ export function PolicyPage({ document }: { document: PolicyDocument }) {
       <nav aria-label="Policy navigation" className="policy-nav">{policyLinks.map((link) => <Link key={link.href} href={link.href} aria-current={link.href === document.href ? "page" : undefined}>{link.label}</Link>)}<Link href="/docs/security" className="ml-auto">Security <ArrowUpRight className="h-3 w-3" aria-hidden="true" /></Link></nav>
       <header className="policy-hero">
         <p className="eyebrow flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> Clarity comes first</p>
-        <h1 className="page-heading mt-5"><AnimatedText text={document.title} delay={70} /></h1>
+        <h1 aria-label={document.title} className="page-heading mt-5"><AnimatedText text={document.title} delay={70} /></h1>
         <p className="mt-5 max-w-2xl text-base leading-relaxed text-secondary sm:text-lg">{document.introduction}</p>
         <div className="policy-meta"><span>Updated <time dateTime={policyUpdatedOn}>October 20, 2026</time></span><span aria-hidden="true">/</span><span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{document.readingTime}</span></div>
       </header>

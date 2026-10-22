@@ -2,7 +2,10 @@ import { AnimatedText } from "@/components/animated-text";
 
 export function HeroHeadline() {
   return (
-    <h1 className="hero-headline font-semibold leading-[1.06] tracking-[-0.065em]">
+    <h1
+      aria-label="Your localhost. Now everywhere."
+      className="hero-headline font-semibold leading-[1.06] tracking-[-0.065em]"
+    >
       <AnimatedText
         text="Your localhost."
         className="hero-title-line"

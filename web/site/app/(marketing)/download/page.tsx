@@ -30,7 +30,7 @@ export default function DownloadPage() {
       <header className="cli-download-header">
         <div>
           <p className="eyebrow">trqsh / Command line</p>
-          <h1 className="page-heading mt-5"><AnimatedText text="Your terminal. Now connected." delay={80} /></h1>
+          <h1 aria-label="Your terminal. Now connected." className="page-heading mt-5"><AnimatedText text="Your terminal. Now connected." delay={80} /></h1>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-secondary sm:text-lg">
             Bring your local apps to the internet. Install the CLI, connect your account,
             and create a public URL without leaving your terminal.

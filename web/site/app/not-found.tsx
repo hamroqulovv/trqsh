@@ -1,6 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+// Missing URLs answer 404. Without this the error page would inherit the home
+// page's title and a canonical for Next's internal /_not-found route, and its
+// "index, follow" tag would sit beside Next's own "noindex".
+export const metadata: Metadata = {
+  title: "Page not found",
+  alternates: { canonical: null },
+  robots: { index: false, follow: true },
+};
 
 export default function NotFound() {
   return (

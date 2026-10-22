@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "trqsh Dashboard",
   description:
     "Manage your trqsh tunnels, domains, API keys, usage, and billing.",
+  // Signed-in app and sign-in pages, not content: keep them out of results so
+  // they never compete with trqsh.uz. noindex, not a robots.txt Disallow,
+  // because a crawler has to fetch a page to read the directive.
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = { colorScheme: "light dark" };

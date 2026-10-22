@@ -21,6 +21,9 @@ const telegram = (process.env.TRQSH_TELEGRAM || "hamroqulovv").replace(
 
 export const site = {
   name: "trqsh",
+  // The name given to search engines in structured data. The wordmark, CLI and
+  // page titles are lowercase `trqsh`; that spelling is sent as an alternate.
+  structuredName: "TRQSH",
   supportEmail: "hello@trqsh.uz",
   tagline: "Your localhost, live on the internet.",
   description:
@@ -31,8 +34,12 @@ export const site = {
   apiUrl,
   githubRepo,
   githubUrl: `https://github.com/${githubRepo}`,
+  githubOrgUrl: `https://github.com/${githubRepo.split("/")[0]}`,
   cliGithubRepo,
   cliGithubUrl: `https://github.com/${cliGithubRepo}`,
+  // Official package pages; both list this site as their homepage.
+  npmUrl: "https://www.npmjs.com/package/@trqsh-uz/trqsh",
+  pypiUrl: "https://pypi.org/project/trqsh/",
   // Public wildcard where tunnels appear (Part 00 §1); shown in examples.
   tunnelDomain: process.env.TRQSH_BASE_DOMAIN || "trqsh.uz",
   // curl|sh installer served from the marketing origin (Part 08 release/install.sh).
@@ -75,6 +82,7 @@ export const footerNav: {
     title: "Docs",
     links: [
       { label: "Quickstart", href: "/docs/quickstart" },
+      { label: "Installation", href: "/docs/installation" },
       { label: "CLI reference", href: "/docs/cli-reference" },
       { label: "API reference", href: "/docs/api" },
       { label: "Self-hosting", href: "/docs/self-hosting" },

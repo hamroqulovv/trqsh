@@ -21,7 +21,7 @@ export default function ChangelogPage() {
       <header className="changelog-hero">
         <div>
           <p className="eyebrow flex items-center gap-2"><GitBranch className="h-3.5 w-3.5" aria-hidden="true" /> The changelog</p>
-          <h1 className="changelog-heading"><AnimatedText text="Good things" delay={70} /><br /><span className="text-muted"><AnimatedText text="keep shipping." delay={200} /></span></h1>
+          <h1 aria-label="Good things keep shipping." className="changelog-heading"><AnimatedText text="Good things" delay={70} /><br /><span className="text-muted"><AnimatedText text="keep shipping." delay={200} /></span></h1>
           <p className="changelog-intro">New capabilities. Thoughtful refinements. Fewer rough edges.<br className="hidden sm:block" /> Every published release, with the details that matter.</p>
           <a href="#releases" className="text-link mt-7">Explore the updates <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" /></a>
         </div>
