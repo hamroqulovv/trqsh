@@ -101,11 +101,26 @@ func TestOAuthCallbackRejectsMissingBindingsBeforeExchange(t *testing.T) {
 	}
 }
 
-func TestOAuthStableIdentityAndNoEmailMerging(t *testing.T) {
+func newTestServer(t *testing.T) *Server {
+	t.Helper()
 	s, err := New(DefaultConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return s
+}
+
+func userCount(t *testing.T, s *Server) int {
+	t.Helper()
+	users, err := s.store.ListUsers(context.Background(), 100, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(users)
+}
+
+func TestOAuthStableIdentityAcrossEmailChange(t *testing.T) {
+	s := newTestServer(t)
 	ctx := context.Background()
 	first := auth.OAuthUser{Provider: "google", Subject: "google-1", Email: "owner@example.test", Name: "Owner"}
 	u, org, err := s.provisionOAuthUser(ctx, first)
@@ -114,38 +129,170 @@ func TestOAuthStableIdentityAndNoEmailMerging(t *testing.T) {
 	}
 	first.Email = "changed@example.test"
 	again, againOrg, err := s.provisionOAuthUser(ctx, first)
-	if err != nil || again.ID != u.ID || againOrg.ID != org.ID {
+	if err != nil || again.ID != u.ID || againOrg.ID != org.ID || again.Email != "owner@example.test" || userCount(t, s) != 1 {
 		t.Fatalf("provider identity lost on email change: %v", err)
 	}
-	for _, profile := range []auth.OAuthUser{
-		{Provider: "google", Subject: "google-attacker", Email: u.Email},
-		{Provider: "github", Subject: "42", Email: u.Email},
-	} {
-		if _, _, err := s.provisionOAuthUser(ctx, profile); !errors.Is(err, store.ErrConflict) {
-			t.Fatalf("different identity merged by email: %v", err)
+}
+
+// One verified email is one account, whichever provider signs in first.
+func TestOAuthProvidersShareOneAccountPerEmail(t *testing.T) {
+	for _, order := range [][2]string{{"google", "github"}, {"github", "google"}} {
+		t.Run(order[0]+"-then-"+order[1], func(t *testing.T) {
+			s := newTestServer(t)
+			ctx := context.Background()
+			subjects := map[string]string{"google": "g-1", "github": "42"}
+			profile := func(provider string) auth.OAuthUser {
+				return auth.OAuthUser{Provider: provider, Subject: subjects[provider], Email: "owner@example.test", Name: provider + " name"}
+			}
+			u, org, err := s.provisionOAuthUser(ctx, profile(order[0]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			linked, linkedOrg, err := s.provisionOAuthUser(ctx, profile(order[1]))
+			if err != nil || linked.ID != u.ID || linkedOrg.ID != org.ID || userCount(t, s) != 1 {
+				t.Fatalf("second provider did not join the existing account: %v", err)
+			}
+			// Both providers keep working afterwards.
+			for _, provider := range order {
+				again, againOrg, err := s.provisionOAuthUser(ctx, profile(provider))
+				if err != nil || again.ID != u.ID || againOrg.ID != org.ID {
+					t.Fatalf("%s sign-in after linking: %v", provider, err)
+				}
+			}
+			providers, err := s.store.ListOAuthProviders(ctx, u.ID)
+			if err != nil || len(providers) != 2 {
+				t.Fatalf("linked providers: %v %v", providers, err)
+			}
+		})
+	}
+}
+
+// GitHub's profile is the account profile: Google never takes it over.
+func TestGitHubProfileWinsOverGoogle(t *testing.T) {
+	const googlePic, githubPic = "https://lh3.googleusercontent.com/a/pic", "https://avatars.githubusercontent.com/u/42"
+	google := auth.OAuthUser{Provider: "google", Subject: "g-1", Email: "owner@example.test", Name: "Google Name", AvatarURL: googlePic}
+	github := auth.OAuthUser{Provider: "github", Subject: "42", Email: "owner@example.test", Name: "gh-login", AvatarURL: githubPic}
+
+	t.Run("google first", func(t *testing.T) {
+		s := newTestServer(t)
+		ctx := context.Background()
+		if u, _, err := s.provisionOAuthUser(ctx, google); err != nil || u.AvatarURL != googlePic {
+			t.Fatalf("google-only account should use its Google picture: %+v %v", u, err)
 		}
-	}
-	_, _, err = s.provisionUser(ctx, "legacy@example.test", "Legacy", "", "email")
+		if u, _, err := s.provisionOAuthUser(ctx, github); err != nil || u.AvatarURL != githubPic || u.Name != "gh-login" {
+			t.Fatalf("linking GitHub did not take the GitHub profile: %+v %v", u, err)
+		}
+		google.AvatarURL, google.Name = "https://lh3.googleusercontent.com/a/new", "Renamed On Google"
+		u, _, err := s.provisionOAuthUser(ctx, google)
+		if err != nil || u.AvatarURL != githubPic || u.Name != "gh-login" {
+			t.Fatalf("Google sign-in replaced the GitHub profile: %+v %v", u, err)
+		}
+		stored, err := s.store.GetUser(ctx, u.ID)
+		if err != nil || stored.AvatarURL != githubPic || stored.Name != "gh-login" {
+			t.Fatalf("GitHub profile not persisted: %+v %v", stored, err)
+		}
+	})
+
+	t.Run("github first", func(t *testing.T) {
+		s := newTestServer(t)
+		ctx := context.Background()
+		if _, _, err := s.provisionOAuthUser(ctx, github); err != nil {
+			t.Fatal(err)
+		}
+		u, _, err := s.provisionOAuthUser(ctx, google)
+		if err != nil || u.AvatarURL != githubPic || u.Name != "gh-login" {
+			t.Fatalf("Google sign-in replaced the GitHub profile: %+v %v", u, err)
+		}
+	})
+
+	t.Run("github picture stays current", func(t *testing.T) {
+		s := newTestServer(t)
+		ctx := context.Background()
+		if _, _, err := s.provisionOAuthUser(ctx, github); err != nil {
+			t.Fatal(err)
+		}
+		github.AvatarURL = "https://avatars.githubusercontent.com/u/42?v=5"
+		if u, _, err := s.provisionOAuthUser(ctx, github); err != nil || u.AvatarURL != github.AvatarURL {
+			t.Fatalf("new GitHub picture not applied: %+v %v", u, err)
+		}
+	})
+
+	t.Run("google-only account stays current", func(t *testing.T) {
+		s := newTestServer(t)
+		ctx := context.Background()
+		if _, _, err := s.provisionOAuthUser(ctx, google); err != nil {
+			t.Fatal(err)
+		}
+		google.AvatarURL = "https://lh3.googleusercontent.com/a/newer"
+		if u, _, err := s.provisionOAuthUser(ctx, google); err != nil || u.AvatarURL != google.AvatarURL {
+			t.Fatalf("new Google picture not applied without a GitHub link: %+v %v", u, err)
+		}
+	})
+}
+
+// A GitHub account whose primary email differs still joins the account it
+// shares a verified secondary address with, but never creates one from it.
+func TestGitHubVerifiedSecondaryEmailJoinsExistingAccount(t *testing.T) {
+	s := newTestServer(t)
+	ctx := context.Background()
+	u, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "google", Subject: "g-1", Email: "me@gmail.test"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "google", Subject: "legacy", Email: "legacy@example.test"}); !errors.Is(err, store.ErrConflict) {
-		t.Fatal("unverified legacy email account automatically linked")
+	github := auth.OAuthUser{Provider: "github", Subject: "42", Email: "work@corp.test", AlternateEmails: []string{"me@gmail.test"}}
+	joined, _, err := s.provisionOAuthUser(ctx, github)
+	if err != nil || joined.ID != u.ID || userCount(t, s) != 1 {
+		t.Fatalf("secondary verified email did not match: %v", err)
 	}
-	legacy, _, err := s.provisionUser(ctx, "older-oauth@example.test", "Legacy OAuth", "", "github")
+	fresh, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "github", Subject: "77", Email: "new@corp.test", AlternateEmails: []string{"other@corp.test"}})
+	if err != nil || fresh.Email != "new@corp.test" {
+		t.Fatalf("new account must use the primary email: %+v %v", fresh, err)
+	}
+}
+
+func TestOAuthLinkingStaysSafe(t *testing.T) {
+	s := newTestServer(t)
+	ctx := context.Background()
+	if _, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "github", Subject: "42", Email: "owner@example.test"}); err != nil {
+		t.Fatal(err)
+	}
+	// A different account from a provider that is already linked cannot take over.
+	if _, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "github", Subject: "attacker", Email: "owner@example.test"}); !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("second GitHub account joined an account that already has one: %v", err)
+	}
+	// Different verified emails are different people.
+	other, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "google", Subject: "g-2", Email: "someone-else@example.test"})
+	if err != nil || userCount(t, s) != 2 {
+		t.Fatalf("unrelated email was merged: %+v %v", other, err)
+	}
+	// Unverified profiles are rejected before any lookup.
+	if _, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "google", Subject: "g-3"}); !errors.Is(err, auth.ErrUnverifiedEmail) {
+		t.Fatalf("profile without a verified email accepted: %v", err)
+	}
+}
+
+// Accounts created before provider IDs were stored sign in with their provider
+// and join the account by verified email, without a manual operator step.
+func TestLegacyAccountsLinkByVerifiedEmail(t *testing.T) {
+	s := newTestServer(t)
+	ctx := context.Background()
+	devUser, _, err := s.provisionUser(ctx, "legacy@example.test", "Legacy", "", "email")
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacyProfile := auth.OAuthUser{Provider: "github", Subject: "99", Email: legacy.Email}
-	if _, _, err := s.provisionOAuthUser(ctx, legacyProfile); !errors.Is(err, store.ErrConflict) {
-		t.Fatal("legacy OAuth account claimed using email alone")
+	if u, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "google", Subject: "legacy", Email: "legacy@example.test"}); err != nil || u.ID != devUser.ID {
+		t.Fatalf("email-only account not joined by a verified Google email: %+v %v", u, err)
 	}
-	if err := s.store.BindOAuthSubject(ctx, legacy.ID, "github", "99"); err != nil {
+	older, _, err := s.provisionUser(ctx, "older-oauth@example.test", "Legacy OAuth", "", "github")
+	if err != nil {
 		t.Fatal(err)
 	}
-	bound, _, err := s.provisionOAuthUser(ctx, legacyProfile)
-	if err != nil || bound.ID != legacy.ID || bound.OAuthSubject != "99" {
-		t.Fatalf("legacy original-provider migration failed: %v", err)
+	bound, _, err := s.provisionOAuthUser(ctx, auth.OAuthUser{Provider: "github", Subject: "99", Email: older.Email})
+	if err != nil || bound.ID != older.ID || userCount(t, s) != 2 {
+		t.Fatalf("legacy original-provider account not migrated: %+v %v", bound, err)
+	}
+	if stored, err := s.store.GetUser(ctx, older.ID); err != nil || stored.OAuthSubject != "99" {
+		t.Fatalf("legacy provider ID not back-filled: %+v %v", stored, err)
 	}
 }
 

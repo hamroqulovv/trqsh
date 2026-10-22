@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -107,7 +108,8 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	orgs, _ := s.store.OrgsForUser(r.Context(), p.UserID)
-	writeJSON(w, http.StatusOK, map[string]any{"user": u, "orgs": orgs, "active_org": p.OrgID})
+	providers, _ := s.store.ListOAuthProviders(r.Context(), p.UserID)
+	writeJSON(w, http.StatusOK, map[string]any{"user": u, "orgs": orgs, "active_org": p.OrgID, "providers": providers})
 }
 
 // --- OAuth ---
@@ -462,70 +464,114 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 
 // --- helpers ---
 
+// provisionUser is the dev-only password-less path: it returns the account for
+// an email, creating it (and its personal org) when it does not exist yet.
 func (s *Server) provisionUser(ctx context.Context, email, name, avatar, provider string) (store.User, store.Org, error) {
-	return s.provisionIdentity(ctx, email, name, avatar, provider, "")
+	email = strings.ToLower(strings.TrimSpace(email))
+	u, err := s.store.GetUserByEmail(ctx, email)
+	if err == nil {
+		org, err := s.firstOrg(ctx, u.ID)
+		return u, org, err
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return store.User{}, store.Org{}, err
+	}
+	return s.createUserWithOrg(ctx, store.User{Email: email, Name: name, AvatarURL: avatar, OAuthProvider: provider})
 }
 
-// Provider IDs are stable even when an account's email address changes. Do not
-// silently merge different identities/providers on the basis of matching email.
+// provisionOAuthUser resolves a verified provider profile to a TRQSH account.
+//
+// One verified email is one account: a provider account (provider + stable
+// subject) is linked to the user that owns its verified email, so signing in with
+// GitHub and with Google lands in the same account instead of two. The subject
+// stays the identity once linked, so a later email change never loses the account.
+// Providers only report verified addresses (see auth.OAuthProvider), which is what
+// makes matching on email safe.
 func (s *Server) provisionOAuthUser(ctx context.Context, profile auth.OAuthUser) (store.User, store.Org, error) {
 	if profile.Subject == "" || profile.Email == "" || (profile.Provider != "github" && profile.Provider != "google") {
 		return store.User{}, store.Org{}, auth.ErrUnverifiedEmail
 	}
 	u, err := s.store.GetUserByOAuth(ctx, profile.Provider, profile.Subject)
-	if err == nil {
-		return s.provisionIdentity(ctx, u.Email, profile.Name, profile.AvatarURL, profile.Provider, profile.Subject)
-	}
-	if !errors.Is(err, store.ErrNotFound) {
-		return store.User{}, store.Org{}, err
-	}
-	return s.provisionIdentity(ctx, profile.Email, profile.Name, profile.AvatarURL, profile.Provider, profile.Subject)
-}
-
-func (s *Server) provisionIdentity(ctx context.Context, email, name, avatar, provider, subject string) (store.User, store.Org, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	u, err := s.store.GetUserByEmail(ctx, email)
 	if errors.Is(err, store.ErrNotFound) {
-		if name == "" {
-			name = strings.Split(email, "@")[0]
+		u, err = s.userForVerifiedEmail(ctx, profile)
+		if errors.Is(err, store.ErrNotFound) {
+			created, org, cerr := s.createUserWithOrg(ctx, store.User{
+				Email: profile.Email, Name: profile.Name, AvatarURL: profile.AvatarURL,
+				OAuthProvider: profile.Provider, OAuthSubject: profile.Subject,
+			})
+			if !errors.Is(cerr, store.ErrConflict) {
+				return created, org, cerr
+			}
+			// The other provider created this account a moment ago; join it.
+			u, err = s.userForVerifiedEmail(ctx, profile)
 		}
-		u, err = s.store.CreateUser(ctx, store.User{Email: email, Name: name, AvatarURL: avatar, OAuthProvider: provider, OAuthSubject: subject})
-		if err != nil {
-			return store.User{}, store.Org{}, err
+		if err == nil {
+			err = s.store.LinkOAuthIdentity(ctx, u.ID, profile.Provider, profile.Subject)
 		}
-		org, err := s.store.CreateOrg(ctx, store.Org{Name: name + "'s org", Plan: PlanFree})
-		if err != nil {
-			return store.User{}, store.Org{}, err
-		}
-		if err := s.store.AddOrgMember(ctx, store.OrgMember{OrgID: org.ID, UserID: u.ID, Role: "owner"}); err != nil {
-			return store.User{}, store.Org{}, err
-		}
-		return u, org, nil
 	}
 	if err != nil {
 		return store.User{}, store.Org{}, err
 	}
-	if subject != "" {
-		if u.OAuthProvider != provider || u.OAuthSubject != subject {
-			return store.User{}, store.Org{}, store.ErrConflict
-		}
-		// A legacy account without a subject also needs operator review. A
-		// currently verified address cannot prove an old provider identity.
-	}
-	// Refresh the profile (name/avatar) on each sign-in — keeps the picture current
-	// and back-fills accounts created before avatars were stored.
-	if (avatar != "" && avatar != u.AvatarURL) || (name != "" && name != u.Name) {
-		if uerr := s.store.UpdateUserProfile(ctx, u.ID, name, avatar); uerr == nil {
-			if name != "" {
-				u.Name = name
-			}
-			if avatar != "" {
-				u.AvatarURL = avatar
-			}
-		}
-	}
+	s.syncOAuthProfile(ctx, &u, profile)
 	org, err := s.firstOrg(ctx, u.ID)
 	return u, org, err
+}
+
+// userForVerifiedEmail finds the existing account for any of the profile's
+// verified addresses, preferring the primary one.
+func (s *Server) userForVerifiedEmail(ctx context.Context, profile auth.OAuthUser) (store.User, error) {
+	for _, email := range append([]string{profile.Email}, profile.AlternateEmails...) {
+		u, err := s.store.GetUserByEmail(ctx, email)
+		if !errors.Is(err, store.ErrNotFound) {
+			return u, err
+		}
+	}
+	return store.User{}, store.ErrNotFound
+}
+
+// syncOAuthProfile refreshes the account's name and picture from the provider.
+// GitHub is the canonical profile source: it is always applied, while Google's
+// profile is only used until a GitHub account is linked. Signing in with Google
+// therefore never replaces a GitHub picture.
+func (s *Server) syncOAuthProfile(ctx context.Context, u *store.User, profile auth.OAuthUser) {
+	if profile.Provider != "github" {
+		linked, err := s.store.ListOAuthProviders(ctx, u.ID)
+		if err != nil || slices.Contains(linked, "github") {
+			return
+		}
+	}
+	name, avatar := profile.Name, profile.AvatarURL
+	if (name == "" || name == u.Name) && (avatar == "" || avatar == u.AvatarURL) {
+		return
+	}
+	if err := s.store.UpdateUserProfile(ctx, u.ID, name, avatar); err != nil {
+		return
+	}
+	if name != "" {
+		u.Name = name
+	}
+	if avatar != "" {
+		u.AvatarURL = avatar
+	}
+}
+
+// createUserWithOrg inserts a user with its personal org and owner membership.
+func (s *Server) createUserWithOrg(ctx context.Context, user store.User) (store.User, store.Org, error) {
+	if user.Name == "" {
+		user.Name = strings.Split(user.Email, "@")[0]
+	}
+	u, err := s.store.CreateUser(ctx, user)
+	if err != nil {
+		return store.User{}, store.Org{}, err
+	}
+	org, err := s.store.CreateOrg(ctx, store.Org{Name: u.Name + "'s org", Plan: PlanFree})
+	if err != nil {
+		return store.User{}, store.Org{}, err
+	}
+	if err := s.store.AddOrgMember(ctx, store.OrgMember{OrgID: org.ID, UserID: u.ID, Role: "owner"}); err != nil {
+		return store.User{}, store.Org{}, err
+	}
+	return u, org, nil
 }
 
 func (s *Server) firstOrg(ctx context.Context, userID string) (store.Org, error) {

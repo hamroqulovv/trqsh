@@ -16,6 +16,7 @@ type MemStore struct {
 
 	users      map[string]User
 	usersEmail map[string]string // email -> id
+	identities []oauthIdentity   // linked provider accounts, oldest first
 	orgs       map[string]Org
 	members    []OrgMember
 	keys       map[string]APIKey // id -> key
@@ -34,6 +35,8 @@ type MemStore struct {
 
 	tunnels []TunnelSession // append-only history; newest last
 }
+
+type oauthIdentity struct{ provider, subject, userID string }
 
 // NewMemStore builds an empty in-memory store.
 func NewMemStore() *MemStore {
@@ -60,12 +63,9 @@ func (m *MemStore) CreateUser(_ context.Context, u User) (User, error) {
 	if _, ok := m.usersEmail[strings.ToLower(u.Email)]; ok {
 		return User{}, ErrConflict
 	}
-	if u.OAuthSubject != "" {
-		for _, existing := range m.users {
-			if existing.OAuthProvider == u.OAuthProvider && existing.OAuthSubject == u.OAuthSubject {
-				return User{}, ErrConflict
-			}
-		}
+	linked := u.OAuthProvider != "" && u.OAuthSubject != ""
+	if linked && m.identityOwner(u.OAuthProvider, u.OAuthSubject) != "" {
+		return User{}, ErrConflict
 	}
 	if u.ID == "" {
 		u.ID = NewID("user")
@@ -75,7 +75,20 @@ func (m *MemStore) CreateUser(_ context.Context, u User) (User, error) {
 	}
 	m.users[u.ID] = u
 	m.usersEmail[strings.ToLower(u.Email)] = u.ID
+	if linked {
+		m.identities = append(m.identities, oauthIdentity{u.OAuthProvider, u.OAuthSubject, u.ID})
+	}
 	return u, nil
+}
+
+// identityOwner returns the user a provider account is linked to, or "".
+func (m *MemStore) identityOwner(provider, subject string) string {
+	for _, i := range m.identities {
+		if i.provider == provider && i.subject == subject {
+			return i.userID
+		}
+	}
+	return ""
 }
 
 func (m *MemStore) UpdateUserProfile(_ context.Context, id, name, avatarURL string) error {
@@ -121,32 +134,51 @@ func (m *MemStore) GetUserByOAuth(_ context.Context, provider, subject string) (
 	if subject == "" {
 		return User{}, ErrNotFound
 	}
-	for _, u := range m.users {
-		if u.OAuthProvider == provider && u.OAuthSubject == subject {
-			return u, nil
-		}
+	if id := m.identityOwner(provider, subject); id != "" {
+		return m.users[id], nil
 	}
 	return User{}, ErrNotFound
 }
 
-func (m *MemStore) BindOAuthSubject(_ context.Context, id, provider, subject string) error {
+func (m *MemStore) LinkOAuthIdentity(_ context.Context, userID, provider, subject string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	u, ok := m.users[id]
+	u, ok := m.users[userID]
 	if !ok {
 		return ErrNotFound
 	}
-	if subject == "" || u.OAuthProvider != provider || (u.OAuthSubject != "" && u.OAuthSubject != subject) {
+	if provider == "" || subject == "" {
 		return ErrConflict
 	}
-	for _, existing := range m.users {
-		if existing.ID != id && existing.OAuthProvider == provider && existing.OAuthSubject == subject {
+	for _, i := range m.identities {
+		if i.provider != provider {
+			continue
+		}
+		if i.userID == userID && i.subject == subject {
+			return nil
+		}
+		if i.subject == subject || i.userID == userID {
 			return ErrConflict
 		}
 	}
-	u.OAuthSubject = subject
-	m.users[id] = u
+	m.identities = append(m.identities, oauthIdentity{provider, subject, userID})
+	if u.OAuthProvider == provider && u.OAuthSubject == "" {
+		u.OAuthSubject = subject
+		m.users[userID] = u
+	}
 	return nil
+}
+
+func (m *MemStore) ListOAuthProviders(_ context.Context, userID string) ([]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var out []string
+	for _, i := range m.identities {
+		if i.userID == userID {
+			out = append(out, i.provider)
+		}
+	}
+	return out, nil
 }
 
 func (m *MemStore) CreateOrg(_ context.Context, o Org) (Org, error) {

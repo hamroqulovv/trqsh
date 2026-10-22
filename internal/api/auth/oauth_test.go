@@ -65,6 +65,38 @@ func TestOAuthVerifiedProviderIdentity(t *testing.T) {
 	}
 }
 
+func TestGitHubAlternateEmailsAreVerifiedOnly(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			_, _ = w.Write([]byte(`{"access_token":"test-provider-access"}`))
+		case "/user":
+			_, _ = w.Write([]byte(`{"id":42,"login":"owner","avatar_url":"https://avatars.githubusercontent.com/u/42"}`))
+		case "/emails":
+			_, _ = w.Write([]byte(`[
+				{"email":"Work@Corp.test","primary":true,"verified":true},
+				{"email":"me@gmail.test","primary":false,"verified":true},
+				{"email":"unverified@corp.test","primary":false,"verified":false},
+				{"email":"work@corp.test","primary":false,"verified":true}]`))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer provider.Close()
+	verifier := NewPKCEVerifier()
+	p := OAuthProvider{Name: "github", ClientID: "test", ClientSecret: "test", RedirectURL: "https://api.example.test/callback", TokenURL: provider.URL + "/token", UserURL: provider.URL + "/user", EmailsURL: provider.URL + "/emails"}
+	u, err := p.Exchange(context.Background(), "test-code", verifier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Email != "work@corp.test" || strings.Join(u.AlternateEmails, ",") != "me@gmail.test" {
+		t.Fatalf("emails: primary %q alternates %v", u.Email, u.AlternateEmails)
+	}
+	if u.AvatarURL != "https://avatars.githubusercontent.com/u/42" {
+		t.Fatalf("GitHub avatar not read: %q", u.AvatarURL)
+	}
+}
+
 func TestOAuthPKCEChallenge(t *testing.T) {
 	verifier := NewPKCEVerifier()
 	if len(verifier) != 43 || verifier == NewPKCEVerifier() {

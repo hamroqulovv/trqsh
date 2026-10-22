@@ -23,6 +23,8 @@ export interface Account {
   user: User;
   orgs: Org[];
   active_org: string;
+  /** Sign-in providers linked to this account, oldest first (e.g. ["github", "google"]). */
+  providers?: string[];
 }
 export interface ApiKey {
   id: string;

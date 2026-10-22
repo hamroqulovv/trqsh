@@ -23,8 +23,8 @@ type User struct {
 	Email         string    `json:"email"`
 	Name          string    `json:"name"`
 	AvatarURL     string    `json:"avatar_url,omitempty"`
-	OAuthProvider string    `json:"oauth_provider,omitempty"`
-	OAuthSubject  string    `json:"-"` // immutable provider account ID; never use email as identity
+	OAuthProvider string    `json:"oauth_provider,omitempty"` // first sign-in method; all linked providers live in user_identities
+	OAuthSubject  string    `json:"-"`                        // immutable provider account ID of that first method
 	CreatedAt     time.Time `json:"created_at"`
 }
 
@@ -192,8 +192,15 @@ type Store interface {
 	CreateUser(ctx context.Context, u User) (User, error)
 	GetUser(ctx context.Context, id string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
+	// GetUserByOAuth finds the user a provider account is linked to.
 	GetUserByOAuth(ctx context.Context, provider, subject string) (User, error)
-	BindOAuthSubject(ctx context.Context, id, provider, subject string) error
+	// LinkOAuthIdentity attaches a provider account to a user so either provider
+	// signs in to the same account. It is a no-op when already linked, and returns
+	// ErrConflict if the provider account belongs to another user or this user
+	// already has a different account from that provider.
+	LinkOAuthIdentity(ctx context.Context, userID, provider, subject string) error
+	// ListOAuthProviders returns the providers linked to a user, oldest first.
+	ListOAuthProviders(ctx context.Context, userID string) ([]string, error)
 	UpdateUserProfile(ctx context.Context, id, name, avatarURL string) error
 
 	// Orgs & membership.
