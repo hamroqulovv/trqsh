@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
+import logo from "@/public/trqsh-logo.png";
 
 export function Logo({
   className,
@@ -21,19 +22,10 @@ export function Logo({
         height="30"
         viewBox="0 0 32 32"
         fill="none"
-        className="shrink-0"
+        className="shrink-0 overflow-hidden rounded-lg"
         aria-hidden="true"
       >
-        <rect width="32" height="32" rx="8" fill="currentColor" />
-        <g
-          stroke="rgb(var(--page))"
-          strokeWidth="2.3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path className="logo-chevron" d="m8 10 6 6-6 6" />
-          <path className="logo-cursor" d="M18 22h6" />
-        </g>
+        <image href={logo.src} width="32" height="32" />
       </svg>
       {wordmark && (
         <span
