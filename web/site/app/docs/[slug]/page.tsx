@@ -54,7 +54,7 @@ export default async function DocPage({
             Documentation
           </Link>
           <ChevronRight size={13} aria-hidden="true" />
-          {entry.title}
+          <span aria-current="page">{entry.title}</span>
         </nav>
         {opening && <header className="docs-article-header">
           <div className="docs-page-meta"><span>{category}</span><span><Clock3 size={13} aria-hidden="true" />{readingMinutes} min read</span></div>
@@ -74,7 +74,7 @@ export default async function DocPage({
               className="group flex flex-1 flex-col text-secondary transition-colors hover:text-foreground"
             >
               <span className="flex items-center gap-1 text-xs text-muted">
-                <ArrowLeft className="h-3.5 w-3.5" /> Previous
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Previous
               </span>
               <span className="mt-1 text-sm font-medium text-foreground">
                 {prev.title}
@@ -89,7 +89,7 @@ export default async function DocPage({
               className="group flex flex-1 flex-col items-end text-right text-secondary transition-colors hover:text-foreground"
             >
               <span className="flex items-center gap-1 text-xs text-muted">
-                Next <ArrowRight className="h-3.5 w-3.5" />
+                Next <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
               <span className="mt-1 text-sm font-medium text-foreground">
                 {next.title}
