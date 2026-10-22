@@ -428,7 +428,11 @@ func (m model) quickStart() [][2]string {
 	var rows [][2]string
 	if len(m.tunnels) == 0 {
 		for _, p := range m.localPorts[:min(2, len(m.localPorts))] {
-			rows = append(rows, [2]string{fmt.Sprintf("/http %d", p), fmt.Sprintf("Share the app running on :%d", p)})
+			what := fmt.Sprintf("Share the app running on :%d", p)
+			if svc, ok := m.serviceOn(p); ok {
+				what = "Share " + describeService(svc)
+			}
+			rows = append(rows, [2]string{fmt.Sprintf("/http %d", p), what})
 		}
 		rows = append(rows, [2]string{"3000 ⏎", "Share any local port — just type its number"})
 	} else {
@@ -443,6 +447,7 @@ func (m model) quickStart() [][2]string {
 		}
 	}
 	return append(rows,
+		[2]string{"/ports", m.portsSummary()},
 		[2]string{"/", "Browse every command"},
 		[2]string{"?", "Keyboard shortcuts"},
 	)
@@ -465,6 +470,9 @@ func (m model) renderWelcomeCompact() []string {
 	if len(m.localPorts) > 0 && len(m.tunnels) == 0 {
 		port = fmt.Sprint(m.localPorts[0])
 		what = " — something is running on :" + port
+		if svc, ok := m.serviceOn(m.localPorts[0]); ok {
+			what = " — " + describeService(svc) + " on :" + port
+		}
 	}
 	action := stKey.Render("/http "+port) + stDim.Render(what+" · ") + stKey.Render("/") + stDim.Render(" for commands")
 	if m.width < 60 {

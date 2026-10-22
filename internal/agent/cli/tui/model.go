@@ -8,7 +8,6 @@ package tui
 
 import (
 	"context"
-	"net"
 	"runtime"
 	"slices"
 	"strconv"
@@ -21,6 +20,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/trqsh-uz/trqsh/internal/agent"
+	"github.com/trqsh-uz/trqsh/internal/agent/portscan"
 )
 
 // Options configures a TUI session. cli.runTUI fills these from the loaded
@@ -118,11 +118,17 @@ type model struct {
 	confirm   *confirmState
 	remoteRun bool
 
-	// localPorts are common dev-server ports found listening on this machine,
-	// offered as /http suggestions and in the welcome banner.
-	localPorts []int
-	portsAt    time.Time
-	probing    bool
+	// scan is the latest localhost scan: every listening port with what it
+	// is (see ports.go). localPorts is its HTTP subset in suggestion order,
+	// offered by /http and the welcome banner. reportPorts means /ports was
+	// typed and the next result should be printed as a card.
+	scan        portscan.Result
+	localPorts  []int
+	portsAt     time.Time
+	probing     bool
+	reportPorts bool
+	portsAll    bool
+	scanShown   bool // the startup scan's card has been printed
 
 	// command history: up/down recalls previously entered lines to edit.
 	history    []string
@@ -187,7 +193,7 @@ type loginDoneMsg struct {
 	msg string
 }
 type remoteStartedMsg struct{ code, url string }
-type portsMsg struct{ ports []int }
+type portsMsg struct{ res portscan.Result }
 
 // Run starts the TUI and blocks until the user quits.
 func Run(opts Options) error {
@@ -263,32 +269,14 @@ func inputPrompt(line int) string {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, m.poll(), m.fetchAccount(), tickCmd(), m.probePorts())
+	return tea.Batch(textarea.Blink, m.poll(), m.fetchAccount(), tickCmd(), m.startScan())
 }
 
-// probePorts looks for local dev servers in the background. It's cheap (a
-// handful of loopback dials) but not free, so it runs at startup and again
-// only when a port suggestion is about to be shown and the last scan is stale.
-func (m model) probePorts() tea.Cmd {
-	skip := 0
-	if _, p, err := net.SplitHostPort(m.opts.Addr); err == nil {
-		skip, _ = strconv.Atoi(p)
-	}
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		return portsMsg{ports: probeLocalPorts(ctx, skip)}
-	}
-}
+// startScan kicks off the startup scan of localhost's listening ports.
+func (m model) startScan() tea.Cmd { return m.scanPorts() }
 
 // maybeProbePorts re-scans when a port picker is open and the scan is stale.
-func (m *model) maybeProbePorts() tea.Cmd {
-	if m.probing || !m.menuFreeform || time.Since(m.portsAt) < 3*time.Second {
-		return nil
-	}
-	m.probing = true
-	return m.probePorts()
-}
+func (m *model) maybeProbePorts() tea.Cmd { return m.maybeScanPorts() }
 
 // --- commands (async work) ---
 
@@ -402,7 +390,21 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.relayout()
 
 	case portsMsg:
-		m.probing, m.localPorts, m.portsAt = false, msg.ports, time.Now()
+		m.probing, m.scan, m.portsAt = false, msg.res, time.Now()
+		m.localPorts = shareablePorts(msg.res.Services)
+		// The first scan of a session is reported unasked, so what's running
+		// on localhost is the first thing seen; /ports shows it again later.
+		// A scan that found nothing stays quiet — the welcome screen has a hint.
+		if !m.scanShown {
+			m.scanShown = true
+			if shown, _ := visibleServices(msg.res.Services, false); len(shown) > 0 {
+				m.reportPorts = true // keeps portsAll if /ports all beat the scan
+			}
+		}
+		if m.reportPorts {
+			m.reportPorts = false
+			m.appendLines(m.portsLines(m.portsAll)...)
+		}
 		if m.menuOpen() || m.menuFreeform {
 			idx, moved := m.menuIdx, m.menuMoved
 			m.refreshMenu()
@@ -763,8 +765,9 @@ func (m *model) refreshMenu() {
 		var later []menuEntry
 		for _, c := range slashCommands {
 			insert, run := "/"+c.name, c.args == ""
-			// Enter on /theme reports its current mode; Tab still offers choices.
-			if c.name == "theme" {
+			// Enter on /theme reports its current mode and on /ports scans; Tab
+			// still offers their options.
+			if c.name == "theme" || c.name == "ports" {
 				run = true
 			}
 			label := "/" + c.name
@@ -858,6 +861,9 @@ func (m *model) argOptions(name string) []argOption {
 		for _, p := range m.localPorts {
 			port := strconv.Itoa(p)
 			desc := "something is listening on localhost:" + port
+			if s, ok := m.serviceOn(p); ok {
+				desc = describeService(s)
+			}
 			if url, ok := shared["localhost:"+port]; ok {
 				desc = "already shared at " + url
 			}

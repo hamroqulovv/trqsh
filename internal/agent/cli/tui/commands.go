@@ -43,6 +43,7 @@ func init() {
 		{"udp", "<port>", "Expose a local UDP port", cmdUDP},
 		{"start", "", "Start tunnels from your config", cmdStart},
 		{"ls", "", "List running tunnels", cmdLs},
+		{"ports", "[all]", "See what's running on localhost", cmdPorts},
 		{"open", "<id>", "Open a tunnel URL in your browser", cmdOpen},
 		{"qr", "[id|stop]", "Pair this console to your phone (or a tunnel's QR)", cmdQR},
 		{"copy", "[id]", "Copy a tunnel URL to the clipboard", cmdCopy},
@@ -86,6 +87,7 @@ var commandAliases = map[string]string{
 	"cls":     "clear",
 	"upgrade": "update",
 	"traffic": "requests", "reqs": "requests",
+	"scan": "ports", "local": "ports", "localhost": "ports", "running": "ports",
 	"shutdown": "down",
 }
 
@@ -962,7 +964,7 @@ func cmdHelp(m *model, _ []string) tea.Cmd {
 		m.appendLines("")
 	}
 	m.appendLines(
-		"  "+stDim.Render("Type a port, like ")+stKey.Render("3000")+stDim.Render(", to share it · the slash is optional · ")+stKey.Render("?")+stDim.Render(" lists keyboard shortcuts"),
+		"  " + stDim.Render("Type a port, like ") + stKey.Render("3000") + stDim.Render(", to share it · the slash is optional · ") + stKey.Render("?") + stDim.Render(" lists keyboard shortcuts"),
 	)
 	return nil
 }
