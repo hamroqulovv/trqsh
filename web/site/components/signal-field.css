@@ -1,0 +1,278 @@
+.hero-portal {
+  position: relative;
+  align-self: stretch;
+  min-width: 0;
+}
+.hero-backdrop {
+  height: 100%;
+}
+.signal-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  color: rgb(var(--foreground));
+  transform: translate3d(0, calc(var(--hero-p, 0) * -20px), 0);
+  opacity: calc(1 - var(--hero-p, 0) * 0.6);
+}
+.signal-viewport {
+  position: relative;
+  height: 410px;
+  margin: -32px calc(-1 * clamp(0px, (100vw - 1200px) / 2 + 8px, 180px)) -12px -80px;
+  pointer-events: none;
+}
+.signal-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: signal-arrive 1200ms var(--ease-out) both;
+}
+.signal-art-compact {
+  display: none;
+}
+.signal-grid {
+  opacity: 0.17;
+}
+.signal-node-shell {
+  fill: rgb(var(--hero-background));
+  stroke: currentColor;
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+}
+.signal-local-shell {
+  stroke-opacity: 0.75;
+}
+.signal-glyph {
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.signal-node-title {
+  fill: currentColor;
+  font-family: inherit;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.3px;
+}
+.signal-node-detail {
+  fill: currentColor;
+  opacity: 0.5;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+}
+.signal-public-url {
+  opacity: 0.7;
+}
+.signal-packet-shell {
+  fill: rgb(var(--hero-background));
+  stroke: currentColor;
+  stroke-opacity: 0.28;
+  stroke-width: 0.8;
+}
+.signal-packet-text {
+  fill: currentColor;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  font-weight: 500;
+}
+.signal-caption {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  pointer-events: auto;
+}
+.signal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.signal-examples {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 1.5vw, 22px);
+  min-width: 0;
+}
+.signal-examples button {
+  position: relative;
+  min-height: 44px;
+  padding: 10px 0;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: rgb(var(--muted-ink));
+  transition: color 200ms ease;
+}
+.signal-examples button::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  left: 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 350ms var(--ease-out);
+}
+.signal-examples button:hover,
+.signal-examples button[aria-pressed="true"] {
+  color: rgb(var(--foreground));
+}
+.signal-examples button[aria-pressed="true"]::after {
+  transform: scaleX(1);
+}
+.signal-playback {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: rgb(var(--muted-ink));
+  transition: color 200ms ease, background 200ms ease;
+}
+.signal-playback svg {
+  width: 14px;
+  height: 14px;
+}
+.signal-playback:hover {
+  background: rgb(var(--foreground) / 0.06);
+  color: rgb(var(--foreground));
+}
+.signal-playback:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.signal-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.signal-steps li {
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgb(var(--muted-ink));
+  transition: color 250ms ease;
+}
+.signal-steps li[data-state="active"],
+.signal-steps li[data-state="complete"] {
+  color: rgb(var(--foreground));
+}
+.signal-step-number {
+  display: inline-block;
+  margin-right: 3px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  opacity: 0.5;
+}
+.signal-step-track {
+  display: block;
+  height: 1px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  background: rgb(var(--foreground) / 0.13);
+}
+.signal-step-track > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgb(var(--foreground) / 0.9);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.signal-description {
+  min-height: 40px;
+  margin-top: 15px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: rgb(var(--secondary-ink));
+}
+@keyframes signal-arrive {
+  from { opacity: 0; transform: translate3d(12px, 6px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@media (min-width: 1600px) {
+  .signal-viewport {
+    height: 450px;
+    margin-right: -240px;
+    margin-left: -135px;
+  }
+}
+@media (max-width: 1023px) {
+  .signal-field {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .signal-viewport {
+    height: 410px;
+    margin: -24px -16px -4px;
+  }
+  .signal-caption {
+    max-width: 600px;
+  }
+  .signal-description {
+    min-height: 24px;
+  }
+}
+/* The phone illustration is composed vertically, rather than shrinking the
+   wide scene and its labels into an unreadable thumbnail. */
+@media (max-width: 639px) {
+  .signal-art-wide {
+    display: none;
+  }
+  .signal-art-compact {
+    display: block;
+  }
+  .signal-viewport {
+    height: auto;
+    aspect-ratio: 560 / 600;
+    margin: -24px -12px 6px;
+  }
+  .signal-node-title {
+    font-size: 21px;
+  }
+  .signal-node-detail {
+    font-size: 17px;
+  }
+  .signal-public-url {
+    font-size: 16px;
+  }
+  .signal-packet-text {
+    font-size: 18px;
+  }
+  .signal-toolbar {
+    margin-bottom: 10px;
+  }
+  .signal-steps {
+    gap: 12px;
+  }
+  .signal-step-number {
+    display: block;
+    margin: 0 0 2px;
+  }
+  .signal-steps li {
+    font-size: 11px;
+  }
+  .signal-description {
+    min-height: 62px;
+    margin-top: 14px;
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signal-art { animation: none; }
+  .signal-field { transform: none; opacity: 1; }
+  .signal-examples button,
+  .signal-examples button::after,
+  .signal-steps li { transition: none; }
+}

@@ -22,8 +22,6 @@ import { FeatureVignette } from "@/components/feature-vignettes";
 import { Magnetic } from "@/components/magnetic";
 import { Reveal } from "@/components/reveal";
 import { ScrambleText } from "@/components/scramble-text";
-import { SpotlightGroup } from "@/components/spotlight";
-import { Tilt } from "@/components/tilt";
 import { CodeBlock } from "@/components/code-block";
 import { buttonVariants } from "@/components/ui/button";
 import { planByCode } from "@/lib/plans";
@@ -123,7 +121,6 @@ export default function HomePage() {
   return (
     <>
       <section className="hero-section">
-        <HeroBackground />
         <HeroMotion />
         <div className="shell relative grid items-center gap-12 pb-16 pt-16 sm:pb-20 sm:pt-20 lg:grid-cols-[1.04fr_1fr] lg:gap-14 lg:pb-24 lg:pt-24">
           <div className="hero-copy min-w-0">
@@ -164,10 +161,9 @@ export default function HomePage() {
               start. No credit card required.
             </p>
           </div>
-          <div
-            className="hero-portal min-h-[340px] sm:min-h-[380px]"
-            aria-hidden="true"
-          />
+          <div className="hero-portal">
+            <HeroBackground />
+          </div>
         </div>
       </section>
 
@@ -265,17 +261,16 @@ export default function HomePage() {
             </Link>
           </Reveal>
         </div>
-        <SpotlightGroup className="grid gap-5 md:grid-cols-3">
+        <div className="grid gap-8 md:grid-cols-3">
           {capabilities.map((feature, index) => (
             <Reveal
               key={feature.title}
               as="article"
               delay={index * 100}
-              className="feature-card spotlight group flex flex-col"
+              className="feature-card group flex flex-col"
             >
-              <span className="spotlight-fill" aria-hidden="true" />
               <div className="mb-6 flex items-center justify-between">
-                <span className="feature-icon inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface-2">
+                <span className="feature-icon inline-flex h-6 items-center">
                   <feature.icon
                     className="h-5 w-5 text-foreground"
                     strokeWidth={1.5}
@@ -304,14 +299,14 @@ export default function HomePage() {
               </div>
             </Reveal>
           ))}
-        </SpotlightGroup>
+        </div>
         <Reveal className="mt-7 flex items-center justify-center gap-2 text-xs text-muted">
           <Code2 className="draw-icon h-3.5 w-3.5" aria-hidden="true" />
           No deployment needed to share a preview.
         </Reveal>
       </section>
 
-      <section className="border-y border-border bg-surface-2">
+      <section className="border-y border-border">
         <div className="shell section">
           <Reveal className="mb-12 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
             <div>
@@ -351,7 +346,7 @@ export default function HomePage() {
                     label={step.label}
                     prompt
                     wrap
-                    className="bg-page"
+                    compact
                   />
                   <Link
                     href={step.href}
@@ -383,12 +378,7 @@ export default function HomePage() {
           </Link>
         </Reveal>
         <Reveal delay={120}>
-          <SpotlightGroup>
-            <Tilt
-              max={3}
-              className="free-plan-card spotlight rounded-2xl border border-border p-7 sm:p-9"
-            >
-              <span className="spotlight-fill" aria-hidden="true" />
+            <div className="free-plan-overview">
               <div className="flex items-start justify-between gap-5">
                 <div>
                   <p className="text-sm font-medium">{free.name} plan</p>
@@ -442,22 +432,14 @@ export default function HomePage() {
                 Create your free account{" "}
                 <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               </a>
-            </Tilt>
-          </SpotlightGroup>
+            </div>
         </Reveal>
       </section>
 
       <section className="shell pb-16 sm:pb-24">
-        <SpotlightGroup>
-          <Reveal className="cta-panel inverse-surface spotlight relative isolate flex flex-col items-start justify-between gap-8 overflow-hidden rounded-2xl px-7 py-10 sm:px-12 sm:py-14 lg:flex-row lg:items-center">
-            <span className="spotlight-fill" aria-hidden="true" />
-            <div className="cta-orbits" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
+          <Reveal className="flex flex-col items-start justify-between gap-8 border-t border-border py-12 sm:py-14 lg:flex-row lg:items-center">
             <div className="relative">
-              <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-white/60">
+              <p className="eyebrow mb-3">
                 <ScrambleText text="Ready when you are" />
               </p>
               <h2 className="text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-4xl">
@@ -469,8 +451,8 @@ export default function HomePage() {
                 <Link
                   href="/download"
                   className={cn(
-                    buttonVariants({ size: "lg", variant: "outline" }),
-                    "w-full border-white bg-white text-primary hover:border-white hover:bg-white/90 sm:w-auto",
+                    buttonVariants({ size: "lg" }),
+                    "w-full sm:w-auto",
                   )}
                 >
                   Download trqsh <Download className="h-4 w-4" aria-hidden="true" />
@@ -478,13 +460,12 @@ export default function HomePage() {
               </Magnetic>
               <Link
                 href="/docs/quickstart"
-                className="text-link justify-center font-normal text-white/80 hover:text-white sm:justify-start"
+                className="text-link justify-center font-normal text-secondary hover:text-foreground sm:justify-start"
               >
                 Quickstart <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
           </Reveal>
-        </SpotlightGroup>
       </section>
     </>
   );

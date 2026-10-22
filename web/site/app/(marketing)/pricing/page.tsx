@@ -48,12 +48,12 @@ const questions = [
 export default function PricingPage() {
   return (
     <div className="shell pb-20 pt-16 sm:pb-24 sm:pt-20">
-      <header className="mx-auto mb-10 max-w-2xl text-center">
+      <header className="mb-10 max-w-2xl">
         <p className="eyebrow">Simple plans. Space to grow.</p>
         <h1 className="page-heading mt-5">
           <AnimatedText text="Build at your pace." delay={100} />
         </h1>
-        <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-secondary sm:text-lg">
+        <p className="mt-5 max-w-lg text-base leading-relaxed text-secondary sm:text-lg">
           Start with the essentials, free. Add more tunnels, bandwidth, and
           control as your work grows.
         </p>

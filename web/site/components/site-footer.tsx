@@ -81,23 +81,7 @@ export function SiteFooter() {
         </Reveal>
 
         <div className="footer-bottom">
-          <p>
-            © {new Date().getFullYear()} trqsh
-            <span aria-hidden="true"> · </span>
-            <Link href="/changelog" className="footer-link-quiet">
-              CLI v{site.version}
-            </Link>
-            <span aria-hidden="true"> · </span>
-            <a
-              href={site.githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="footer-link-quiet"
-            >
-              Apache-2.0
-              <span className="sr-only"> license on GitHub (opens in a new tab)</span>
-            </a>
-          </p>
+          <p>© {new Date().getFullYear()} trqsh</p>
           <nav aria-label="Legal" className="footer-legal">
             {footerLegalNav.map((link) => (
               <Link key={link.href} href={link.href} className="footer-link-quiet">

@@ -51,7 +51,7 @@ export default function DocsIndexPage() {
           how to manage tunnels, inspect requests and automate your workflow.
         </p>
       </header>
-      <section className="docs-start-card mt-8">
+      <section className="docs-start mt-8">
         <div>
         <p className="text-xs font-medium text-muted">
           Getting started
@@ -80,15 +80,15 @@ export default function DocsIndexPage() {
           ))}
         </div>
       </section>
-      <div className="mt-5 grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-x-7 sm:grid-cols-3">
         {guides.map((guide) => (
           <Link
             key={guide.href}
             href={guide.href}
-            className="group rounded-xl border border-border bg-surface p-5 transition-colors hover:border-border-strong hover:bg-surface-2"
+            className="group border-b border-border py-5 transition-colors hover:border-border-strong"
           >
             <guide.icon
-              className="mb-5 h-5 w-5 text-secondary"
+              className="mb-3 h-4 w-4 text-secondary"
               strokeWidth={1.5}
               aria-hidden="true"
             />

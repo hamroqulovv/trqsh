@@ -73,7 +73,7 @@ export default async function UpgradePage({
           </p>
         </header>
 
-        <div className="mb-6 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-5">
+        <div className="mb-6 flex items-center justify-between border-y border-border py-5">
           <div>
             <p className="text-sm text-secondary">{name} plan</p>
             <p className="mt-0.5 text-2xl font-semibold tracking-tight text-foreground tabular">
@@ -86,7 +86,7 @@ export default async function UpgradePage({
               </p>
             )}
           </div>
-          <span className="rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">
+          <span className="text-xs font-medium text-muted">
             {cadence === "annual" ? "Yearly" : "Monthly"}
           </span>
         </div>
@@ -112,7 +112,7 @@ export default async function UpgradePage({
           ))}
         </ol>
 
-        <div className="mt-8 flex items-start gap-2 rounded-lg border border-border bg-surface p-4 text-sm text-secondary">
+        <div className="mt-8 flex items-start gap-2 border-t border-border pt-5 text-sm text-secondary">
           <Check className="mt-0.5 h-4 w-4 shrink-0 text-good" />
           <span>
             Include the{" "}

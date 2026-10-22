@@ -130,3 +130,18 @@ checks. No browser runtime or static asset errors were observed. Reviewed deskto
 and mobile screenshots in both themes and confirmed the new login at
 `https://trqsh.uz/dashboard/login`. The persistent dashboard container remains
 healthy.
+
+## 2026-10-22 — Animated sign-in background and compact navigation
+
+Rebuilt sign-in around a full-viewport ASCII horizon adapted from the supplied
+GradientASCII shader. The animation uses the shared monochrome theme tokens,
+responds to the pointer with local light and glyph decoding, and keeps a text
+fallback when WebGL is unavailable. Reduced motion, hidden-tab pausing, capped
+render buffers and frame rates, context recovery, and resource cleanup limit
+background work. The floating navbar is 56 px tall, capped at 1120 px wide, and
+keeps responsive side gutters with a subtle frosted surface.
+
+Configured GitHub and Google providers, encoded return destinations, errors,
+unavailable states, and documentation/legal links retain their existing behavior.
+Validation: TypeScript checking, provider and return-path checks, animation
+lifecycle and resource checks, and the localhost page/stylesheet HTTP checks pass.

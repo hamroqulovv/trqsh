@@ -274,7 +274,7 @@ export function TunnelPreview() {
       <SpotlightGroup className="tunnel-frame">
         <Tilt
           max={3}
-          className="tunnel-card spotlight overflow-hidden rounded-2xl border border-border-strong bg-surface"
+          className="tunnel-card spotlight overflow-hidden rounded-md border border-border bg-surface"
         >
           <span className="spotlight-fill" aria-hidden="true" />
           <div className="flex items-center gap-2 px-5 py-4 text-xs font-medium text-secondary">

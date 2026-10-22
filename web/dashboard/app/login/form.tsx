@@ -1,215 +1,122 @@
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Check,
-  Github,
-  Terminal,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight, Github, Globe, Radio, ScanLine, Terminal } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { dashboardPath } from "@/lib/paths";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LoginBackground } from "@/components/login-background";
+import "./login.css";
 
 const SITE = process.env.NEXT_PUBLIC_TRQSH_SITE_URL || "https://trqsh.uz";
 const TUNNEL_DOMAIN = process.env.NEXT_PUBLIC_TRQSH_BASE_DOMAIN || "trqsh.uz";
 
-export function LoginForm({
-  next,
-  providers,
-  error,
-}: {
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M22.56 12.25c0-.73-.06-1.42-.19-2.09H12v3.96h5.92a5.07 5.07 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-7.95ZM12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.23 1.06-3.72 1.06-2.87 0-5.31-1.94-6.18-4.55H2.15v2.85A11 11 0 0 0 12 23ZM5.82 14.09A6.6 6.6 0 0 1 5.48 12c0-.73.12-1.43.34-2.09V7.06H2.15A11 11 0 0 0 1 12c0 1.78.42 3.47 1.15 4.94l3.67-2.85ZM12 5.38c1.62 0 3.06.56 4.21 1.64l3.16-3.16A10.6 10.6 0 0 0 12 1a11 11 0 0 0-9.85 6.06l3.67 2.85C6.69 7.31 9.13 5.38 12 5.38Z" />
+    </svg>
+  );
+}
+
+export function LoginForm({ next, providers, error }: {
   next: string;
   providers: string[];
   error?: string;
 }) {
   return (
-    <div className="flex min-h-svh flex-col bg-page">
-      <a
-        href="#sign-in"
-        className="fixed left-4 top-4 z-50 -translate-y-24 rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground focus:translate-y-0"
-      >
-        Skip to sign in
-      </a>
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-20 max-w-[1600px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12">
-          <a href={SITE} aria-label="trqsh home">
-            <Logo />
-          </a>
-          <div className="flex items-center gap-4 sm:gap-6">
-            <a
-              href={`${SITE}/docs`}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-secondary hover:text-foreground"
-            >
-              Docs <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+    <div className="login-page">
+      <LoginBackground />
+      <a href="#sign-in" className="login-skip-link">Skip to sign in</a>
+      <header className="login-header">
+        <div className="login-shell login-header-inner">
+          <a href={SITE} aria-label="trqsh home"><Logo /></a>
+          <div className="login-header-actions">
+            <a href={`${SITE}/docs`} className="login-docs-link">
+              Docs <ArrowUpRight aria-hidden="true" />
             </a>
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-[1600px] flex-1 lg:grid-cols-[1fr_1.05fr]">
-        <section
-          aria-labelledby="product-heading"
-          className="hidden flex-col justify-center border-r border-border bg-surface-2 px-12 py-16 lg:flex xl:px-20"
-        >
-          <div className="max-w-lg">
-            <p className="mb-6 text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-              Local work. Global reach.
-            </p>
-            <h2
-              id="product-heading"
-              className="text-[3.5rem] font-semibold leading-[1.08] tracking-[-0.055em] xl:text-[4.5rem]"
-            >
-              Your localhost.
-              <br />
-              Anywhere.
+      <main className="login-main">
+        <div className="login-shell login-content">
+          <section className="login-story" aria-labelledby="product-heading">
+            <p className="login-eyebrow"><span className="login-eyebrow-line" />Local work. Global reach.</p>
+            <h2 id="product-heading" className="login-product-heading">
+              Your localhost.<br /><span>Now everywhere.</span>
             </h2>
-            <p className="mt-6 max-w-sm text-base leading-7 text-secondary">
+            <p className="login-story-description">
               Bring your local services online. Share a preview, receive a
-              webhook, or connect a device.
+              webhook, or connect a device. Start with one command.
             </p>
 
-            <div className="mt-10 overflow-hidden rounded-xl border border-border-strong bg-page">
-              <div className="flex items-center gap-2 border-b border-border px-5 py-3 text-xs text-muted">
-                <Terminal className="h-3.5 w-3.5" aria-hidden="true" /> Terminal
-                example
+            <div className="login-command" aria-label="Example connection">
+              <div className="login-command-heading"><Terminal aria-hidden="true" /> One command. A public URL.</div>
+              <div className="login-command-line">
+                <span className="login-prompt" aria-hidden="true">$</span>
+                <code>trqsh http 3000</code><span className="login-command-caret" aria-hidden="true" />
               </div>
-              <div className="space-y-5 p-5 font-mono text-sm">
-                <p>
-                  <span className="mr-2 text-muted" aria-hidden="true">
-                    $
-                  </span>
-                  <code className="font-medium">trqsh http 3000</code>
-                </p>
-                <div className="space-y-1 border-l-2 border-border-strong pl-4 text-xs leading-6 text-secondary">
-                  <p>localhost:3000</p>
-                  <p className="flex items-center gap-2 break-all">
-                    <ArrowRight
-                      className="h-3.5 w-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
-                    your-subdomain.{TUNNEL_DOMAIN}
-                  </p>
-                </div>
+              <div className="login-example-route">
+                <code>localhost:3000</code><ArrowRight aria-hidden="true" /><code>your-app.{TUNNEL_DOMAIN}</code>
               </div>
+              <span className="login-command-signal" aria-hidden="true" />
             </div>
 
-            <ul className="mt-8 space-y-3 text-sm text-secondary">
-              {[
-                "One workspace for your tunnels and domains",
-                "CLI and desktop apps for your workflow",
-                "Usage and request inspection in one place",
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-3">
-                  <Check
-                    className="h-4 w-4 shrink-0 text-foreground"
-                    aria-hidden="true"
-                  />
-                  {item}
-                </li>
-              ))}
+            <ul className="login-capabilities">
+              <li><Globe aria-hidden="true" /> Share previews</li>
+              <li><Radio aria-hidden="true" /> Receive webhooks</li>
+              <li><ScanLine aria-hidden="true" /> Inspect requests</li>
             </ul>
-          </div>
-        </section>
+          </section>
 
-        <section
-          id="sign-in"
-          aria-labelledby="login-heading"
-          className="flex items-center justify-center px-5 py-12 sm:px-8 sm:py-16 lg:px-12"
-        >
-          <div className="w-full max-w-[400px]">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-              Your workspace
-            </p>
-            <h1
-              id="login-heading"
-              className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.045em]"
-            >
-              Sign in to trqsh
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-secondary">
-              Continue with GitHub or Google using a verified email address.
-            </p>
+          <section id="sign-in" tabIndex={-1} aria-labelledby="login-heading" className="login-auth">
+            <div className="login-auth-content">
+              <p className="login-eyebrow">Your workspace</p>
+              <h1 id="login-heading">Sign in to trqsh</h1>
+              <p className="login-auth-description">Your tunnels, domains, and requests. All in one place.</p>
 
-            {providers.length > 0 && (
-              <>
-                <div className="mt-8 flex flex-col gap-3">
+              {providers.length > 0 && (
+                <div className="login-providers" aria-label="Sign-in providers">
                   {providers.includes("github") && (
                     <a
                       href={`${dashboardPath("/login/oauth/github")}?next=${encodeURIComponent(next)}`}
-                      className={buttonVariants({
-                        variant: "outline",
-                        className: "h-12 w-full",
-                      })}
+                      className={buttonVariants({ className: "login-provider login-provider-primary" })}
                     >
-                      <Github className="h-4 w-4" aria-hidden="true" />
-                      Continue with GitHub
+                      <Github aria-hidden="true" /><span>Continue with GitHub</span><ArrowRight className="login-provider-arrow" aria-hidden="true" />
                     </a>
                   )}
                   {providers.includes("google") && (
                     <a
                       href={`${dashboardPath("/login/oauth/google")}?next=${encodeURIComponent(next)}`}
-                      className={buttonVariants({
-                        variant: "outline",
-                        className: "h-12 w-full",
-                      })}
+                      className={buttonVariants({ variant: providers.includes("github") ? "outline" : "default", className: "login-provider" })}
                     >
-                      <span
-                        className="text-base font-semibold"
-                        aria-hidden="true"
-                      >
-                        G
-                      </span>
-                      Continue with Google
+                      <GoogleMark /><span>Continue with Google</span><ArrowRight className="login-provider-arrow" aria-hidden="true" />
                     </a>
                   )}
                 </div>
-              </>
-            )}
-
-            {error && (
-              <p role="alert" className="mt-6 rounded-md border border-border-strong bg-surface-2 px-4 py-3 text-sm leading-6 text-critical">
-                {error}
+              )}
+              {error && <p role="alert" className="login-notice login-error">{error}</p>}
+              {providers.length === 0 && (
+                <p role="status" className="login-notice">Sign-in is temporarily unavailable. Please try again later.</p>
+              )}
+              <p className="login-account-note">
+                Use a verified email address with GitHub or Google.<br />
+                New here? Your first sign-in creates your account.
               </p>
-            )}
-            {providers.length === 0 && (
-              <p role="status" className="mt-8 rounded-md border border-border px-4 py-3 text-sm leading-6 text-secondary">
-                Sign-in is temporarily unavailable. Please try again later.
-              </p>
-            )}
-            <p className="mt-6 text-sm leading-6 text-secondary">
-              New here? Your account is created securely when you first continue
-              with GitHub or Google.
-            </p>
-            <div className="mt-8 border-t border-border pt-6">
-              <a
-                href={`${SITE}/docs/quickstart`}
-                className="inline-flex items-center gap-2 text-sm text-secondary hover:text-foreground"
-              >
-                Getting started? Read the quickstart
-                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </a>
+              <div className="login-quickstart">
+                <span>Getting started?</span>
+                <a href={`${SITE}/docs/quickstart`}>Read the quickstart <ArrowUpRight aria-hidden="true" /></a>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
 
-      <footer className="border-t border-border px-5 py-5 sm:px-8 lg:px-12">
-        <div className="mx-auto flex max-w-[1504px] flex-wrap items-center justify-between gap-x-6 gap-y-3 text-xs text-muted">
+      <footer className="login-footer">
+        <div className="login-shell login-footer-inner">
           <p>Your localhost, live on the internet.</p>
-          <nav aria-label="Legal" className="flex items-center gap-5">
-            <a
-              href={`${SITE}/terms`}
-              className="hover:text-foreground hover:underline"
-            >
-              Terms
-            </a>
-            <a
-              href={`${SITE}/privacy`}
-              className="hover:text-foreground hover:underline"
-            >
-              Privacy
-            </a>
+          <nav aria-label="Legal">
+            <a href={`${SITE}/terms`}>Terms</a><a href={`${SITE}/privacy`}>Privacy</a>
           </nav>
         </div>
       </footer>

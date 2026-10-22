@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Terminal, Radio, ScanLine, Monitor, ChevronDown } from "lucide-react";
-import { DownloadSection } from "@/components/download-section";
 import { SmartDownload } from "@/components/smart-download";
 import { CodeBlock } from "@/components/code-block";
 import { site } from "@/lib/site";
@@ -51,7 +50,7 @@ export default function DownloadPage() {
           <div><p className="eyebrow">After installation</p><h2 id="first-tunnel" className="section-heading mt-3">From install to your first URL.</h2><p className="mt-4 max-w-2xl text-sm leading-relaxed text-secondary">Keep your local app running. Open another terminal and follow these steps.</p></div>
           <Link href="/docs/quickstart" className="text-link text-sm">Full quickstart <ArrowRight size={15} aria-hidden="true" /></Link>
         </Reveal>
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-8 lg:grid-cols-3">
           {[
             { number: "01", title: "Open the CLI", description: "Check the installation, then launch the interactive console.", code: "trqsh --version\ntrqsh", label: "In your terminal", note: "New installs open the welcome guide. Follow it, or use the console steps below." },
             { number: "02", title: "Connect your account", description: "Approve the sign-in request in your browser and return to the console.", code: "/login", label: "Inside the trqsh console", note: "Already connected through the welcome guide? You can skip this step." },
@@ -59,14 +58,10 @@ export default function DownloadPage() {
           ].map(step => <article key={step.number} className="cli-next-step">
             <span className="font-mono text-xs text-muted">{step.number}</span><h3 className="mt-4 text-base font-semibold">{step.title}</h3>
             <p className="mb-5 mt-2 text-sm leading-relaxed text-secondary">{step.description}</p>
-            <CodeBlock code={step.code} label={step.label} wrap />
+            <CodeBlock code={step.code} label={step.label} wrap compact />
             <p className="mt-4 text-xs leading-relaxed text-muted">{step.note}</p>
           </article>)}
         </div>
-      </section>
-      <section id="all-platforms" className="mt-16 sm:mt-20" aria-labelledby="platform-downloads">
-        <Reveal className="mb-8"><p className="eyebrow">Direct downloads</p><h2 id="platform-downloads" className="section-heading mt-3">Native binaries. Your platform.</h2><p className="mt-4 text-sm leading-relaxed text-secondary">Choose the operating system and processor where the CLI will run. Extract the archive and add the binary to PATH.</p></Reveal>
-        <DownloadSection />
       </section>
       <section className="mt-16 grid gap-8 border-t border-border pt-12 lg:grid-cols-[0.7fr_1fr] lg:gap-16" aria-labelledby="install-help">
         <div><p className="eyebrow">Good to know</p><h2 id="install-help" className="mt-3 text-2xl font-semibold tracking-tight">A smooth first run.</h2><p className="mt-4 text-sm leading-relaxed text-secondary">Architecture, requirements, PATH and updates — the essentials before you connect.</p><Link href="/docs/installation" className="text-link mt-5 text-sm">Installation guide <ArrowRight size={15} aria-hidden="true" /></Link></div>

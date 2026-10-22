@@ -195,3 +195,18 @@ navigation, cross-tab synchronization, live system changes, unavailable storage,
 and stored dark preference before application JavaScript loads all pass. No
 browser runtime errors were observed; desktop and mobile screenshots were
 reviewed. The persistent site container remains healthy.
+
+## 2026-10-22 — Open page layouts and animated request flow
+
+Replaced oversized panels across marketing pages, downloads, pricing, policies,
+and documentation with open columns, dividers, and compact command strips.
+Removed the duplicate direct-download grid while retaining the platform-aware
+installer and manual binary selector. Footer legal links are clickable again;
+copyright remains, while the CLI version and license labels are removed.
+
+The hero now illustrates a request traveling through the public endpoint to
+localhost and its response returning to the caller. Example controls, moving
+packets, relay activity, and progress indicators share the same timeline. Phones
+use a vertical composition; reduced motion, hidden tabs, and offscreen visibility
+control animation work. Validation: TypeScript checking, the production build,
+route HTTP checks, and targeted animation geometry/lifecycle checks pass.

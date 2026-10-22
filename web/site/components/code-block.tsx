@@ -9,6 +9,7 @@ export function CodeBlock({
   className,
   prompt = false,
   wrap = false,
+  compact = false,
 }: {
   code: string;
   label?: string;
@@ -16,8 +17,21 @@ export function CodeBlock({
   prompt?: boolean;
   /** Let long commands wrap onto more lines instead of scrolling sideways. */
   wrap?: boolean;
+  /** A single command strip, with its label outside the command surface. */
+  compact?: boolean;
 }) {
   const lines = code.replace(/\n$/, "").split("\n");
+  if (compact) return (
+    <div className={cn("command-block", className)}>
+      <p className="command-label">{label ?? "Terminal"}</p>
+      <div className="command-line">
+        <pre tabIndex={0} aria-label={label ?? "Terminal command"} className={cn(wrap && "whitespace-pre-wrap [overflow-wrap:anywhere]")}>
+          <code>{prompt && <span aria-hidden="true" className="select-none text-muted">$ </span>}{code}</code>
+        </pre>
+        <CopyButton value={code} />
+      </div>
+    </div>
+  );
   return (
     <div
       className={cn(

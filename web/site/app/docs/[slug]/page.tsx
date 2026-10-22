@@ -71,7 +71,7 @@ export default async function DocPage({
           {prev ? (
             <Link
               href={`/docs/${prev.slug}`}
-              className="group flex flex-1 flex-col rounded-lg border border-border bg-surface p-4 transition-colors hover:border-border-strong"
+              className="group flex flex-1 flex-col text-secondary transition-colors hover:text-foreground"
             >
               <span className="flex items-center gap-1 text-xs text-muted">
                 <ArrowLeft className="h-3.5 w-3.5" /> Previous
@@ -86,7 +86,7 @@ export default async function DocPage({
           {next ? (
             <Link
               href={`/docs/${next.slug}`}
-              className="group flex flex-1 flex-col items-end rounded-lg border border-border bg-surface p-4 text-right transition-colors hover:border-border-strong"
+              className="group flex flex-1 flex-col items-end text-right text-secondary transition-colors hover:text-foreground"
             >
               <span className="flex items-center gap-1 text-xs text-muted">
                 Next <ArrowRight className="h-3.5 w-3.5" />

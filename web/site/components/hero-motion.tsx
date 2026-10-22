@@ -4,7 +4,7 @@ import * as React from "react";
 
 // Publishes --hero-p on the enclosing section: 0 at the top of the page,
 // 1 once the hero has scrolled away. CSS turns it into the copy lifting and
-// fading and the tunnel pushing forward. One style write per changed frame.
+// fading and the signal field drifting. One style write per changed frame.
 export function HeroMotion() {
   const ref = React.useRef<HTMLSpanElement>(null);
 
