@@ -34,6 +34,9 @@ type MemStore struct {
 	meteredSeq   int64
 
 	tunnels []TunnelSession // append-only history; newest last
+
+	audit    []AuditEntry // append-only admin log; newest last
+	auditSeq int64
 }
 
 type oauthIdentity struct{ provider, subject, userID string }
@@ -664,10 +667,7 @@ func (m *MemStore) ListTunnelSessions(_ context.Context, f TunnelSessionFilter) 
 	// Newest first.
 	for i := len(m.tunnels) - 1; i >= 0; i-- {
 		s := m.tunnels[i]
-		if f.OrgID != "" && s.OrgID != f.OrgID {
-			continue
-		}
-		if f.ActiveOnly && s.Status != "active" {
+		if !tunnelMatches(s, f) {
 			continue
 		}
 		if skipped < f.Offset {
@@ -777,19 +777,35 @@ func (m *MemStore) ListUsers(_ context.Context, limit, offset int, search string
 	return pageSlice(all, limit, offset), nil
 }
 
-func (m *MemStore) ListOrgs(_ context.Context, limit, offset int, plan string) ([]Org, error) {
+func (m *MemStore) ListOrgs(_ context.Context, limit, offset int, plan, search string) ([]Org, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	all := m.filterOrgs(plan, search)
+	sort.Slice(all, func(i, j int) bool { return all[i].CreatedAt.After(all[j].CreatedAt) })
+	return pageSlice(all, limit, offset), nil
+}
+
+func (m *MemStore) CountOrgs(_ context.Context, plan, search string) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.filterOrgs(plan, search)), nil
+}
+
+// filterOrgs applies the admin plan/search filters; the caller holds the lock.
+func (m *MemStore) filterOrgs(plan, search string) []Org {
 	plan = strings.ToLower(strings.TrimSpace(plan))
+	search = strings.ToLower(strings.TrimSpace(search))
 	all := make([]Org, 0, len(m.orgs))
 	for _, o := range m.orgs {
 		if plan != "" && o.Plan != plan {
 			continue
 		}
+		if search != "" && !strings.Contains(strings.ToLower(o.Name), search) && !strings.Contains(strings.ToLower(o.ID), search) {
+			continue
+		}
 		all = append(all, o)
 	}
-	sort.Slice(all, func(i, j int) bool { return all[i].CreatedAt.After(all[j].CreatedAt) })
-	return pageSlice(all, limit, offset), nil
+	return all
 }
 
 // pageSlice applies limit/offset to an already-sorted slice with safe bounds.

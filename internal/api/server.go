@@ -180,6 +180,7 @@ func (s *Server) Router() http.Handler {
 	// approve.<base> admin console: the page + login are served same-origin as the
 	// /v1/admin/* API (below) so the admin session cookie flows without CORS.
 	r.Get("/admin", s.handleAdminPage)
+	r.Get(adminAssetPrefix+"*", s.handleAdminAsset)
 	r.With(s.requireAdmin).Post("/admin/logout", s.handleAdminLogout)
 	r.Group(func(r chi.Router) {
 		r.Use(s.authLimiter.middleware) // brute-force guard on the credential check
@@ -276,12 +277,45 @@ func (s *Server) Router() http.Handler {
 			r.Post("/admin/grant", s.handleAdminGrant)
 			r.Post("/admin/revoke", s.handleAdminRevoke)
 
-			// Admin dashboard read views (whole-deployment): fleet stats + account
-			// and tunnel directories (see handlers_admin_dash.go).
+			// Admin console (whole-deployment): read views, then per-object
+			// controls. Every mutation is written to the audit log.
 			r.Get("/admin/stats", s.handleAdminStats)
-			r.Get("/admin/users", s.handleAdminUsers)
-			r.Get("/admin/orgs", s.handleAdminOrgs)
+			r.Get("/admin/usage", s.handleAdminUsage)
+			r.Get("/admin/search", s.handleAdminSearch)
+			r.Get("/admin/system", s.handleAdminSystem)
+			r.Get("/admin/plans", s.handleAdminPlans)
+			r.Get("/admin/audit", s.handleAdminAudit)
 			r.Get("/admin/tunnels", s.handleAdminTunnels)
+
+			r.Get("/admin/users", s.handleAdminUsers)
+			r.Get("/admin/users/{id}", s.handleAdminUserDetail)
+			r.Patch("/admin/users/{id}", s.handleAdminUserUpdate)
+			r.Post("/admin/users/{id}/disable", s.handleAdminUserDisable)
+			r.Post("/admin/users/{id}/enable", s.handleAdminUserEnable)
+			r.Delete("/admin/users/{id}", s.handleAdminUserDelete)
+
+			r.Get("/admin/orgs", s.handleAdminOrgs)
+			r.Get("/admin/orgs/{id}", s.handleAdminOrgDetail)
+			r.Patch("/admin/orgs/{id}", s.handleAdminOrgRename)
+			r.Post("/admin/orgs/{id}/plan", s.handleAdminOrgPlan)
+			r.Post("/admin/orgs/{id}/suspend", s.handleAdminOrgSuspend)
+			r.Post("/admin/orgs/{id}/unsuspend", s.handleAdminOrgUnsuspend)
+			r.Delete("/admin/orgs/{id}", s.handleAdminOrgDelete)
+			r.Post("/admin/orgs/{id}/members", s.handleAdminMemberAdd)
+			r.Patch("/admin/orgs/{id}/members/{userID}", s.handleAdminMemberRole)
+			r.Delete("/admin/orgs/{id}/members/{userID}", s.handleAdminMemberRemove)
+			r.Post("/admin/orgs/{id}/subdomains", s.handleAdminOrgSubdomain)
+
+			r.Get("/admin/api-keys", s.handleAdminAPIKeys)
+			r.Delete("/admin/api-keys/{id}", s.handleAdminAPIKeyRevoke)
+			r.Get("/admin/subdomains", s.handleAdminSubdomains)
+			r.Delete("/admin/subdomains/{id}", s.handleAdminSubdomainRelease)
+			r.Get("/admin/domains", s.handleAdminDomains)
+			r.Post("/admin/domains/{id}/verify", s.handleAdminDomainVerify)
+			r.Delete("/admin/domains/{id}", s.handleAdminDomainDelete)
+
+			r.Get("/admin/subscriptions", s.handleAdminSubscriptions)
+			r.Get("/admin/billing/queue", s.handleAdminBillingQueue)
 		})
 	})
 

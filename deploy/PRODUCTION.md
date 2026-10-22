@@ -47,9 +47,10 @@ the whole file into the control API (`env_file`), so everything below is a `.env
 edit + `up -d`, never a compose or code change. The example is grouped and
 self-documenting; notable optional groups:
 
-- **Admin dashboard** — set `TRQSH_ADMIN_USER` + `TRQSH_ADMIN_PASSWORD` to enable
-  the fleet console (stats, users, orgs, tunnels, subscription grants) at
-  `https://approve.<domain>`. Empty = disabled.
+- **Admin console** — set `TRQSH_ADMIN_USER` + `TRQSH_ADMIN_PASSWORD` to enable
+  the operator console (accounts, orgs, keys, domains, tunnels, billing, audit log)
+  at `https://approve.<domain>`. Empty = disabled. See
+  [`ADMIN-CONSOLE.md`](ADMIN-CONSOLE.md).
 - **Location / geo** — set `TRQSH_GEOIP_API` (or `TRQSH_GEOIP_HEADER` behind a
   CDN) to enable country detection + nearest-region routing (`/v1/geo`) and the
   geo data in tunnel history. Blank = detection off, regions still served.

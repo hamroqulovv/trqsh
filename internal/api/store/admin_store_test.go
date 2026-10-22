@@ -51,11 +51,11 @@ func TestAdminOverviewAndListings(t *testing.T) {
 	if len(users) != 1 || users[0].Email != "alice@example.com" {
 		t.Fatalf("search users = %+v", users)
 	}
-	proOrgs, _ := m.ListOrgs(ctx, 10, 0, "pro")
+	proOrgs, _ := m.ListOrgs(ctx, 10, 0, "pro", "")
 	if len(proOrgs) != 1 || proOrgs[0].Plan != "pro" {
 		t.Fatalf("plan-filtered orgs = %+v", proOrgs)
 	}
-	allOrgs, _ := m.ListOrgs(ctx, 10, 0, "")
+	allOrgs, _ := m.ListOrgs(ctx, 10, 0, "", "")
 	if len(allOrgs) != 2 {
 		t.Fatalf("all orgs = %d, want 2", len(allOrgs))
 	}

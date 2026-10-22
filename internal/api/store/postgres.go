@@ -122,12 +122,12 @@ func (p *PostgresStore) CreateUser(ctx context.Context, u User) (User, error) {
 
 func (p *PostgresStore) GetUser(ctx context.Context, id string) (User, error) {
 	return p.scanUser(p.db.QueryRowContext(ctx,
-		`SELECT id,email,name,avatar_url,oauth_provider,oauth_subject,created_at FROM users WHERE id=$1`, id))
+		`SELECT `+userCols+` FROM users WHERE id=$1`, id))
 }
 
 func (p *PostgresStore) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	return p.scanUser(p.db.QueryRowContext(ctx,
-		`SELECT id,email,name,avatar_url,oauth_provider,oauth_subject,created_at FROM users WHERE lower(email)=lower($1)`, email))
+		`SELECT `+userCols+` FROM users WHERE lower(email)=lower($1)`, email))
 }
 
 func (p *PostgresStore) GetUserByOAuth(ctx context.Context, provider, subject string) (User, error) {
@@ -135,7 +135,7 @@ func (p *PostgresStore) GetUserByOAuth(ctx context.Context, provider, subject st
 		return User{}, ErrNotFound
 	}
 	return p.scanUser(p.db.QueryRowContext(ctx,
-		`SELECT u.id,u.email,u.name,u.avatar_url,u.oauth_provider,u.oauth_subject,u.created_at
+		`SELECT u.id,u.email,u.name,u.avatar_url,u.oauth_provider,u.oauth_subject,u.created_at,u.disabled_at,u.disabled_reason
 		 FROM user_identities i JOIN users u ON u.id=i.user_id
 		 WHERE i.provider=$1 AND i.subject=$2`, provider, subject))
 }
@@ -186,7 +186,9 @@ func (p *PostgresStore) ListOAuthProviders(ctx context.Context, userID string) (
 
 func (p *PostgresStore) scanUser(row *sql.Row) (User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.OAuthProvider, &u.OAuthSubject, &u.CreatedAt)
+	var disabled sql.NullTime
+	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.OAuthProvider, &u.OAuthSubject, &u.CreatedAt, &disabled, &u.DisabledReason)
+	u.DisabledAt = nullTimePtr(disabled)
 	return u, mapErr(err)
 }
 
@@ -207,35 +209,16 @@ func (p *PostgresStore) CreateOrg(ctx context.Context, o Org) (Org, error) {
 }
 
 func (p *PostgresStore) GetOrg(ctx context.Context, id string) (Org, error) {
-	var o Org
-	var cust sql.NullString
-	var exp sql.NullTime
-	err := p.db.QueryRowContext(ctx,
-		`SELECT id,name,plan,COALESCE(stripe_customer_id,''),created_at,plan_expires_at FROM orgs WHERE id=$1`, id).
-		Scan(&o.ID, &o.Name, &o.Plan, &cust, &o.CreatedAt, &exp)
-	o.StripeCustomerID = cust.String
-	o.PlanExpiresAt = nullTimePtr(exp)
+	o, err := scanOrg(p.db.QueryRowContext(ctx, `SELECT `+orgCols+` FROM orgs WHERE id=$1`, id))
 	return o, mapErr(err)
 }
 
 func (p *PostgresStore) OrgsByPlan(ctx context.Context, plan string) ([]Org, error) {
-	rows, err := p.db.QueryContext(ctx,
-		`SELECT id,name,plan,COALESCE(stripe_customer_id,''),created_at,plan_expires_at FROM orgs WHERE plan=$1`, plan)
+	rows, err := p.db.QueryContext(ctx, `SELECT `+orgCols+` FROM orgs WHERE plan=$1`, plan)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
-	var out []Org
-	for rows.Next() {
-		var o Org
-		var exp sql.NullTime
-		if err := rows.Scan(&o.ID, &o.Name, &o.Plan, &o.StripeCustomerID, &o.CreatedAt, &exp); err != nil {
-			return nil, err
-		}
-		o.PlanExpiresAt = nullTimePtr(exp)
-		out = append(out, o)
-	}
-	return out, rows.Err()
+	return collectOrgs(rows)
 }
 
 func (p *PostgresStore) UpdateOrgPlan(ctx context.Context, orgID, plan string) error {
@@ -288,23 +271,11 @@ func (p *PostgresStore) ListOrgMembers(ctx context.Context, orgID string) ([]Org
 
 func (p *PostgresStore) OrgsForUser(ctx context.Context, userID string) ([]Org, error) {
 	rows, err := p.db.QueryContext(ctx,
-		`SELECT o.id,o.name,o.plan,COALESCE(o.stripe_customer_id,''),o.created_at,o.plan_expires_at
-		 FROM orgs o JOIN org_members m ON m.org_id=o.id WHERE m.user_id=$1`, userID)
+		`SELECT `+orgColsAs("o")+` FROM orgs o JOIN org_members m ON m.org_id=o.id WHERE m.user_id=$1`, userID) // #nosec G202 -- orgColsAs only joins constant column names with a fixed alias
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
-	var out []Org
-	for rows.Next() {
-		var o Org
-		var exp sql.NullTime
-		if err := rows.Scan(&o.ID, &o.Name, &o.Plan, &o.StripeCustomerID, &o.CreatedAt, &exp); err != nil {
-			return nil, err
-		}
-		o.PlanExpiresAt = nullTimePtr(exp)
-		out = append(out, o)
-	}
-	return out, rows.Err()
+	return collectOrgs(rows)
 }
 
 func (p *PostgresStore) CreateAPIKey(ctx context.Context, k APIKey) (APIKey, error) {
@@ -579,17 +550,7 @@ func (p *PostgresStore) ListTunnelSessions(ctx context.Context, f TunnelSessionF
 	if limit <= 0 {
 		limit = 100
 	}
-	// Build the filter incrementally so the org-scoped and admin (all-orgs) paths
-	// share one query.
-	where := "WHERE 1=1"
-	args := []any{}
-	if f.OrgID != "" {
-		args = append(args, f.OrgID)
-		where += " AND org_id=$1"
-	}
-	if f.ActiveOnly {
-		where += " AND status='active'"
-	}
+	where, args := tunnelWhere(f)
 	args = append(args, limit, f.Offset)
 	q := `SELECT id,org_id,edge_id,session_id,tunnel_id,type,public_url,host,port,region,
 	             client_ip,country,city,bytes_in,bytes_out,requests,status,started_at,ended_at
@@ -609,6 +570,36 @@ func (p *PostgresStore) ListTunnelSessions(ctx context.Context, f TunnelSessionF
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// tunnelWhere builds the WHERE clause (and its bound args) shared by the list and
+// count queries. Only constant fragments and $N markers are concatenated.
+func tunnelWhere(f TunnelSessionFilter) (string, []any) {
+	where := "WHERE 1=1"
+	args := []any{}
+	add := func(cond string, v any) {
+		args = append(args, v)
+		where += " AND " + strings.ReplaceAll(cond, "$?", "$"+strconv.Itoa(len(args)))
+	}
+	if f.OrgID != "" {
+		add("org_id=$?", f.OrgID)
+	}
+	if f.ActiveOnly {
+		where += " AND status='active'"
+	}
+	if f.Type != "" {
+		add("type=$?", f.Type)
+	}
+	if f.Region != "" {
+		add("region=$?", f.Region)
+	}
+	if f.Country != "" {
+		add("upper(country)=upper($?)", f.Country)
+	}
+	if q := strings.TrimSpace(f.Search); q != "" {
+		add("(public_url ILIKE '%'||$?||'%' OR host ILIKE '%'||$?||'%' OR client_ip ILIKE '%'||$?||'%' OR org_id ILIKE '%'||$?||'%')", escapeLike(q))
+	}
+	return where, args
 }
 
 func scanTunnelSession(rows *sql.Rows) (TunnelSession, error) {
@@ -680,13 +671,11 @@ func (p *PostgresStore) AdminOverview(ctx context.Context) (AdminStats, error) {
 }
 
 func (p *PostgresStore) ListUsers(ctx context.Context, limit, offset int, search string) ([]User, error) {
-	if limit <= 0 {
-		limit = 50
-	}
+	limit, offset = clampPage(limit, offset)
 	rows, err := p.db.QueryContext(ctx,
-		`SELECT id,email,name,avatar_url,oauth_provider,created_at FROM users
+		`SELECT id,email,name,avatar_url,oauth_provider,created_at,disabled_at,disabled_reason FROM users
 		 WHERE ($3='' OR email ILIKE '%'||$3||'%' OR name ILIKE '%'||$3||'%')
-		 ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset, strings.TrimSpace(search))
+		 ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset, escapeLike(search))
 	if err != nil {
 		return nil, err
 	}
@@ -694,39 +683,27 @@ func (p *PostgresStore) ListUsers(ctx context.Context, limit, offset int, search
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.OAuthProvider, &u.CreatedAt); err != nil {
+		var disabled sql.NullTime
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.OAuthProvider, &u.CreatedAt, &disabled, &u.DisabledReason); err != nil {
 			return nil, err
 		}
+		u.DisabledAt = nullTimePtr(disabled)
 		out = append(out, u)
 	}
 	return out, rows.Err()
 }
 
-func (p *PostgresStore) ListOrgs(ctx context.Context, limit, offset int, plan string) ([]Org, error) {
-	if limit <= 0 {
-		limit = 50
-	}
+func (p *PostgresStore) ListOrgs(ctx context.Context, limit, offset int, plan, search string) ([]Org, error) {
+	limit, offset = clampPage(limit, offset)
 	rows, err := p.db.QueryContext(ctx,
-		`SELECT id,name,plan,COALESCE(stripe_customer_id,''),created_at,plan_expires_at FROM orgs
-		 WHERE ($3='' OR plan=$3) ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-		limit, offset, strings.ToLower(strings.TrimSpace(plan)))
+		`SELECT `+orgCols+` FROM orgs
+		 WHERE ($3='' OR plan=$3) AND ($4='' OR name ILIKE '%'||$4||'%' OR id ILIKE '%'||$4||'%')
+		 ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+		limit, offset, strings.ToLower(strings.TrimSpace(plan)), escapeLike(search))
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
-	var out []Org
-	for rows.Next() {
-		var o Org
-		var cust sql.NullString
-		var exp sql.NullTime
-		if err := rows.Scan(&o.ID, &o.Name, &o.Plan, &cust, &o.CreatedAt, &exp); err != nil {
-			return nil, err
-		}
-		o.StripeCustomerID = cust.String
-		o.PlanExpiresAt = nullTimePtr(exp)
-		out = append(out, o)
-	}
-	return out, rows.Err()
+	return collectOrgs(rows)
 }
 
 func (p *PostgresStore) TunnelCountryBreakdown(ctx context.Context, orgID string, activeOnly bool) (map[string]int, error) {
@@ -810,15 +787,7 @@ func (p *PostgresStore) GetOrgByStripeCustomer(ctx context.Context, customerID s
 	if customerID == "" {
 		return Org{}, ErrNotFound
 	}
-	var o Org
-	var cust sql.NullString
-	var exp sql.NullTime
-	err := p.db.QueryRowContext(ctx,
-		`SELECT id,name,plan,COALESCE(stripe_customer_id,''),created_at,plan_expires_at
-		 FROM orgs WHERE stripe_customer_id=$1`, customerID).
-		Scan(&o.ID, &o.Name, &o.Plan, &cust, &o.CreatedAt, &exp)
-	o.StripeCustomerID = cust.String
-	o.PlanExpiresAt = nullTimePtr(exp)
+	o, err := scanOrg(p.db.QueryRowContext(ctx, `SELECT `+orgCols+` FROM orgs WHERE stripe_customer_id=$1`, customerID))
 	return o, mapErr(err)
 }
 

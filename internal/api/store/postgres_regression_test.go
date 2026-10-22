@@ -58,6 +58,7 @@ func TestPostgresBillingAndUsageRegression(t *testing.T) {
 		}
 	}
 	t.Run("OAuth identity persistence", func(t *testing.T) { testOAuthSubjectPersistence(t, p) })
+	t.Run("Admin controls", func(t *testing.T) { testAdminControls(t, p) })
 	org, err := p.CreateOrg(ctx, Org{Name: "regression", Plan: "free"})
 	if err != nil {
 		t.Fatal(err)

@@ -81,6 +81,7 @@ Inside the console:
 
 ```text
 /login               # approve the device code in your browser
+/ports               # see what is running on localhost
 /http 3000           # public HTTPS URL for a local HTTP app
 /pin traffic         # watch completed HTTP exchanges
 /stop all            # stop this agent's tunnels

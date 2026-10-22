@@ -26,6 +26,9 @@ type User struct {
 	OAuthProvider string    `json:"oauth_provider,omitempty"` // first sign-in method; all linked providers live in user_identities
 	OAuthSubject  string    `json:"-"`                        // immutable provider account ID of that first method
 	CreatedAt     time.Time `json:"created_at"`
+	// DisabledAt, when set, blocks sign-in and token refresh (admin suspension).
+	DisabledAt     *time.Time `json:"disabled_at,omitempty"`
+	DisabledReason string     `json:"disabled_reason,omitempty"`
 }
 
 // Org is a billing/ownership boundary (personal or team).
@@ -38,6 +41,10 @@ type Org struct {
 	// PlanExpiresAt, when set, is when a manually-granted plan reverts to Free.
 	// nil means the plan never expires (the Stripe/webhook path and the default).
 	PlanExpiresAt *time.Time `json:"plan_expires_at,omitempty"`
+	// SuspendedAt, when set, stops the org's API keys from authenticating (REST and
+	// edge binds). Set and cleared by the admin console.
+	SuspendedAt     *time.Time `json:"suspended_at,omitempty"`
+	SuspendedReason string     `json:"suspended_reason,omitempty"`
 }
 
 // OrgMember links a user to an org with a role (owner|admin|member).
@@ -126,6 +133,12 @@ type TunnelSessionFilter struct {
 	ActiveOnly bool
 	Limit      int
 	Offset     int
+	// Admin filters (all optional, exact match except Search, which is a
+	// case-insensitive substring over public URL, host, client IP and org ID).
+	Type    string
+	Region  string
+	Country string
+	Search  string
 }
 
 // UsageBucket is one point in a usage time series (for dashboard graphs).
@@ -262,7 +275,42 @@ type Store interface {
 	// all accounts (search filters users by email/name; plan filters orgs).
 	AdminOverview(ctx context.Context) (AdminStats, error)
 	ListUsers(ctx context.Context, limit, offset int, search string) ([]User, error)
-	ListOrgs(ctx context.Context, limit, offset int, plan string) ([]Org, error)
+	CountUsers(ctx context.Context, search string) (int, error)
+	ListOrgs(ctx context.Context, limit, offset int, plan, search string) ([]Org, error)
+	CountOrgs(ctx context.Context, plan, search string) (int, error)
+	CountTunnelSessionsWhere(ctx context.Context, f TunnelSessionFilter) (int, error)
+
+	// Admin account controls (see admin.go for the shared types). Disabling a user
+	// blocks sign-in/refresh; suspending an org stops its API keys. DeleteUser also
+	// removes orgs the user was the only member of; DeleteOrg cascades to the org's
+	// keys, domains, subdomains, usage, tunnel history and subscription.
+	SetUserDisabled(ctx context.Context, id string, at *time.Time, reason string) error
+	DeleteUser(ctx context.Context, id string) error
+	SetOrgSuspended(ctx context.Context, id string, at *time.Time, reason string) error
+	RenameOrg(ctx context.Context, id, name string) error
+	DeleteOrg(ctx context.Context, id string) error
+	RemoveOrgMember(ctx context.Context, orgID, userID string) error
+	SetOrgMemberRole(ctx context.Context, orgID, userID, role string) error
+
+	// Admin cross-org directories and scope-free mutations. Unlike the org-scoped
+	// methods above these never take an org argument, so they must only be reachable
+	// from the admin handlers.
+	ListAllAPIKeys(ctx context.Context, q Query, state string) ([]AdminAPIKey, int, error)
+	AdminRevokeAPIKey(ctx context.Context, id string, at time.Time) error
+	ListAllSubdomains(ctx context.Context, q Query) ([]AdminSubdomain, int, error)
+	AdminReleaseSubdomain(ctx context.Context, id string) error
+	ListAllCustomDomains(ctx context.Context, q Query, status string) ([]AdminDomain, int, error)
+	AdminVerifyDomain(ctx context.Context, id string, at time.Time) error
+	AdminDeleteDomain(ctx context.Context, id string) error
+	ListSubscriptions(ctx context.Context, q Query, status string) ([]AdminSubscription, int, error)
+
+	// Fleet-wide usage for the admin charts.
+	UsageSeriesAll(ctx context.Context, since time.Time, bucket string) ([]UsageBucket, error)
+	TopOrgsByUsage(ctx context.Context, since time.Time, limit int) ([]OrgUsage, error)
+
+	// Append-only admin audit log.
+	AppendAudit(ctx context.Context, e AuditEntry) error
+	ListAudit(ctx context.Context, q AuditQuery) ([]AuditEntry, int, error)
 
 	// Billing: subscriptions (Part 07). GetOrgByStripeCustomer maps a Stripe
 	// customer back to an org during webhook handling.

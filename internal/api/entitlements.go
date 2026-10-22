@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"time"
 
 	"github.com/trqsh-uz/trqsh/internal/api/auth"
@@ -72,6 +73,9 @@ func (e *Entitlements) Authenticate(ctx context.Context, apiKey string) (string,
 // CheckBind authorizes a bind against the org's plan and reservations.
 func (e *Entitlements) CheckBind(ctx context.Context, req authz.BindRequest) (authz.Decision, error) {
 	accountID, planCode, err := e.Authenticate(ctx, req.APIKey)
+	if errors.Is(err, auth.ErrOrgSuspended) {
+		return deny(proto.CodeAuthInvalid, "this account is suspended — contact support"), nil
+	}
 	if err != nil {
 		return deny(proto.CodeAuthInvalid, "invalid api key"), nil
 	}

@@ -25,6 +25,7 @@ export default async function LoginPage({
     oauth: "Your sign-in session expired. Please try again.",
     expired: "Your session expired. Please sign in again.",
     provider_mismatch: "This email already has a different GitHub or Google account linked to it. Sign in with the account you used before.",
+    account_suspended: "This account has been suspended. Contact support if you think this is a mistake.",
   };
   return (
     <LoginForm

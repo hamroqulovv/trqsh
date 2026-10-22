@@ -6,7 +6,7 @@
 
 Share development servers, receive webhooks and inspect traffic from an interactive terminal. This package installs the native CLI; the desktop app is a separate download.
 
-CLI 0.2.7 uses `https://api.trqsh.uz` for sign-in and account APIs and
+CLI 0.2.8 uses `https://api.trqsh.uz` for sign-in and account APIs and
 connects to `trqsh.uz:4443` with QUIC and TCP fallback. Public tunnel URLs use
 `*.trqsh.uz`.
 
@@ -76,6 +76,7 @@ Enter these commands **inside the trqsh console**:
 | Expose a local web server | `/http 3000` |
 | Forward TCP or UDP traffic | `/tcp 5432` · `/udp 19132` |
 | List tunnels and copy a URL | `/ls` · `/copy` |
+| See what is running on localhost | `/ports` · `/ports all` |
 | Inspect captured requests | `/requests` |
 | Keep traffic visible | `/pin traffic` |
 | Pair the console with your phone | `/qr` |

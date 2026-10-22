@@ -37,6 +37,7 @@ Type these **inside the console**.
 | `/udp <port-or-host:port>` | Start a UDP tunnel when entitled. |
 | `/start` | Start all saved tunnel definitions loaded from config. |
 | `/ls` | List active tunnels, short IDs, URLs and metrics. |
+| `/ports [all]` | Scan localhost for every listening port and show what runs on it: websites, APIs, databases. `all` includes OS services. |
 | `/open [id]` | Open a matching tunnel URL in a browser. |
 | `/copy [id]` | Copy its URL to the clipboard. |
 | `/stop <id-or-name>` | Stop one matching tunnel. |
@@ -134,6 +135,6 @@ See [Configuration](/docs/configuration) for default values, precedence and the 
 
 Type `/` to bring up command completion. Arrow keys navigate suggestions or input history; Tab completes a suggestion. Enter completes missing argument input or runs the command once it is ready.
 
-Aliases include `/list` and `/ps` for `/ls`, `/account` and `/me` for `/whoami`, `/subs` for `/subdomains`, `/domain` for `/domains`, `/?` for `/help`, and `/q` or `/exit` for `/quit`.
+Aliases include `/list` and `/ps` for `/ls`, `/account` and `/me` for `/whoami`, `/subs` for `/subdomains`, `/domain` for `/domains`, `/?` for `/help`, `/scan` and `/localhost` for `/ports`, and `/q` or `/exit` for `/quit`.
 
 If your shell says the command is unknown, start with [Installation](/docs/installation). For connection failures, see [Troubleshooting](/docs/troubleshooting).
