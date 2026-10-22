@@ -23,7 +23,8 @@ export default async function LoginPage({
     oauth_cancelled: "Sign-in was cancelled. You can try again when ready.",
     oauth_failed: "We could not complete sign-in. Please try again.",
     oauth: "Your sign-in session expired. Please try again.",
-    provider_mismatch: "Use the provider you originally signed up with. If your account predates this sign-in update, contact support to restore access securely.",
+    expired: "Your session expired. Please sign in again.",
+    provider_mismatch: "This email already has a different GitHub or Google account linked to it. Sign in with the account you used before.",
   };
   return (
     <LoginForm

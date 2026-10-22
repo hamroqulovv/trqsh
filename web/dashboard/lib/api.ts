@@ -141,12 +141,35 @@ export class ApiError extends Error {
   }
 }
 
+const TIMEOUT_MS = 15_000;
+
+/**
+ * fetch() with a timeout. It only rejects on a network failure or a timeout, so
+ * both become an ApiError a page can show, instead of a raw "fetch failed" or a
+ * request that hangs forever.
+ */
+async function request(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      cache: "no-store",
+      signal: init.signal ?? AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (error) {
+    const timedOut =
+      error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new ApiError(
+      timedOut ? 504 : 503,
+      timedOut ? "The trqsh API took too long to respond." : "Can't reach the trqsh API.",
+    );
+  }
+}
+
 async function refreshTokens(refresh: string): Promise<Tokens> {
-  const res = await fetch(`${BASE}/v1/auth/refresh`, {
+  const res = await request(`${BASE}/v1/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: refresh }),
-    cache: "no-store",
   });
   if (!res.ok) throw new ApiError(res.status, "session expired");
   return (await res.json()) as Tokens;
@@ -155,11 +178,51 @@ async function refreshTokens(refresh: string): Promise<Tokens> {
 async function parse<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as T;
   const text = await res.text();
-  const body = text ? JSON.parse(text) : {};
-  if (!res.ok) {
-    throw new ApiError(res.status, body.error || res.statusText, body.error_code || body.code);
+  // A gateway or proxy error is often HTML, not JSON; that must not surface as a
+  // "Unexpected token <" SyntaxError.
+  let body: Record<string, unknown> = {};
+  let json = true;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      json = false;
+    }
   }
-  return body as T;
+  if (!res.ok) {
+    const message =
+      typeof body.error === "string" && body.error
+        ? body.error
+        : res.statusText || `Request failed (${res.status})`;
+    const code =
+      typeof body.error_code === "string"
+        ? body.error_code
+        : typeof body.code === "string"
+          ? body.code
+          : undefined;
+    throw new ApiError(res.status, message, code);
+  }
+  if (!json) throw new ApiError(502, "The trqsh API returned an unexpected response.");
+  return body as unknown as T;
+}
+
+/** True when the API rejected the session itself (as opposed to being unreachable). */
+export function isUnauthorized(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
+/** Best-effort server-side sign-out: revokes the refresh token so a copy of it is useless. */
+export async function revokeRefreshToken(refresh: string): Promise<void> {
+  try {
+    await request(`${BASE}/v1/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refresh }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch {
+    /* signing out locally must not depend on the API being reachable */
+  }
 }
 
 /**
@@ -171,14 +234,13 @@ async function parse<T>(res: Response): Promise<T> {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const { access, refresh } = await getTokens();
   const doFetch = (token?: string) =>
-    fetch(`${BASE}/v1${path}`, {
+    request(`${BASE}/v1${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(init?.headers || {}),
       },
-      cache: "no-store",
     });
 
   let res = await doFetch(access);
