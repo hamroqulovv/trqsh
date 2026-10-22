@@ -23,9 +23,11 @@ import { Magnetic } from "@/components/magnetic";
 import { Reveal } from "@/components/reveal";
 import { ScrambleText } from "@/components/scramble-text";
 import { CodeBlock } from "@/components/code-block";
+import { JsonLd } from "@/components/json-ld";
 import { buttonVariants } from "@/components/ui/button";
 import { planByCode } from "@/lib/plans";
 import { formatBytes } from "@/lib/format";
+import { siteGraph } from "@/lib/seo";
 import { signupUrl, site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import "@/components/home.css";
@@ -120,6 +122,7 @@ export default function HomePage() {
   const free = planByCode("free")!;
   return (
     <>
+      <JsonLd data={siteGraph()} />
       <section className="hero-section">
         <HeroMotion />
         <div className="shell relative grid items-center gap-12 pb-16 pt-16 sm:pb-20 sm:pt-20 lg:grid-cols-[1.04fr_1fr] lg:gap-14 lg:pb-24 lg:pt-24">

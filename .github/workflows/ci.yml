@@ -86,6 +86,12 @@ jobs:
       - name: Build
         working-directory: ${{ matrix.app }}
         run: pnpm build
+      # Canonicals, sitemap, robots, JSON-LD and docs navigation, checked against
+      # the real modules. `pnpm check:seo` checks a running server's HTML.
+      - name: SEO tests
+        if: matrix.app == 'web/site'
+        working-directory: web/site
+        run: pnpm test
 
   helm:
     name: Helm lint + template

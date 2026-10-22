@@ -4,6 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import { ERRORS, errorAnchor } from "@/lib/errors";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { DocsBreadcrumb } from "@/components/docs-breadcrumb";
 import { cn } from "@/lib/utils";
 import { Fragment } from "react";
 
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 export default function ErrorsPage() {
   return (
     <div className="py-10">
-      <nav aria-label="Breadcrumb" className="docs-breadcrumb"><Link href="/docs">Documentation</Link><span aria-hidden="true">/</span>Error reference</nav>
+      <DocsBreadcrumb slug="errors" />
       <header className="docs-article-header max-w-3xl">
         <div className="docs-page-meta"><span>Reference</span><span>Errors & recovery</span></div>
         <h1>Error reference</h1>

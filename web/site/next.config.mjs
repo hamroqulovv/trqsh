@@ -1,3 +1,13 @@
+// Public origin, e.g. https://trqsh.uz. When it is a bare registrable domain,
+// the www host is sent here instead of serving a second copy of the site.
+const siteOrigin = new URL(process.env.TRQSH_SITE_URL || "https://trqsh.uz");
+const wwwHost =
+  /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(siteOrigin.hostname) &&
+  !/^\d+(\.\d+){3}$/.test(siteOrigin.hostname) &&
+  !siteOrigin.hostname.startsWith("www.")
+    ? `www.${siteOrigin.hostname}`
+    : null;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -27,10 +37,33 @@ const nextConfig = {
     // /upgrade page (there is no self-serve checkout).
     TRQSH_TELEGRAM: process.env.TRQSH_TELEGRAM || "hamroqulovv",
   },
+  // One hostname per page: the www host would otherwise answer with a full copy
+  // of the site, splitting every URL across two origins.
+  async redirects() {
+    return wwwHost
+      ? [
+          {
+            source: "/:path*",
+            has: [{ type: "host", value: wwwHost }],
+            destination: `${siteOrigin.origin}/:path*`,
+            permanent: true,
+          },
+        ]
+      : [];
+  },
   // Installers are piped into a shell, so serve them as readable UTF-8 text.
+  // They and the OpenAPI download are files, not pages: keep them out of search
+  // results while leaving them crawlable so the header can be read.
   async headers() {
-    const text = [{ key: "Content-Type", value: "text/plain; charset=utf-8" }];
-    return ["/install", "/install.sh", "/install.ps1"].map((source) => ({ source, headers: text }));
+    const noindex = { key: "X-Robots-Tag", value: "noindex" };
+    const text = [{ key: "Content-Type", value: "text/plain; charset=utf-8" }, noindex];
+    return [
+      ...["/install", "/install.sh", "/install.ps1"].map((source) => ({ source, headers: text })),
+      { source: "/openapi.yaml", headers: [noindex] },
+      // /upgrade renders per request, so Next streams its <meta name="robots">
+      // into the body. The header keeps the noindex independent of that markup.
+      { source: "/upgrade", headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }] },
+    ];
   },
   // A single Cloudflare hostname can serve the site, dashboard and public API.
   // Only documented public API routes are forwarded; internal RPC/metrics stay

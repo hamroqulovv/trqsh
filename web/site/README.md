@@ -160,10 +160,36 @@ fetches the deployed API contract and substitutes this build's API origin.
 These can differ until a backend contract update is deployed. Keep the source
 and embedded copies in sync, and regenerate from an API running the same revision.
 
-Validate a docs change with `pnpm typecheck`, `pnpm build`, internal-link/anchor
-checks and browser checks of code copying, mobile navigation and both themes.
+Validate a docs change with `pnpm typecheck`, `pnpm test`, `pnpm build`, then
+`pnpm check:seo` against `pnpm start` for internal links and anchors, and browser
+checks of code copying, mobile navigation and both themes.
 For the existing complete Docker stack, rebuild/recreate only the `site` service
 with the commands in [Self-hosting](../../docs/content/self-hosting.md).
+
+## Search engine optimisation
+
+- **Canonical and `og:url`** — the root layout sets both to `"./"`, which Next
+  resolves per route against `TRQSH_SITE_URL`, so every page names itself with
+  query strings dropped. A page only sets `title` and `description`; its social
+  card title and description follow them. Do not give a page its own `openGraph`
+  object: it replaces the root one, including the generated share image.
+- **Descriptions** — a guide's meta description is its opening paragraph
+  (`docDescription` in `lib/docs.ts`), so it always matches the page.
+- **Structured data** — `lib/seo.ts` builds the home page's Organization and
+  WebSite graph and the docs breadcrumbs, rendered by `components/json-ld.tsx`
+  and `components/docs-breadcrumb.tsx`. There is no site search, so no
+  `SearchAction`.
+- **Sitemap** — `app/sitemap.ts` lists the home page, the docs (from
+  `lib/docs-nav.ts`), download, pricing, changelog and policies. `lastmod` is
+  set only where a page shows its own date. `/upgrade` is noindex and stays out;
+  `pnpm test` fails for any page that is neither listed nor noindex.
+- **Not pages** — `/install*`, `/openapi.yaml` and `/upgrade` send
+  `X-Robots-Tag: noindex`, and the `www.` host redirects to the canonical one
+  (both in `next.config.mjs`).
+- **Checks** — `pnpm test` runs the real modules without a server. Against a
+  running build, `pnpm check:seo [url]` audits the HTML that comes back:
+  canonicals, titles, social tags, headings, JSON-LD, redirects and every
+  internal link and anchor. After a deploy, `node deploy/verify-public.mjs`.
 
 ## Configuration
 

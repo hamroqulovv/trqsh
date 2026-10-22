@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { marked } from "marked";
 import { docsContentDir } from "./paths";
+import { snippet } from "./seo";
 import type { TocItem } from "./docs-nav";
 
 // Server-only Markdown pipeline. Re-exports the client-safe nav data so server
@@ -75,6 +76,24 @@ export function renderMarkdown(md: string): RenderedDoc {
     },
   );
   return { html, toc };
+}
+
+/**
+ * Meta description for a rendered guide: its opening paragraph as plain text,
+ * so it always describes what the page says. `fallback` is used when the guide
+ * has no opening paragraph.
+ */
+export function docDescription(html: string, fallback = ""): string {
+  const lead = html.match(/^<h1>[\s\S]*?<\/h1>\s*<p>([\s\S]*?)<\/p>/)?.[1];
+  if (!lead) return fallback;
+  // &amp; last, so an escaped entity such as "&amp;lt;" is decoded only once.
+  const text = stripTags(lead)
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+  return snippet(text) || fallback;
 }
 
 /** Read + render a docs Markdown file. Returns null when the file is absent. */

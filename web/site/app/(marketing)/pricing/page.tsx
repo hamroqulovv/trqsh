@@ -50,7 +50,7 @@ export default function PricingPage() {
     <div className="shell pb-20 pt-16 sm:pb-24 sm:pt-20">
       <header className="mb-10 max-w-2xl">
         <p className="eyebrow">Simple plans. Space to grow.</p>
-        <h1 className="page-heading mt-5">
+        <h1 aria-label="Build at your pace." className="page-heading mt-5">
           <AnimatedText text="Build at your pace." delay={100} />
         </h1>
         <p className="mt-5 max-w-lg text-base leading-relaxed text-secondary sm:text-lg">

@@ -10,7 +10,7 @@ const app = new URL(process.argv[3] || "https://app.trqsh.uz").origin;
 const api = new URL(process.argv[4] || "https://api.trqsh.uz").origin;
 const localURL = /^(?:https?:)?\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|[^/]*\.lvh\.me|lvh\.me|(?:api|dashboard|site):)/i;
 const checks = [
-  ...["/", "/pricing", "/download", "/docs", "/docs/api", "/docs/quickstart", "/docs/inspector", "/upgrade", "/terms", "/privacy", "/robots.txt", "/sitemap.xml", "/openapi.yaml"].map(path => [site, path, 200]),
+  ...["/", "/pricing", "/download", "/changelog", "/docs", "/docs/api", "/docs/quickstart", "/docs/installation", "/docs/inspector", "/upgrade", "/terms", "/privacy", "/robots.txt", "/sitemap.xml", "/openapi.yaml"].map(path => [site, path, 200]),
   [app, "/login", 200], [app, "/", 307], [app, "/keys", 307],
   [app, "/api/remote/domain-audit-missing/viewer", 404],
   [api, "/healthz", 200], [api, "/v1/auth/providers", 200],
@@ -49,6 +49,18 @@ async function check(origin, path, expected) {
       }
     }
     if (["/robots.txt", "/sitemap.xml"].includes(path) && /https?:\/\/(?:localhost|127\.0\.0\.1)/i.test(body)) errors.push("local canonical URL");
+    // Search engines need each indexable page to name itself. The full audit
+    // (titles, JSON-LD, links) is web/site's `pnpm check:seo`.
+    if (origin === site && path !== "/upgrade" && response.headers.get("content-type")?.includes("text/html")) {
+      const canonical = body.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
+      const expected = path === "/" ? site : site + path;
+      if (canonical !== expected) errors.push(`canonical is ${canonical ?? "missing"}, expected ${expected}`);
+    }
+    if (origin === site && path === "/sitemap.xml") {
+      for (const [, loc] of body.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+        if (new URL(loc).origin !== site) errors.push(`sitemap URL outside ${site}: ${loc}`);
+      }
+    }
     if (path === "/openapi.yaml" && !body.includes(`url: ${api}/v1`)) errors.push("incorrect public API server URL");
     if (origin === api && path === "/v1/auth/providers" && response.ok) {
       const data = JSON.parse(body);

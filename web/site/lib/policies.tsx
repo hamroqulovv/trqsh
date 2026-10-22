@@ -2,13 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { site } from "./site";
 
-export const policyUpdatedOn = "2026-10-20";
-export const policyLinks = [
-  { href: "/privacy", label: "Privacy" },
-  { href: "/terms", label: "Terms of service" },
-  { href: "/cookies", label: "Cookies & storage" },
-  { href: "/acceptable-use", label: "Acceptable use" },
-] as const;
+export { policyLinks, policyUpdatedOn } from "./policy-meta";
 
 export interface PolicyDocument {
   href: string;

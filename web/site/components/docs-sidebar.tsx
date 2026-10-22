@@ -11,6 +11,7 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const [query, setQuery] = React.useState("");
   const searchId = React.useId();
+  const groupId = React.useId();
   const searchRef = React.useRef<HTMLInputElement>(null);
   React.useEffect(() => {
     const focusSearch = (event: KeyboardEvent) => {
@@ -78,13 +79,16 @@ export function DocsSidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="space-y-6">
         {groups.map((group) => {
           const Icon = ({ "Getting started": Rocket, Tunnels: Layers, Tools: Terminal, Guides: Compass, Reference: Braces })[group.title] ?? BookOpen;
+          const labelId = `${groupId}-${group.title.replace(/\W+/g, "-")}`;
           return (
           <div key={group.title}>
-            <h2 className="docs-nav-group">
+            {/* Not a heading: this sidebar precedes the page's <h1>, and its
+                group labels would otherwise outrank the page title. */}
+            <p id={labelId} className="docs-nav-group">
               <Icon size={14} aria-hidden="true" />
               {group.title}
-            </h2>
-            <ul className="space-y-0.5">
+            </p>
+            <ul className="space-y-0.5" aria-labelledby={labelId}>
               {group.items.map((item) => {
                 const href = `/docs/${item.slug}`;
                 const active = pathname === href;

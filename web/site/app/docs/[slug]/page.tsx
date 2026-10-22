@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, ChevronRight, Clock3, List } from "lucide-react";
-import { mdSlugs, loadDoc, docEntry, docsNav } from "@/lib/docs";
+import { mdSlugs, loadDoc, docDescription, docEntry, docsNav } from "@/lib/docs";
 import { DocsToc } from "@/components/docs-toc";
 import { DocsContent } from "@/components/docs-content";
+import { DocsBreadcrumb } from "@/components/docs-breadcrumb";
 
 // Statically pre-render every Markdown-backed doc. Bespoke routes (api, errors)
 // are excluded because they aren't in mdSlugs.
@@ -20,7 +21,12 @@ export async function generateMetadata({
   const { slug } = await params;
   const entry = docEntry(slug);
   if (!entry) return {};
-  return { title: entry.title, description: entry.description };
+  // The opening paragraph describes the guide better than the short sidebar blurb.
+  const doc = loadDoc(slug);
+  return {
+    title: entry.title,
+    description: doc ? docDescription(doc.html, entry.description) : entry.description,
+  };
 }
 
 export default async function DocPage({
@@ -49,13 +55,7 @@ export default async function DocPage({
   return (
     <div className="docs-page-grid" id="docs-top">
       <div className="min-w-0">
-        <nav aria-label="Breadcrumb" className="docs-breadcrumb">
-          <Link href="/docs" className="hover:text-foreground">
-            Documentation
-          </Link>
-          <ChevronRight size={13} aria-hidden="true" />
-          <span aria-current="page">{entry.title}</span>
-        </nav>
+        <DocsBreadcrumb slug={slug} />
         {opening && <header className="docs-article-header">
           <div className="docs-page-meta"><span>{category}</span><span><Clock3 size={13} aria-hidden="true" />{readingMinutes} min read</span></div>
           <h1 dangerouslySetInnerHTML={{ __html: opening[1] }} />
