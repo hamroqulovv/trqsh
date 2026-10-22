@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 // Editorial descriptions summarize the linked, unmodified release notes.
 // Future releases get a useful fallback until an editorial description is added.
 const descriptions: Record<string, { title: string; summary: string; highlights?: string[] }> = {
+  "cli-0.2.8": {
+    title: "See what's running on localhost.",
+    summary: "trqsh now scans your machine at startup and tells you what is listening on every localhost port, so the thing you want to share is one keypress away.",
+    highlights: ["New /ports command lists every local port with the app behind it: Vite, Next.js, Django, Postgres and more.", "The welcome screen and /http suggestions name what they found instead of showing bare port numbers.", "Scans in milliseconds by reading the operating system's socket table, then asks each web server for its page title."],
+  },
   "cli-0.2.7": {
     title: "A friendlier console.",
     summary: "Destructive commands ask for a quick Y/N instead of a magic word, common tunnel actions get one-key shortcuts, and results appear as framed cards.",
