@@ -66,7 +66,7 @@ func TestCleanRemoteText(t *testing.T) {
 		"\x1b]52;c;ZXZpbA==\x07ok": "]52;c;ZXZpbA==ok",
 		"line\r\nbreak":            "linebreak",
 		"c1\u009bcontrol":          "c1control",
-		"rtl‮override":             "rtloverride",
+		"rtl\u202eoverride":        "rtloverride",
 		"bad\xffutf8":              "badutf8",
 	}
 	for in, want := range cases {

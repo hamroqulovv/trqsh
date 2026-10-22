@@ -24,7 +24,7 @@ func TestSafeRemoteCommand(t *testing.T) {
 			t.Errorf("%q should be accepted", ok)
 		}
 	}
-	for _, bad := range []string{"", "   ", "/ls\n/down", "\x1b[2J", "\x1b]52;c;AAAA\x07", "/status\x00", "/status‮", "a b", "bad\xffutf8", strings.Repeat("a", 241)} {
+	for _, bad := range []string{"", "   ", "/ls\n/down", "\x1b[2J", "\x1b]52;c;AAAA\x07", "/status\x00", "/status\u202e", "a b", "bad\xffutf8", strings.Repeat("a", 241)} {
 		if SafeRemoteCommand(bad) {
 			t.Errorf("%q must be rejected", bad)
 		}

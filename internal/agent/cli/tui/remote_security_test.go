@@ -80,7 +80,7 @@ func TestRemoteHTTPToNonLocalHostIsBlocked(t *testing.T) {
 // Control characters in a phone-sent command never reach the transcript (and
 // so never reach the user's terminal).
 func TestRemoteCommandWithControlCharactersIsDropped(t *testing.T) {
-	for _, line := range []string{"/status\x1b[2J", "\x1b]0;pwned\x07", "/ls\n/down", "/status‮", "  ", "/" + strings.Repeat("a", 300)} {
+	for _, line := range []string{"/status\x1b[2J", "\x1b]0;pwned\x07", "/ls\n/down", "/status\u202e", "  ", "/" + strings.Repeat("a", 300)} {
 		m := &model{}
 		cmd := m.handleRemoteEvent(&agent.RemoteEvent{Kind: "command", Command: line})
 		joined := strings.Join(m.transcript, "\n")
