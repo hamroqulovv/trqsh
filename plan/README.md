@@ -80,3 +80,5 @@ coordinate only through the **frozen shared contracts** defined in [`00-ARCHITEC
 
 - [10 — Package installation and first-run terminal UI](./10-installation-experience.md):
   branded installer progress and shared CLI onboarding across installation channels.
+- [11 — Admin panel (`approve.<base>`)](./11-admin-panel.md): the operator console — accounts, orgs,
+  keys, domains, tunnels, billing, suspension and an audit log, embedded in the control API.
