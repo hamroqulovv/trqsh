@@ -5,6 +5,8 @@ const base = `${site.cliGithubUrl}/releases/download/v${v}`;
 export const releasesUrl = `${site.cliGithubUrl}/releases/latest`;
 export const checksumsUrl = `${base}/checksums.txt`;
 export const installShCommand = `curl -fsSL ${site.installShUrl} | sh`;
+export const installPsUrl = `${site.siteUrl}/install.ps1`;
+export const installPsCommand = `irm ${installPsUrl} | iex`;
 
 export type OSId = "macos" | "windows" | "linux";
 export type Arch = "arm64" | "amd64";
@@ -15,6 +17,8 @@ export interface InstallSnippet {
   requirement: string;
   description: string;
   recommended?: boolean;
+  /** The script behind a pipe-to-shell command, so people can read it first. */
+  scriptUrl?: string;
 }
 export interface OSDownload {
   id: OSId; name: string; tagline: string;
@@ -39,6 +43,15 @@ const script: InstallSnippet = {
   requirement: "Requires curl, tar and a SHA-256 tool.",
   description: "Detects your platform, verifies the archive checksum and installs the native CLI.",
   recommended: true,
+  scriptUrl: site.installShUrl,
+};
+const powershell: InstallSnippet = {
+  label: "PowerShell",
+  command: installPsCommand,
+  requirement: "Requires PowerShell 5.1 or later, included with Windows 10 and 11.",
+  description: "Verifies the archive checksum, installs trqsh.exe for your user and adds it to your PATH.",
+  recommended: true,
+  scriptUrl: installPsUrl,
 };
 const archive = (os: string, arch: Arch, label: string, kind = "tar.gz"): Asset => ({
   label, arch, kind, href: `${base}/trqsh_${v}_${os}_${arch}.${kind}`,
@@ -51,7 +64,7 @@ export const OS_DOWNLOADS: Record<OSId, OSDownload> = {
   },
   windows: {
     id: "windows", name: "Windows", tagline: "x64 and ARM64",
-    cli: [{ ...npm, recommended: true }, python],
+    cli: [powershell, npm, python],
     archives: [archive("windows", "amd64", "Windows x64", "zip"), archive("windows", "arm64", "Windows ARM64", "zip")],
   },
   linux: {
