@@ -18,6 +18,8 @@ import (
 var (
 	ErrUnauthorized = errors.New("auth: unauthorized")
 	ErrKeyRevoked   = errors.New("auth: api key revoked")
+	// ErrOrgSuspended is returned for a valid key whose org an admin suspended.
+	ErrOrgSuspended = errors.New("auth: org suspended")
 )
 
 // Auth bundles the JWT signer and the store used to resolve identities.
@@ -178,6 +180,15 @@ func (a *Auth) AuthenticateAPIKey(ctx context.Context, raw string) (store.APIKey
 	}
 	if !VerifyKey(raw, k.Hash) {
 		return store.APIKey{}, ErrUnauthorized
+	}
+	// Checked after the secret so an unauthenticated caller cannot probe which
+	// orgs are suspended. An org that cannot be read fails closed.
+	org, err := a.store.GetOrg(ctx, k.OrgID)
+	if err != nil {
+		return store.APIKey{}, ErrUnauthorized
+	}
+	if org.SuspendedAt != nil {
+		return store.APIKey{}, ErrOrgSuspended
 	}
 	_ = a.store.TouchAPIKey(ctx, k.ID, time.Now())
 	return k, nil

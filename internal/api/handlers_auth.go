@@ -73,6 +73,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "no such user")
 		return
 	}
+	if u.DisabledAt != nil {
+		writeError(w, http.StatusForbidden, "this account is suspended")
+		return
+	}
 	org, err := s.firstOrg(r.Context(), u.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -92,6 +96,18 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	if !decode(w, r, &req) {
 		return
+	}
+	// A suspended or deleted account must not mint new sessions. Already-issued
+	// access tokens still expire on their own (see auth/revoke.go).
+	if claims, perr := s.auth.ParseToken(req.RefreshToken); perr == nil {
+		switch ok, uerr := s.userCanSignIn(r.Context(), claims.Subject); {
+		case uerr != nil:
+			writeError(w, http.StatusServiceUnavailable, "could not verify account")
+			return
+		case !ok:
+			writeError(w, http.StatusUnauthorized, "invalid refresh token")
+			return
+		}
 	}
 	tokens, err := s.auth.Refresh(req.RefreshToken)
 	if err != nil {
@@ -249,6 +265,10 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "could not complete sign-in")
+		return
+	}
+	if u.DisabledAt != nil {
+		http.Redirect(w, r, s.appBase()+"/login?error=account_suspended", http.StatusFound)
 		return
 	}
 	tokens, err := s.auth.IssueTokens(u.ID, org.ID)
@@ -606,4 +626,17 @@ func (s *Server) newState() string {
 
 func (s *Server) checkState(state string) bool {
 	return s.oauthState.Check(state)
+}
+
+// userCanSignIn reports whether the account still exists and is not suspended.
+// A user that no longer exists (deleted by an admin) cannot refresh either.
+func (s *Server) userCanSignIn(ctx context.Context, userID string) (bool, error) {
+	u, err := s.store.GetUser(ctx, userID)
+	if errors.Is(err, store.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return u.DisabledAt == nil, nil
 }

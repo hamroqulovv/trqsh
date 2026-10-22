@@ -17,12 +17,12 @@ import (
 	"github.com/trqsh-uz/trqsh/internal/api/store"
 )
 
-// This file powers approve.<base> — a tiny, single-admin console for granting
-// subscriptions manually (there is no Stripe). The edge routes approve.<base> to
-// the API, which serves the page and the /v1/admin/* endpoints on the same origin
-// so the admin session cookie flows without CORS. Access is gated by a
-// username/password (TRQSH_ADMIN_USER / TRQSH_ADMIN_PASSWORD); empty creds disable
-// the whole surface.
+// This file powers approve.<base> — the single-admin console. The edge routes
+// approve.<base> to the API, which serves the embedded SPA (admin_ui.go) and the
+// /v1/admin/* endpoints on the same origin so the admin session cookie flows
+// without CORS. Access is gated by a username/password (TRQSH_ADMIN_USER /
+// TRQSH_ADMIN_PASSWORD); empty creds disable the whole surface. This file holds
+// the session/auth plumbing and the original grant/revoke-by-email tools.
 
 const adminCookie = "trqsh_admin"
 const adminTTL = 12 * time.Hour
@@ -249,7 +249,9 @@ func (s *Server) handleAdminGrant(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.log.Info("admin granted plan", "email", sanitizeLog(u.Email), "org", o.ID, "plan", plan, "months", req.Months)
+	s.audit(r, "org.plan", "org", o.ID, "Granted "+plan+" to "+u.Email, map[string]any{
+		"from": effectivePlan(o), "to": plan, "months": req.Months, "expires_at": expires, "via": "email grant",
+	})
 	o.Plan, o.PlanExpiresAt = plan, &expires
 	writeJSON(w, http.StatusOK, adminOrgView(u, o))
 }
@@ -270,19 +272,9 @@ func (s *Server) handleAdminRevoke(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.log.Info("admin revoked plan", "email", u.Email, "org", o.ID)
+	s.audit(r, "org.plan", "org", o.ID, "Revoked plan for "+u.Email, map[string]any{
+		"from": effectivePlan(o), "to": PlanFree, "via": "email revoke",
+	})
 	o.Plan, o.PlanExpiresAt = PlanFree, nil
 	writeJSON(w, http.StatusOK, adminOrgView(u, o))
-}
-
-func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
-	// Hidden when disabled, and (in production) only served on approve.<base> so
-	// the console never appears on the bare api.<base>.
-	if !s.adminEnabled() || (s.cfg.IsProduction() && !s.isAdminHost(r)) {
-		http.NotFound(w, r)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("X-Frame-Options", "DENY")
-	_, _ = w.Write([]byte(adminPageHTML))
 }
