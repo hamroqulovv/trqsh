@@ -1,4 +1,4 @@
-import { el, icon, timeEl, fmtDateTime, openDialog } from "../dom.js";
+import { el, timeEl, fmtDateTime, openDialog } from "../dom.js";
 import { createList, kv, copyChip } from "../kit.js";
 
 // Every action the API writes, so the filter lists them even before one occurs.

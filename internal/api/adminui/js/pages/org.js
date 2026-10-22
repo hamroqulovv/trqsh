@@ -1,4 +1,4 @@
-import { el, icon, clear, fill, fmtNum, fmtBytes, fmtDateTime, fmtDate, timeEl, toast, confirmDialog, formDialog } from "../dom.js";
+import { el, icon, fill, fmtNum, fmtBytes, fmtDateTime, fmtDate, timeEl, toast, confirmDialog, formDialog } from "../dom.js";
 import { api, A } from "../api.js";
 import { card, kv, planBadge, suspendedBadge, activeBadge, pendingBadge, offBadge, roleBadge, copyChip, errorState, dataTable, limitRow, ccBadge, dot, avatar } from "../kit.js";
 import { trafficChart } from "../charts.js";

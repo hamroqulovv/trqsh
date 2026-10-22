@@ -79,7 +79,7 @@ func serveAdminFile(w http.ResponseWriter, r *http.Request, name string) {
 			return
 		}
 	}
-	_, _ = w.Write(b)
+	_, _ = w.Write(b) // #nosec G705 -- embedded static asset served as-is, no request data is reflected
 }
 
 func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {

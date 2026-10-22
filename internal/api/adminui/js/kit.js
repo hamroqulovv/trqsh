@@ -1,6 +1,6 @@
 // Reusable view pieces: badges, stat tiles, tables, pagers, tabs, key/value lists
 // and the server-paged list that most pages are built from.
-import { el, icon, clear, fmtNum, fmtDate, timeEl, copyText, debounce, initials, reduceMotion } from "./dom.js";
+import { el, icon, clear, fmtNum, fmtDate, copyText, debounce, initials, reduceMotion } from "./dom.js";
 import { api } from "./api.js";
 
 // ---------- badges ----------

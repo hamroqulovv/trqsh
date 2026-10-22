@@ -35,7 +35,7 @@ func (s *Server) adminFail(w http.ResponseWriter, r *http.Request, err error, wh
 	case errors.Is(err, store.ErrConflict):
 		writeError(w, http.StatusConflict, what+" conflicts with an existing record")
 	default:
-		s.log.Error("admin request failed", "path", r.URL.Path, "err", err)
+		s.log.Error("admin request failed", "path", sanitizeLog(r.URL.Path), "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
 }

@@ -1,6 +1,6 @@
 import { el, icon, clear, fill, fmtNum, fmtBytes, fmtCompact, timeEl, relTime } from "../dom.js";
 import { api, A } from "../api.js";
-import { statTile, card, segmented, errorState, emptyState, dataTable, planBadge, ccBadge, dot, link } from "../kit.js";
+import { statTile, card, segmented, errorState, emptyState, dataTable, ccBadge, dot, link } from "../kit.js";
 import { trafficChart, sparkline, hbars } from "../charts.js";
 import { auditEntry } from "./audit.js";
 

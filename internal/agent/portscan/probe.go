@@ -115,14 +115,14 @@ func fetchOnce(ctx context.Context, addr string, port int, path string, useTLS b
 	if err != nil {
 		return r, false, false
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if dl, has := ctx.Deadline(); has {
 		_ = conn.SetDeadline(dl)
 	}
 	r.scheme = "http"
 	if useTLS {
 		tc := tls.Client(conn, &tls.Config{
-			InsecureSkipVerify: true, // loopback dev certs are self-signed; nothing is sent but GET /
+			InsecureSkipVerify: true, // #nosec G402 -- loopback dev certs are self-signed; nothing is sent but GET /
 			ServerName:         "localhost",
 			NextProtos:         []string{"http/1.1"},
 		})
@@ -159,7 +159,7 @@ func fetchOnce(ctx context.Context, addr string, port int, path string, useTLS b
 	if err != nil {
 		return r, false, false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// nginx/Go answer a plain request to a TLS port with a 400 that says so.
 	if !useTLS && resp.StatusCode == http.StatusBadRequest {
 		head, _ := io.ReadAll(io.LimitReader(resp.Body, 512))

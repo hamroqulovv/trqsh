@@ -42,11 +42,11 @@ func listeners(_ context.Context) ([]listener, error) {
 }
 
 func parseProcNet(path string) ([]listener, []uint64, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- callers pass only the fixed /proc/net/* paths
 	if err != nil {
 		return nil, nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var ls []listener
 	var inodes []uint64
 	sc := bufio.NewScanner(f)
