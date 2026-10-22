@@ -47,7 +47,7 @@ export default function ErrorsPage() {
           <section
             key={e.code}
             id={errorAnchor(e.code)}
-            className="scroll-mt-24 rounded-lg border border-border bg-surface p-6 shadow-sm"
+            className="scroll-mt-24 border-t border-border py-6"
           >
             <div className="flex flex-wrap items-center gap-3">
               <code className="rounded-md bg-accent px-2 py-1 font-mono text-sm font-medium text-primary">

@@ -10,33 +10,18 @@
 
 /* ── Hero ─────────────────────────────────────────────────────────────── */
 
-/* The hero runs up behind the transparent header (72px) so the tunnel fills
-   the first screen; a soft fade keeps the navigation legible over it. */
+/* The hero runs up behind the transparent header (72px). */
 .hero-section {
   margin-top: -72px;
   padding-top: 72px;
 }
-.hero-tunnel-shade::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 150px;
-  background: linear-gradient(
-    180deg,
-    rgb(var(--hero-background) / 0.9),
-    rgb(var(--hero-background) / 0)
-  );
-}
-
 /* The copy drifts up as the hero scrolls away and only starts to fade once
    it is well on its way out, so it never looks disabled at rest. */
 .hero-copy {
+  position: relative;
+  z-index: 1;
   transform: translate3d(0, calc(var(--hero-p, 0) * -64px), 0);
   opacity: calc(1 - max(var(--hero-p, 0) - 0.2, 0) * 1.4);
-}
-.hero-tunnel {
-  transform: scale(calc(1 + var(--hero-p, 0) * 0.3));
-  transform-origin: 75% 50%;
 }
 
 .hero-badge {
@@ -98,64 +83,6 @@
   transform: translateX(3px);
 }
 
-/* Signals: requests emerge small and blurred at the tunnel's vanishing
-   point (--vx/--vy, published by the WebGL loop as the tunnel bends), then
-   accelerate out toward the viewer. */
-.hero-signals {
-  --cx: 75%;
-  --cy: 50%;
-  position: absolute;
-  inset: 0;
-  opacity: calc(1 - var(--hero-p, 0) * 1.6);
-  /* The tunnel can bend toward the copy; signals fade out before they reach
-     it so the headline always stays clean. */
-  -webkit-mask-image: linear-gradient(90deg, transparent 36%, #000 54%);
-  mask-image: linear-gradient(90deg, transparent 36%, #000 54%);
-}
-.hero-signal {
-  position: absolute;
-  left: var(--cx);
-  top: var(--cy);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid rgb(var(--foreground) / 0.14);
-  border-radius: 999px;
-  padding: 5px 10px 5px 8px;
-  background: rgb(var(--hero-background) / 0.78);
-  box-shadow: 0 10px 30px -18px rgb(0 0 0 / 0.5);
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 11px;
-  line-height: 1;
-  white-space: nowrap;
-  color: rgb(var(--secondary-ink));
-  opacity: 0;
-  transform: translate(-50%, -50%);
-  translate: var(--vx, 0px) var(--vy, 0px);
-  animation: signal-fly 7.8s cubic-bezier(0.5, 0, 0.75, 0.4) infinite;
-  animation-delay: calc(1.8s + var(--i) * 1.3s);
-  animation-fill-mode: backwards;
-}
-.hero-signal-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgb(var(--foreground));
-  box-shadow: 0 0 8px rgb(var(--foreground) / 0.6);
-}
-.hero-signal-method {
-  font-weight: 600;
-  color: rgb(var(--foreground));
-}
-.hero-signal-status {
-  border-radius: 4px;
-  background: rgb(var(--foreground) / 0.1);
-  padding: 2px 4px;
-  color: rgb(var(--foreground));
-}
-.hero-signal-time {
-  color: rgb(var(--muted-ink));
-}
 
 /* ── Protocol chips ───────────────────────────────────────────────────── */
 
@@ -209,15 +136,13 @@
   transform: translateY(-2px) scale(1.08);
 }
 
-/* ── Capability cards ─────────────────────────────────────────────────── */
+/* ── Capability illustrations ─────────────────────────────────────────── */
 
 .vignette {
   position: relative;
-  height: 132px;
-  margin-bottom: 28px;
+  height: 112px;
+  margin-bottom: 24px;
   overflow: hidden;
-  border: 1px solid rgb(var(--border));
-  border-radius: 12px;
   background:
     radial-gradient(rgb(var(--foreground) / 0.06) 1px, transparent 1px) 0 0 /
       12px 12px,
@@ -614,79 +539,12 @@
 .plan-feature .draw-icon > * {
   transition-delay: calc(var(--i, 0) * 90ms + 650ms);
 }
-.free-plan-card::before {
-  animation: dots-drift 24s linear infinite;
-}
-
-/* ── Closing call to action ───────────────────────────────────────────── */
-
-.cta-panel.spotlight {
-  --spot-color: 255 255 255;
-}
-.cta-orbits {
-  translate: calc((var(--px, 0.5) - 0.5) * 36px)
-    calc((var(--py, 0.5) - 0.5) * 24px);
-  transition: translate 1200ms var(--ease-out);
-}
-.cta-orbits span {
-  animation: orbit-spin 40s linear infinite;
-}
-.cta-orbits span:nth-child(2) {
-  animation-duration: 28s;
-  animation-direction: reverse;
-}
-.cta-orbits span:nth-child(3) {
-  animation-duration: 18s;
-}
-/* A satellite rides each ring. */
-.cta-orbits span::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: -3px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 0.85);
-  box-shadow: 0 0 12px rgb(255 255 255 / 0.7);
-}
-.cta-orbits span:nth-child(2)::after {
-  top: -3px;
-  left: 50%;
-  opacity: 0.6;
-}
-.cta-orbits span:nth-child(3)::after {
-  top: auto;
-  bottom: 12%;
-  left: 14%;
-  opacity: 0.45;
-}
 
 /* ── Keyframes ────────────────────────────────────────────────────────── */
 
 @keyframes beam-spin {
   to {
     --beam-angle: 360deg;
-  }
-}
-@keyframes signal-fly {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.25);
-    filter: blur(6px);
-  }
-  20% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  82% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(1.2);
-    filter: blur(2px);
   }
 }
 @keyframes strip-scan {
@@ -861,20 +719,6 @@
   }
 }
 
-@media (max-width: 1023px) {
-  .hero-signals {
-    --cx: 50%;
-    --cy: 75%;
-    -webkit-mask-image: linear-gradient(180deg, transparent 50%, #000 64%);
-    mask-image: linear-gradient(180deg, transparent 50%, #000 64%);
-  }
-  .hero-tunnel {
-    transform-origin: 50% 75%;
-  }
-  .hero-signal:nth-child(n + 5) {
-    display: none;
-  }
-}
 /* Phones: the steps become a vertical timeline. Each number sits in a left
    gutter and a rule drawn downward joins it to the next one. */
 @media (max-width: 1023px) {
@@ -924,21 +768,12 @@
   }
 }
 
-/* The floating requests are a wide-screen flourish; on phones they would
-   crowd the tunnel and run off the edge. */
-@media (max-width: 639px) {
-  .hero-signals {
-    display: none;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .hero-signals,
   .steps-rail-packet,
   .vs-cursor {
     display: none;
   }
-  .hero-copy,
-  .hero-tunnel {
+  .hero-copy {
     transform: none;
     opacity: 1;
   }

@@ -39,9 +39,8 @@
 .release-month > :last-child { flex: 1; height: 1px; background: rgb(var(--border)); }
 .release-entry { position: relative; padding: 0 0 2rem 30px; }
 .release-marker { position: absolute; top: 23px; left: -13px; display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid rgb(var(--border)); border-radius: 50%; background: rgb(var(--page)); color: rgb(var(--secondary-ink)); box-shadow: 0 0 0 5px rgb(var(--page)); }
-.release-card { padding: 25px 28px 20px; border: 1px solid rgb(var(--border)); border-radius: 12px; background: rgb(var(--surface)); transition: border-color 220ms ease, box-shadow 220ms ease; }
-.release-card:hover { border-color: rgb(var(--border-strong)); box-shadow: 0 6px 26px rgb(var(--foreground) / 0.025); }
-.release-card:target { border-color: rgb(var(--foreground) / 0.6); box-shadow: 0 0 0 3px rgb(var(--foreground) / 0.05); }
+.release-card { padding: 24px 0; border-bottom: 1px solid rgb(var(--border)); }
+.release-card:target { border-bottom-color: rgb(var(--foreground)); }
 .release-version { display: inline-flex; gap: 7px; align-items: center; font-size: 11px; font-weight: 550; }
 .release-version:hover { text-decoration: underline; text-underline-offset: 4px; }
 .release-version span { border: 1px solid rgb(var(--border)); border-radius: 4px; padding: 2px 5px; font-size: 10px; }
@@ -53,7 +52,7 @@
 .release-highlights { display: grid; gap: 9px; margin-top: 1.1rem; color: rgb(var(--secondary-ink)); font-size: 12px; line-height: 1.8; }
 .release-highlights li { display: flex; gap: 10px; align-items: flex-start; }
 .release-highlights svg { margin-top: 4px; color: rgb(var(--muted-ink)); }
-.release-card-bottom { position: relative; margin-top: 1.4rem; padding-top: 15px; border-top: 1px solid rgb(var(--border)); font-size: 11px; }
+.release-card-bottom { position: relative; margin-top: 1rem; padding-top: 15px; font-size: 11px; }
 .release-details summary { display: inline-flex; align-items: center; gap: 8px; min-height: 22px; cursor: pointer; color: rgb(var(--secondary-ink)); }
 .release-details summary:hover { color: rgb(var(--foreground)); }
 .release-details[open] summary svg { transform: rotate(180deg); }
@@ -72,7 +71,7 @@
 .release-notes code { border-radius: 3px; padding: 2px 4px; background: rgb(var(--surface-2)); color: rgb(var(--foreground)); font-size: 0.9em; }
 .release-notes pre { margin: 1rem 0; padding: 1rem; overflow: auto; border: 1px solid rgb(var(--border)); border-radius: 7px; background: rgb(var(--surface-2)); line-height: 1.8; }
 .release-notes pre code { padding: 0; background: none; }
-.release-empty { padding: 5rem 1.5rem; border: 1px dashed rgb(var(--border-strong)); border-radius: 12px; text-align: center; }
+.release-empty { padding-block: 4rem; border-block: 1px solid rgb(var(--border)); text-align: center; }
 .release-history-end { position: relative; padding: 0 0 0 30px; font-size: 12px; }
 .release-history-end > span { position: absolute; top: 5px; left: -3px; height: 5px; width: 5px; border-radius: 50%; background: rgb(var(--border-strong)); }
 .release-history-end p { font-weight: 550; }
@@ -111,7 +110,7 @@
   .release-month { padding-left: 20px; font-size: 9px; }
   .release-marker { width: 19px; height: 19px; left: -10px; }
   .release-marker svg { height: 11px; width: 11px; }
-  .release-card { padding: 20px 18px 16px; border-radius: 10px; }
+  .release-card { padding: 16px 0 24px; }
   .release-card time { font-size: 10px; }
   .release-title { margin-top: 1.1rem; font-size: 21px; }
   .release-summary { font-size: 12px; }

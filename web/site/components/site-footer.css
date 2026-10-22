@@ -93,9 +93,6 @@
   align-items: center;
   transition: color 200ms ease;
 }
-.footer-bottom p .footer-link-quiet {
-  display: inline;
-}
 .footer-link-quiet:hover {
   color: rgb(var(--foreground));
 }
@@ -148,6 +145,8 @@
   text-align: center;
   white-space: nowrap;
   user-select: none;
+  /* Oversized glyph line boxes must not intercept the legal links above. */
+  pointer-events: none;
 }
 /* Each glyph carries the same vertical gradient, so the word reads as one
    surface while every letter can move on its own. */
@@ -230,7 +229,7 @@
   }
 }
 @media (max-width: 767px) {
-  /* Phones: copyright, then legal links, then back to top, all left-aligned. */
+  /* Phones: copyright, legal links, and back to top, all left-aligned. */
   .footer-bottom {
     flex-direction: column;
     align-items: flex-start;

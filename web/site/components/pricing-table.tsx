@@ -14,6 +14,7 @@ import { signupUrl, site } from "@/lib/site";
 import { buttonVariants } from "./ui/button";
 import { cn } from "@/lib/utils";
 import { Reveal } from "./reveal";
+import "./pricing-table.css";
 
 type Cadence = "monthly" | "annual";
 
@@ -21,9 +22,9 @@ export function PricingTable() {
   const [cadence, setCadence] = React.useState<Cadence>("monthly");
   return (
     <div>
-      <div className="mb-10 flex flex-col items-center gap-3">
+      <div className="pricing-billing">
         <div
-          className="inline-flex gap-1 rounded-lg border border-border bg-surface-2 p-1"
+          className="flex gap-6"
           role="group"
           aria-label="Billing period"
         >
@@ -34,10 +35,10 @@ export function PricingTable() {
               aria-pressed={cadence === period}
               onClick={() => setCadence(period)}
               className={cn(
-                "min-h-10 rounded-md px-6 text-sm font-medium transition-colors",
+                "min-h-11 border-b-2 py-3 text-sm font-medium transition-colors",
                 cadence === period
-                  ? "bg-page text-foreground shadow-sm"
-                  : "text-muted hover:text-foreground",
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted hover:text-foreground",
               )}
             >
               {period === "monthly" ? "Monthly" : "Yearly"}
@@ -49,9 +50,9 @@ export function PricingTable() {
         </p>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="pricing-plans">
         {cardPlans.map((plan, index) => (
-          <PlanCard
+          <PlanColumn
             key={plan.code}
             plan={plan}
             cadence={cadence}
@@ -61,7 +62,7 @@ export function PricingTable() {
       </div>
 
       {paygPlan && (
-        <div className="mt-5 flex flex-col justify-between gap-5 rounded-xl border border-border bg-surface-2 p-6 sm:flex-row sm:items-center sm:p-7">
+        <div className="mt-6 flex flex-col justify-between gap-5 border-y border-border py-6 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-base font-semibold">{paygPlan.name}</h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-secondary">
@@ -85,7 +86,7 @@ export function PricingTable() {
   );
 }
 
-function PlanCard({
+function PlanColumn({
   plan,
   cadence,
   delay,
@@ -124,16 +125,14 @@ function PlanCard({
       as="article"
       delay={delay}
       className={cn(
-        "card-hover flex flex-col rounded-xl border p-7",
-        popular
-          ? "product-terminal border-foreground/25"
-          : "border-border bg-page",
+        "pricing-plan",
+        popular && "is-popular",
       )}
     >
       <div className="flex min-h-6 items-center justify-between gap-3">
         <h2 className="text-lg font-semibold tracking-tight">{plan.name}</h2>
         {popular && (
-          <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-medium text-white">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-muted">
             Most popular
           </span>
         )}
@@ -141,7 +140,7 @@ function PlanCard({
       <p className="mt-3 min-h-[3rem] text-sm leading-relaxed text-secondary">
         {taglines[plan.code]}
       </p>
-      <div className="mt-6 flex items-baseline gap-1.5">
+      <div className="mt-5 flex items-baseline gap-1.5">
         <span className="tabular text-5xl font-semibold tracking-[-0.055em]">
           {formatPrice(cents)}
         </span>
@@ -159,19 +158,17 @@ function PlanCard({
       <a
         href={href}
         className={cn(
-          buttonVariants({ variant: "outline" }),
-          "mt-7 w-full",
-          popular &&
-            "border-white bg-white text-primary hover:border-white hover:bg-white/90",
+          buttonVariants({ variant: popular ? "default" : "outline" }),
+          "mt-6 w-full",
         )}
       >
         {isFree ? "Start free" : `Get ${plan.name}`}{" "}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </a>
-      <p className="mt-7 border-t border-border pt-6 text-xs font-medium text-foreground">
+      <p className="mt-6 text-xs font-medium text-foreground">
         What’s included
       </p>
-      <ul className="mt-4 space-y-3.5 text-sm">
+      <ul className="mt-4 space-y-3 text-sm">
         {features.map((feature) => (
           <li key={feature} className="flex items-start gap-2.5">
             <Check
@@ -200,7 +197,7 @@ function FeatureMatrix({ cadence }: { cadence: Cadence }) {
         </p>
       </div>
       <div
-        className="relative overflow-x-auto rounded-xl border border-border"
+        className="relative overflow-x-auto border-y border-border"
         role="region"
         aria-label="Plan comparison, scroll horizontally on small screens"
         tabIndex={0}

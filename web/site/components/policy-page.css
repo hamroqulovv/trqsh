@@ -26,14 +26,14 @@
 .policy-article section p:last-child { margin-bottom: 0; }
 .policy-article a { color: rgb(var(--foreground)); text-underline-offset: 4px; }
 .policy-article strong { font-weight: 550; }
-.policy-table { overflow-x: auto; border: 1px solid rgb(var(--border)); border-radius: 8px; }
+.policy-table { overflow-x: auto; border-block: 1px solid rgb(var(--border)); }
 .policy-table table { display: table; width: 100%; min-width: 440px; margin: 0; font-size: 12px; line-height: 1.8; }
 .policy-table th, .policy-table td { padding: 14px 16px; vertical-align: top; }
 .policy-table th { font-size: 11px; }
 .policy-table td:first-child { min-width: 135px; color: rgb(var(--foreground)); font-weight: 500; }
 .policy-table tr:last-child td { border-bottom: 0; }
 .policy-table code { white-space: normal; overflow-wrap: anywhere; font-size: 10px; }
-.policy-contact { display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-top: 4rem; padding: 2.5rem; border: 1px solid rgb(var(--border)); border-radius: 12px; background: rgb(var(--surface-2)); }
+.policy-contact { display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgb(var(--border)); }
 .policy-mobile-contents { margin-top: 1.5rem; border-block: 1px solid rgb(var(--border)); }
 .policy-mobile-contents summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 1rem; cursor: pointer; font-size: 12px; font-weight: 500; }
 .policy-mobile-contents[open] summary svg { transform: rotate(180deg); }
@@ -44,7 +44,6 @@
   .policy-summary > div { padding-inline: 1.5rem; }
   .policy-summary > :first-child { padding-left: 0; }
   .policy-summary > :last-child { padding-right: 0; }
-  .policy-contact { padding: 2rem; }
 }
 @media (max-width: 639px) {
   .policy-page { padding-bottom: 3rem; }
@@ -59,7 +58,7 @@
   .policy-summary p { grid-column: 2; margin-top: 5px; font-size: 12px; }
   .policy-article section h2 { font-size: 20px; gap: 10px; }
   .policy-article p, .policy-article li { font-size: 13px; }
-  .policy-contact { flex-direction: column; align-items: flex-start; padding: 1.5rem; gap: 1.5rem; }
+  .policy-contact { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
   .policy-contact h2 { font-size: 22px; }
   .policy-table { outline-offset: 3px; }
 }

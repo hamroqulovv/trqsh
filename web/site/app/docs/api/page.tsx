@@ -40,7 +40,7 @@ export default function ApiReferencePage() {
           use the separate <Link href="/docs/local-api" className="text-foreground underline underline-offset-4">local agent API</Link>.
         </p>
         </header>
-        <section id="using-the-api" className="mt-7 scroll-mt-24 rounded-lg border border-border bg-surface p-5">
+        <section id="using-the-api" className="mt-7 scroll-mt-24 border-y border-border py-5">
           <h2 className="text-base font-semibold">Connect and authenticate</h2>
           <div className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted">This deployment&apos;s base URL</div>
           <code className="mt-2 block break-all text-sm text-foreground">{base}</code>
@@ -105,7 +105,7 @@ export default function ApiReferencePage() {
           <h2 className="mb-3 text-xl font-semibold tracking-tight">Named schemas</h2>
           <p className="mb-5 text-sm text-secondary">References such as #/components/schemas/Tokens refer to the definitions below. These are JSON Schema definitions, not credential values or example responses.</p>
           <div className="space-y-3">{spec.schemas.map((schema) => (
-            <details key={schema.name} id={"schema-" + schema.name} className="scroll-mt-24 rounded-lg border border-border bg-surface p-4">
+            <details key={schema.name} id={"schema-" + schema.name} className="scroll-mt-24 border-t border-border py-4">
               <summary className="cursor-pointer break-all font-mono text-sm font-medium">{schema.name}</summary>
               <SchemaDetails schema={schema} />
             </details>
@@ -145,8 +145,8 @@ function SchemaDetails({ schema }: { schema: ApiSchema }) {
 }
 function Operation({ op }: { op: ApiOperation }) {
   return (
-    <div id={op.id} className="scroll-mt-24 overflow-hidden rounded-lg border border-border bg-surface">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+    <div id={op.id} className="scroll-mt-24 border-t border-border">
+      <div className="flex flex-wrap items-center gap-3 py-4">
         <span className={cn("rounded px-2 py-0.5 font-mono text-xs font-semibold", METHOD_STYLES[op.method])}>{op.method}</span>
         <code className="min-w-0 break-all text-sm">{op.path}</code>
         <span className="ml-auto flex items-center gap-1.5 text-xs text-muted">
@@ -154,7 +154,7 @@ function Operation({ op }: { op: ApiOperation }) {
           {op.auth ? "Bearer auth" : "No Bearer auth"}
         </span>
       </div>
-      <div className="min-w-0 px-4 py-4">
+      <div className="min-w-0 pb-6">
         {op.summary && <h3 className="text-sm font-medium">{op.summary}</h3>}
         {op.description && <p className="mt-2 text-sm leading-relaxed text-secondary">{op.description}</p>}
         {op.params.length > 0 && (
@@ -175,7 +175,7 @@ function Operation({ op }: { op: ApiOperation }) {
           </div>
         )}
         {op.requestBody && (
-          <details className="mt-4 rounded-md border border-border p-3">
+          <details className="mt-4 border-t border-border pt-3">
             <summary className="cursor-pointer text-sm font-medium">Request body · {op.requestBody.required ? "required" : "optional"} · {op.requestBody.mediaType}</summary>
             {op.requestBody.schema && <SchemaDetails schema={op.requestBody.schema} />}
           </details>
@@ -189,7 +189,7 @@ function Operation({ op }: { op: ApiOperation }) {
                 <span className="text-secondary">{response.description}</span>
               </div>
               {response.schema && (
-                <details className="mt-2 rounded-md border border-border p-3">
+                <details className="mt-2 border-t border-border py-3">
                   <summary className="cursor-pointer text-xs font-medium">{response.status} response schema · {response.mediaType}</summary>
                   <SchemaDetails schema={response.schema} />
                 </details>

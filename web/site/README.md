@@ -15,6 +15,10 @@ Part of the [trqsh monorepo](../../README.md) — the backend it links to lives 
 [`cmd/`](../../cmd) / [`internal/`](../../internal). Marketing and documentation
 share a monochrome design system in `app/globals.css`.
 
+Public pages use open columns, compact command strips, and horizontal dividers.
+Avoid wrapping entire sections in rounded panels or nesting content cards;
+reserve filled surfaces for interactive controls, code, and product previews.
+
 [Quick start](#quick-start) · [Design](#design-and-navigation) · [Generated content](#generated-content) · [Documentation](#documentation-editing) · [Configuration](#configuration) · [Deployment](#deployment)
 
 | Package | Stack | Development URL |
@@ -29,14 +33,15 @@ persist in local storage; otherwise the site follows the system color scheme.
 A small head script applies the theme before paint, and other open tabs sync
 when the saved preference changes. Primary actions adapt to each palette, while
 terminal examples and promotional panels retain a readable dark palette.
-The landing page opens with a monochrome dotted WebGL tunnel. Three.js loads
-after hydration; the scene uses a capped drawing-buffer size and frame rate,
-and stops when the hero is offscreen or the tab is hidden. The hero follows the
-active theme: dark dots on white in light mode, and light dots on black in dark
-mode. Text, buttons, and the readability gradient share the selected palette.
-The hero keeps a plain theme background until the scene is ready, with no cards
-over the tunnel. That background also remains when WebGL is unavailable or
-reduced motion is enabled.
+The landing page opens with an interactive SVG connection example. A labeled
+request travels from a browser, webhook sender, or API client through a public
+URL to localhost. The local app processes it and sends a labeled response back.
+Flowing routes, packet trails, relay activity, and progress indicators share this
+sequence. Example selectors and a pause button support keyboard and touch use.
+Phones get a vertical composition with larger labels; wider screens use a
+horizontal layout. Both render with the page and follow the active theme without
+WebGL. Motion is capped at 60 fps (30 on phones), pauses offscreen or in a hidden
+tab, and becomes a still illustration when reduced motion is enabled.
 The interactive HTTP/TCP/UDP command example has a moving protocol selector,
 typed commands, and an animated connection diagram. Sample output is labeled.
 Headlines enter word by word, content reveals once on scroll, and cards and

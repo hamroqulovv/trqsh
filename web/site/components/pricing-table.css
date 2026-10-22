@@ -1,0 +1,32 @@
+.pricing-billing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 32px;
+  margin-bottom: 32px;
+}
+
+.pricing-plans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+}
+
+.pricing-plan {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-top: 2px solid rgb(var(--border));
+  padding-block: 24px;
+}
+
+.pricing-plan.is-popular {
+  border-top-color: rgb(var(--foreground));
+}
+
+@media (max-width: 767px) {
+  .pricing-plans { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .pricing-plan > p { min-height: 0; }
+  .pricing-billing { margin-bottom: 24px; gap: 12px; }
+}

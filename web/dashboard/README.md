@@ -71,9 +71,14 @@ changing development environment values; rebuild after build-time changes.
   `localStorage.theme` preference on the same origin, synchronize across tabs, and
   follow the system setting until a preference is saved. A head script applies the
   palette before the first paint, including when application JavaScript is delayed.
-- **Login** — a responsive product panel and focused sign-in form replace the old
-  centered card. "Create an account" reveals the optional name field; both modes
-  use the existing email Server Action. Only configured OAuth providers appear.
+- **Login** — an animated ASCII horizon adapts the supplied GradientASCII shader
+  to the shared neutral palette. It covers the complete viewport behind the
+  header, content, and footer. Hovering adds a local glow and decodes nearby
+  characters; form controls stay clear of pointer effects. Motion pauses in hidden
+  tabs and respects reduced motion. Render buffers and frame rates are capped
+  on phones. An ASCII fallback
+  remains visible if WebGL is unavailable. Only configured GitHub/Google OAuth
+  providers appear; return destinations and existing error states are preserved.
   Public navigation defaults to `https://trqsh.uz`; an optional build-time
   `NEXT_PUBLIC_TRQSH_SITE_URL` changes the home, docs and legal links.
 
