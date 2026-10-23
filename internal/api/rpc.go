@@ -19,6 +19,7 @@ func (s *Server) mountInternal(r chi.Router) {
 		r.Post(entitlerpc.PathCheckBind, s.rpcCheckBind)
 		r.Post(entitlerpc.PathReportUsage, s.rpcReportUsage)
 		r.Post(entitlerpc.PathReportTunnel, s.rpcReportTunnel)
+		r.Post(entitlerpc.PathSyncTunnels, s.rpcSyncTunnels)
 	})
 }
 
@@ -116,6 +117,35 @@ func (s *Server) rpcReportTunnel(w http.ResponseWriter, r *http.Request) {
 	case "close":
 		_ = s.store.CloseTunnelSession(r.Context(), req.EdgeID, req.SessionID, req.TunnelID, at,
 			req.BytesIn, req.BytesOut, req.Requests)
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// rpcSyncTunnels reconciles tunnel history with what an edge actually serves.
+// Close events are fire-and-forget, so an edge restart or crash, or an API
+// outage, leaves rows "active" after their tunnels are gone, and the dashboard
+// would keep showing them as live. The edge sends its full live set at startup
+// and then periodically; any other active row of that edge is closed.
+func (s *Server) rpcSyncTunnels(w http.ResponseWriter, r *http.Request) {
+	var req entitlerpc.TunnelSync
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.EdgeID == "" || req.At.IsZero() {
+		writeError(w, http.StatusBadRequest, "edge_id and at are required")
+		return
+	}
+	live := make([]store.TunnelKey, 0, len(req.Live))
+	for _, t := range req.Live {
+		live = append(live, store.TunnelKey{SessionID: t.SessionID, TunnelID: t.TunnelID})
+	}
+	closed, err := s.store.CloseAbsentTunnelSessions(r.Context(), req.EdgeID, live, req.At)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "tunnel history unavailable")
+		return
+	}
+	if closed > 0 {
+		s.log.Info("closed tunnel sessions the edge no longer serves", "edge", sanitizeLog(req.EdgeID), "count", closed)
 	}
 	w.WriteHeader(http.StatusOK)
 }

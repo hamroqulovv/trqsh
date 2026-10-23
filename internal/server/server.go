@@ -55,6 +55,11 @@ type Server struct {
 	mu       sync.Mutex
 	draining bool
 
+	// closing holds released tunnels (*boundTunnel) whose close event is still
+	// being reported. Tunnel sync counts them as live, so it cannot close their
+	// history row first and lose the event's traffic totals.
+	closing sync.Map
+
 	ready  chan struct{}
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -119,9 +124,11 @@ func New(cfg Config, log *slog.Logger) (*Server, error) {
 
 // tunnelReporter is the edge->control-plane tunnel-history seam, satisfied by
 // entitlerpc.Client. Kept separate from authz.Entitlements (a frozen contract) so
-// history is additive and optional.
+// history is additive and optional. SyncTunnels repairs what fire-and-forget
+// reports miss (see runTunnelSync).
 type tunnelReporter interface {
 	ReportTunnel(ctx context.Context, tr entitlerpc.TunnelReport) error
+	SyncTunnels(ctx context.Context, ts entitlerpc.TunnelSync) error
 }
 
 // buildCertManager chooses TLS: real ACME (Let's Encrypt) when an ACME email is
@@ -237,6 +244,10 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 	s.startOps(ctx)
 	s.usage.run()
+	if s.reporter != nil {
+		s.wg.Add(1)
+		go func() { defer s.wg.Done(); s.runTunnelSync(ctx) }()
+	}
 
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.acceptAgents(ctx) }()
@@ -515,6 +526,8 @@ func (s *Server) releaseTunnel(_ context.Context, bt *boundTunnel) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	owner := Binding{EdgeID: s.cfg.EdgeID, SessionID: bt.session.sessionID}
+	// Mark it closing before it leaves the hub, so tunnel sync always finds it in one of the two.
+	s.closing.Store(bt, struct{}{})
 	s.hub.unbind(bt)
 	if bt.host != "" {
 		_ = s.reg.Unbind(ctx, Route{Host: bt.host}, owner)
@@ -564,9 +577,12 @@ func (s *Server) reportTunnelOpen(a *agentSession, bt *boundTunnel) {
 	go s.sendTunnelReport(tr)
 }
 
-// reportTunnelClose fires a best-effort "close" event with final traffic totals.
+// reportTunnelClose fires a best-effort "close" event with final traffic totals,
+// then drops the tunnel from the closing set whether or not the event arrived:
+// if it didn't, the next tunnel sync closes the history row instead.
 func (s *Server) reportTunnelClose(bt *boundTunnel) {
 	if s.reporter == nil || bt.session == nil {
+		s.closing.Delete(bt)
 		return
 	}
 	tr := entitlerpc.TunnelReport{
@@ -582,7 +598,10 @@ func (s *Server) reportTunnelClose(bt *boundTunnel) {
 		Requests:  bt.requests.Load(),
 		At:        time.Now(),
 	}
-	go s.sendTunnelReport(tr)
+	go func() {
+		s.sendTunnelReport(tr)
+		s.closing.Delete(bt)
+	}()
 }
 
 func (s *Server) sendTunnelReport(tr entitlerpc.TunnelReport) {

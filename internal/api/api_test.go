@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/trqsh-uz/trqsh/internal/api"
 	"github.com/trqsh-uz/trqsh/internal/entitlerpc"
@@ -132,6 +133,52 @@ func TestEntitlementsOverInternalRPC(t *testing.T) {
 	bad := entitlerpc.NewClient(ts.URL, "wrong-token")
 	if _, _, err := bad.Authenticate(ctx, apiKey); err == nil {
 		t.Fatal("expected internal-token rejection")
+	}
+}
+
+// An edge's tunnel sync closes the history rows of tunnels it no longer serves:
+// that is how tunnels orphaned by an edge restart stop showing as live.
+func TestTunnelSyncClosesTunnelsTheEdgeDropped(t *testing.T) {
+	ts := testServer(t)
+	access, apiKey := signupAndKey(t, ts, "sync@example.com")
+	client := entitlerpc.NewClient(ts.URL, api.DefaultConfig().InternalToken)
+	ctx := context.Background()
+	acct, _, err := client.Authenticate(ctx, apiKey)
+	if err != nil {
+		t.Fatalf("Authenticate: %v", err)
+	}
+	for _, id := range []string{"kept", "orphan"} {
+		if err := client.ReportTunnel(ctx, entitlerpc.TunnelReport{
+			Action: "open", EdgeID: "edge-1", SessionID: "sess-1", TunnelID: id, AccountID: acct,
+			Type: "http", Host: id + ".example.test", At: time.Now().Add(-time.Hour),
+		}); err != nil {
+			t.Fatalf("ReportTunnel open %s: %v", id, err)
+		}
+	}
+	if err := client.SyncTunnels(ctx, entitlerpc.TunnelSync{
+		EdgeID: "edge-1", At: time.Now(), Live: []entitlerpc.TunnelRef{{SessionID: "sess-1", TunnelID: "kept"}},
+	}); err != nil {
+		t.Fatalf("SyncTunnels: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", ts.URL+"/v1/tunnels", nil)
+	req.Header.Set("Authorization", "Bearer "+access)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /v1/tunnels: %v", err)
+	}
+	var live []struct {
+		TunnelID string `json:"tunnel_id"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&live)
+	_ = resp.Body.Close()
+	if err != nil || len(live) != 1 || live[0].TunnelID != "kept" {
+		t.Fatalf("live tunnels after sync = %+v (%v), want only \"kept\"", live, err)
+	}
+
+	bad := entitlerpc.NewClient(ts.URL, "wrong-token")
+	if err := bad.SyncTunnels(ctx, entitlerpc.TunnelSync{EdgeID: "edge-1", At: time.Now()}); err == nil {
+		t.Fatal("tunnel sync accepted a wrong internal token")
 	}
 }
 

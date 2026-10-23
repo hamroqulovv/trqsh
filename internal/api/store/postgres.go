@@ -545,6 +545,26 @@ func (p *PostgresStore) CloseTunnelSession(ctx context.Context, edgeID, sessionI
 		edgeID, sessionID, tunnelID, endedAt, bytesIn, bytesOut, requests))
 }
 
+func (p *PostgresStore) CloseAbsentTunnelSessions(ctx context.Context, edgeID string, live []TunnelKey, at time.Time) (int, error) {
+	sessions := make([]string, len(live))
+	tunnels := make([]string, len(live))
+	for i, k := range live {
+		sessions[i], tunnels[i] = k.SessionID, k.TunnelID
+	}
+	res, err := p.db.ExecContext(ctx,
+		`UPDATE tunnel_sessions SET status='closed', ended_at=$2
+		 WHERE edge_id=$1 AND status='active' AND started_at < $2
+		   AND NOT EXISTS (SELECT 1 FROM unnest($3::text[], $4::text[]) AS live(session_id, tunnel_id)
+		                   WHERE live.session_id = tunnel_sessions.session_id
+		                     AND live.tunnel_id = tunnel_sessions.tunnel_id)`,
+		edgeID, at, sessions, tunnels)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
 func (p *PostgresStore) ListTunnelSessions(ctx context.Context, f TunnelSessionFilter) ([]TunnelSession, error) {
 	limit := f.Limit
 	if limit <= 0 {

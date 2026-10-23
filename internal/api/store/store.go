@@ -126,6 +126,13 @@ type TunnelSession struct {
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
 }
 
+// TunnelKey is the per-edge part of a live instance's key: an edge's tunnel sync
+// lists its live tunnels by (SessionID, TunnelID).
+type TunnelKey struct {
+	SessionID string
+	TunnelID  string
+}
+
 // TunnelSessionFilter narrows a history listing. A zero OrgID lists across all
 // orgs (admin only); Limit<=0 falls back to a sane default in the store.
 type TunnelSessionFilter struct {
@@ -261,11 +268,15 @@ type Store interface {
 
 	// Tunnel history. RecordTunnelOpen upserts an "active" session keyed by
 	// (edge_id, session_id, tunnel_id); CloseTunnelSession stamps ended_at + final
-	// counters for that key. ListTunnelSessions/counts drive per-org history and the
+	// counters for that key. CloseAbsentTunnelSessions closes, at `at`, every
+	// active session of edgeID that started before `at` and is not in live (the
+	// edge no longer serves it, but its close event never arrived) and returns how
+	// many it closed. ListTunnelSessions/counts drive per-org history and the
 	// admin fleet view (empty filter.OrgID = across all orgs). TunnelCountryBreakdown
 	// aggregates sessions by resolved country for the geo dashboard.
 	RecordTunnelOpen(ctx context.Context, s TunnelSession) (TunnelSession, error)
 	CloseTunnelSession(ctx context.Context, edgeID, sessionID, tunnelID string, endedAt time.Time, bytesIn, bytesOut, requests int64) error
+	CloseAbsentTunnelSessions(ctx context.Context, edgeID string, live []TunnelKey, at time.Time) (int, error)
 	ListTunnelSessions(ctx context.Context, f TunnelSessionFilter) ([]TunnelSession, error)
 	CountTunnelSessions(ctx context.Context, orgID string, activeOnly bool) (int, error)
 	TunnelCountryBreakdown(ctx context.Context, orgID string, activeOnly bool) (map[string]int, error)
