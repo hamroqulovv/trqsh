@@ -27,6 +27,7 @@ const (
 	PathCheckBind    = "/internal/entitlements/check-bind"
 	PathReportUsage  = "/internal/entitlements/report-usage"
 	PathReportTunnel = "/internal/entitlements/report-tunnel"
+	PathSyncTunnels  = "/internal/entitlements/sync-tunnels"
 )
 
 // AuthRequest / AuthResponse cover Entitlements.Authenticate.
@@ -92,6 +93,23 @@ type TunnelReport struct {
 	BytesOut  int64     `json:"bytes_out,omitempty"`
 	Requests  int64     `json:"requests,omitempty"`
 	At        time.Time `json:"at"`
+}
+
+// TunnelSync is the edge's statement of every tunnel it is serving, sent at
+// startup and then periodically. Close events are best-effort, so the control
+// plane closes this edge's other "active" history rows that started before At:
+// tunnels whose close never arrived because the edge restarted or crashed, or
+// the API was unreachable.
+type TunnelSync struct {
+	EdgeID string      `json:"edge_id"`
+	Live   []TunnelRef `json:"live"`
+	At     time.Time   `json:"at"`
+}
+
+// TunnelRef identifies a live tunnel the way its "open" TunnelReport did.
+type TunnelRef struct {
+	SessionID string `json:"session_id"`
+	TunnelID  string `json:"tunnel_id"`
 }
 
 // Client is the edge-side authz.Entitlements implementation backed by the API.
@@ -200,6 +218,12 @@ func (c *Client) ReportUsage(ctx context.Context, u authz.Usage) error {
 // history. Best-effort: the edge ignores the returned error (like ReportUsage).
 func (c *Client) ReportTunnel(ctx context.Context, tr TunnelReport) error {
 	return c.post(ctx, PathReportTunnel, tr, nil)
+}
+
+// SyncTunnels sends the edge's live tunnel set, so the control plane can close
+// the history rows of tunnels this edge no longer serves.
+func (c *Client) SyncTunnels(ctx context.Context, ts TunnelSync) error {
+	return c.post(ctx, PathSyncTunnels, ts, nil)
 }
 
 func (c *Client) post(ctx context.Context, path string, in, out any) error {

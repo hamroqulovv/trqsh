@@ -61,6 +61,7 @@ func TestPostgresBillingAndUsageRegression(t *testing.T) {
 	t.Run("Empty lists", func(t *testing.T) { testEmptyLists(t, p) })
 	t.Run("OAuth identity persistence", func(t *testing.T) { testOAuthSubjectPersistence(t, p) })
 	t.Run("Admin controls", func(t *testing.T) { testAdminControls(t, p) })
+	t.Run("Tunnel sync", func(t *testing.T) { testCloseAbsentTunnelSessions(t, p) })
 	org, err := p.CreateOrg(ctx, Org{Name: "regression", Plan: "free"})
 	if err != nil {
 		t.Fatal(err)

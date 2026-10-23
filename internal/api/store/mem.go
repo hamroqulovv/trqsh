@@ -655,6 +655,28 @@ func (m *MemStore) CloseTunnelSession(_ context.Context, edgeID, sessionID, tunn
 	return ErrNotFound
 }
 
+func (m *MemStore) CloseAbsentTunnelSessions(_ context.Context, edgeID string, live []TunnelKey, at time.Time) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	keep := make(map[TunnelKey]bool, len(live))
+	for _, k := range live {
+		keep[k] = true
+	}
+	closed := 0
+	for i := range m.tunnels {
+		s := &m.tunnels[i]
+		if s.EdgeID != edgeID || s.Status != "active" || !s.StartedAt.Before(at) ||
+			keep[TunnelKey{SessionID: s.SessionID, TunnelID: s.TunnelID}] {
+			continue
+		}
+		t := at
+		s.EndedAt = &t
+		s.Status = "closed"
+		closed++
+	}
+	return closed, nil
+}
+
 func (m *MemStore) ListTunnelSessions(_ context.Context, f TunnelSessionFilter) ([]TunnelSession, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
