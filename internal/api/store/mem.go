@@ -175,7 +175,7 @@ func (m *MemStore) LinkOAuthIdentity(_ context.Context, userID, provider, subjec
 func (m *MemStore) ListOAuthProviders(_ context.Context, userID string) ([]string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var out []string
+	out := []string{}
 	for _, i := range m.identities {
 		if i.userID == userID {
 			out = append(out, i.provider)
@@ -213,7 +213,7 @@ func (m *MemStore) GetOrg(_ context.Context, id string) (Org, error) {
 func (m *MemStore) OrgsByPlan(_ context.Context, plan string) ([]Org, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var out []Org
+	out := []Org{}
 	for _, o := range m.orgs {
 		if o.Plan == plan {
 			out = append(out, o)
@@ -275,7 +275,7 @@ func (m *MemStore) AddOrgMember(_ context.Context, mem OrgMember) error {
 func (m *MemStore) ListOrgMembers(_ context.Context, orgID string) ([]OrgMember, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var out []OrgMember
+	out := []OrgMember{}
 	for _, e := range m.members {
 		if e.OrgID == orgID {
 			out = append(out, e)
@@ -287,7 +287,7 @@ func (m *MemStore) ListOrgMembers(_ context.Context, orgID string) ([]OrgMember,
 func (m *MemStore) OrgsForUser(_ context.Context, userID string) ([]Org, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var out []Org
+	out := []Org{}
 	for _, e := range m.members {
 		if e.UserID == userID {
 			if o, ok := m.orgs[e.OrgID]; ok {
@@ -328,7 +328,7 @@ func (m *MemStore) GetAPIKeyByPrefix(_ context.Context, prefix string) (APIKey, 
 func (m *MemStore) ListAPIKeys(_ context.Context, orgID string) ([]APIKey, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var out []APIKey
+	out := []APIKey{}
 	for _, k := range m.keys {
 		if k.OrgID == orgID {
 			out = append(out, k)
@@ -383,7 +383,7 @@ func (m *MemStore) ReserveSubdomain(_ context.Context, s ReservedSubdomain) (Res
 func (m *MemStore) ListSubdomains(_ context.Context, orgID string) ([]ReservedSubdomain, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var out []ReservedSubdomain
+	out := []ReservedSubdomain{}
 	for _, s := range m.subs {
 		if s.OrgID == orgID {
 			out = append(out, s)
@@ -471,7 +471,7 @@ func (m *MemStore) GetCustomDomainByName(_ context.Context, domain string) (Cust
 func (m *MemStore) ListCustomDomains(_ context.Context, orgID string) ([]CustomDomain, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var out []CustomDomain
+	out := []CustomDomain{}
 	for _, d := range m.domains {
 		if d.OrgID == orgID {
 			out = append(out, d)
@@ -912,7 +912,7 @@ func (m *MemStore) InsertMeteredUsage(_ context.Context, u MeteredUsage) (Metere
 func (m *MemStore) PendingMeteredUsage(_ context.Context, limit int) ([]MeteredUsage, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var out []MeteredUsage
+	out := []MeteredUsage{}
 	for _, e := range m.metered {
 		if e.ReportedAt == nil {
 			out = append(out, e)

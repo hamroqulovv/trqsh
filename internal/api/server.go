@@ -155,6 +155,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 	r.Use(s.metrics.middleware)
+	r.Use(s.logFailures)
 	r.Use(publicRequestTimeout)
 	r.Use(s.securityHeaders)
 

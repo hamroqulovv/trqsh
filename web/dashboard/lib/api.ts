@@ -260,6 +260,15 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return parse<T>(res);
 }
 
+/**
+ * GET a list. `safe()` uses null to mean "the request failed", so a successful
+ * response must never be null. The API used to answer null for an empty list
+ * (Go encodes a nil slice that way); that is an empty list, not a failure.
+ */
+async function apiList<T>(path: string): Promise<T[]> {
+  return (await apiFetch<T[] | null>(path)) ?? [];
+}
+
 // ---- Unauthenticated auth calls ----
 
 export async function getOAuthProviders(): Promise<string[]> {
@@ -277,11 +286,21 @@ export async function getOAuthProviders(): Promise<string[]> {
 
 // ---- Typed resource methods ----
 
-/** Resolve a request to null instead of throwing, for pages that degrade gracefully. */
+/**
+ * Resolve a request to null instead of throwing, for pages that degrade
+ * gracefully. The page then says it couldn't load something, so the reason goes
+ * to the server log; an expired session (401) is routine and is not logged.
+ */
 export async function safe<T>(p: Promise<T>): Promise<T | null> {
   try {
     return await p;
-  } catch {
+  } catch (error) {
+    if (!isUnauthorized(error)) {
+      console.error(
+        "trqsh API request failed:",
+        error instanceof ApiError ? `${error.status} ${error.message}` : error,
+      );
+    }
     return null;
   }
 }
@@ -289,30 +308,30 @@ export async function safe<T>(p: Promise<T>): Promise<T | null> {
 export const api = {
   account: () => apiFetch<Account>("/account"),
   me: () => apiFetch<Me>("/me"),
-  orgs: () => apiFetch<Org[]>("/orgs"),
+  orgs: () => apiList<Org>("/orgs"),
   approveDevice: (user_code: string) =>
     apiFetch<{ status: string }>("/auth/device/approve", {
       method: "POST",
       body: JSON.stringify({ user_code }),
     }),
-  apiKeys: () => apiFetch<ApiKey[]>("/api-keys"),
+  apiKeys: () => apiList<ApiKey>("/api-keys"),
   createApiKey: (name: string) =>
     apiFetch<CreatedApiKey>("/api-keys", { method: "POST", body: JSON.stringify({ name }) }),
   revokeApiKey: (id: string) => apiFetch<void>(`/api-keys/${id}`, { method: "DELETE" }),
 
-  subdomains: () => apiFetch<ReservedSubdomain[]>("/subdomains"),
+  subdomains: () => apiList<ReservedSubdomain>("/subdomains"),
   reserveSubdomain: (subdomain: string) =>
     apiFetch<ReservedSubdomain>("/subdomains", { method: "POST", body: JSON.stringify({ subdomain }) }),
   releaseSubdomain: (id: string) => apiFetch<void>(`/subdomains/${id}`, { method: "DELETE" }),
 
-  domains: () => apiFetch<CustomDomain[]>("/domains"),
+  domains: () => apiList<CustomDomain>("/domains"),
   addDomain: (domain: string) =>
     apiFetch<AddedDomain>("/domains", { method: "POST", body: JSON.stringify({ domain }) }),
   verifyDomain: (id: string) => apiFetch<CustomDomain>(`/domains/${id}/verify`, { method: "POST" }),
 
   usage: () => apiFetch<UsageResponse>("/usage"),
-  tunnels: () => apiFetch<Tunnel[]>("/tunnels"),
-  plans: () => apiFetch<Plan[]>("/plans"),
+  tunnels: () => apiList<Tunnel>("/tunnels"),
+  plans: () => apiList<Plan>("/plans"),
 
   subscription: () => apiFetch<SubscriptionResponse>("/billing/subscription"),
   checkout: (plan: string, cadence: string) =>
