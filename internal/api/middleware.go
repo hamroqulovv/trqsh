@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"log/slog"
 	"math"
 	"net"
@@ -44,6 +45,62 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// maxLoggedError bounds how much of a failed response body is kept for the log.
+const maxLoggedError = 512
+
+// logFailures logs every request that ends in a server error (5xx), with the
+// error the client was sent. Most handlers write those errors without logging
+// them, so otherwise the failure leaves no trace in the API's output. 4xx
+// responses are not logged: the client already gets the reason, anyone can cause
+// them (so they could flood the log), and trqsh_api_http_requests_total counts them.
+func (s *Server) logFailures(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		body := &errorBody{status: ww.Status}
+		ww.Tee(body)
+		start := time.Now()
+		next.ServeHTTP(ww, r)
+		if status := ww.Status(); status >= http.StatusInternalServerError {
+			s.log.Error("request failed",
+				"method", r.Method,
+				"route", routePattern(r),
+				"path", sanitizeLog(r.URL.Path),
+				"status", status,
+				"error", sanitizeLog(body.message(status)),
+				"duration", time.Since(start),
+			)
+		}
+	})
+}
+
+// errorBody keeps the start of a 5xx response body so its error can be logged.
+type errorBody struct {
+	status func() int
+	buf    []byte
+}
+
+func (b *errorBody) Write(p []byte) (int, error) {
+	if b.status() >= http.StatusInternalServerError && len(b.buf) < maxLoggedError {
+		b.buf = append(b.buf, p[:min(len(p), maxLoggedError-len(b.buf))]...)
+	}
+	return len(p), nil
+}
+
+// message is the body's {"error": "..."} text, the raw body when it is not that
+// JSON, or the status text when there was no body (a timeout writes none).
+func (b *errorBody) message(status int) string {
+	var e struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(b.buf, &e) == nil && e.Error != "" {
+		return e.Error
+	}
+	if text := strings.TrimSpace(string(b.buf)); text != "" {
+		return text
+	}
+	return http.StatusText(status)
 }
 
 // rateLimiter enforces a per-client token-bucket limit. The bucket state lives

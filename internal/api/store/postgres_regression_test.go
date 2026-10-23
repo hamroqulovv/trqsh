@@ -57,6 +57,8 @@ func TestPostgresBillingAndUsageRegression(t *testing.T) {
 			t.Fatalf("%s: %v", path, err)
 		}
 	}
+	// First, while the schema is still empty, so unfiltered lists are empty too.
+	t.Run("Empty lists", func(t *testing.T) { testEmptyLists(t, p) })
 	t.Run("OAuth identity persistence", func(t *testing.T) { testOAuthSubjectPersistence(t, p) })
 	t.Run("Admin controls", func(t *testing.T) { testAdminControls(t, p) })
 	org, err := p.CreateOrg(ctx, Org{Name: "regression", Plan: "free"})

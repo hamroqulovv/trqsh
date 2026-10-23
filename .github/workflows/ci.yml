@@ -92,6 +92,10 @@ jobs:
         if: matrix.app == 'web/site'
         working-directory: web/site
         run: pnpm test
+      - name: Dashboard tests
+        if: matrix.app == 'web/dashboard'
+        working-directory: web/dashboard
+        run: pnpm test
 
   helm:
     name: Helm lint + template

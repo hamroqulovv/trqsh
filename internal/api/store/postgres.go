@@ -173,7 +173,7 @@ func (p *PostgresStore) ListOAuthProviders(ctx context.Context, userID string) (
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []string
+	out := []string{}
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
@@ -258,7 +258,7 @@ func (p *PostgresStore) ListOrgMembers(ctx context.Context, orgID string) ([]Org
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []OrgMember
+	out := []OrgMember{}
 	for rows.Next() {
 		var m OrgMember
 		if err := rows.Scan(&m.OrgID, &m.UserID, &m.Role); err != nil {
@@ -309,7 +309,7 @@ func (p *PostgresStore) ListAPIKeys(ctx context.Context, orgID string) ([]APIKey
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []APIKey
+	out := []APIKey{}
 	for rows.Next() {
 		var k APIKey
 		var last, revoked sql.NullTime
@@ -354,7 +354,7 @@ func (p *PostgresStore) ListSubdomains(ctx context.Context, orgID string) ([]Res
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []ReservedSubdomain
+	out := []ReservedSubdomain{}
 	for rows.Next() {
 		var s ReservedSubdomain
 		if err := rows.Scan(&s.ID, &s.OrgID, &s.Subdomain, &s.CreatedAt); err != nil {
@@ -436,7 +436,7 @@ func (p *PostgresStore) ListCustomDomains(ctx context.Context, orgID string) ([]
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []CustomDomain
+	out := []CustomDomain{}
 	for rows.Next() {
 		var d CustomDomain
 		var verified sql.NullTime
@@ -490,7 +490,7 @@ func (p *PostgresStore) UsageSeriesForOrg(ctx context.Context, orgID string, sin
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []UsageBucket
+	out := []UsageBucket{}
 	for rows.Next() {
 		var b UsageBucket
 		if err := rows.Scan(&b.Start, &b.BytesIn, &b.BytesOut, &b.Requests); err != nil {
@@ -561,7 +561,7 @@ func (p *PostgresStore) ListTunnelSessions(ctx context.Context, f TunnelSessionF
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []TunnelSession
+	out := []TunnelSession{}
 	for rows.Next() {
 		s, err := scanTunnelSession(rows)
 		if err != nil {
@@ -680,7 +680,7 @@ func (p *PostgresStore) ListUsers(ctx context.Context, limit, offset int, search
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []User
+	out := []User{}
 	for rows.Next() {
 		var u User
 		var disabled sql.NullTime
@@ -833,7 +833,7 @@ func (p *PostgresStore) PendingMeteredUsage(ctx context.Context, limit int) ([]M
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []MeteredUsage
+	out := []MeteredUsage{}
 	for rows.Next() {
 		var u MeteredUsage
 		var reported sql.NullTime

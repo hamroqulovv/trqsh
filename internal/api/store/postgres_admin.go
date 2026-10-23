@@ -35,7 +35,7 @@ func scanOrg(r rowScanner) (Org, error) {
 
 func collectOrgs(rows *sql.Rows) ([]Org, error) {
 	defer func() { _ = rows.Close() }()
-	var out []Org
+	out := []Org{}
 	for rows.Next() {
 		o, err := scanOrg(rows)
 		if err != nil {
@@ -138,7 +138,7 @@ func (p *PostgresStore) ListAllAPIKeys(ctx context.Context, q Query, state strin
 		return nil, 0, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []AdminAPIKey
+	out := []AdminAPIKey{}
 	for rows.Next() {
 		var k AdminAPIKey
 		var last, revoked sql.NullTime
@@ -172,7 +172,7 @@ func (p *PostgresStore) ListAllSubdomains(ctx context.Context, q Query) ([]Admin
 		return nil, 0, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []AdminSubdomain
+	out := []AdminSubdomain{}
 	for rows.Next() {
 		var s AdminSubdomain
 		if err := rows.Scan(&s.ID, &s.OrgID, &s.Subdomain, &s.CreatedAt, &s.OrgName); err != nil {
@@ -204,7 +204,7 @@ func (p *PostgresStore) ListAllCustomDomains(ctx context.Context, q Query, statu
 		return nil, 0, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []AdminDomain
+	out := []AdminDomain{}
 	for rows.Next() {
 		var d AdminDomain
 		var verified sql.NullTime
@@ -244,7 +244,7 @@ func (p *PostgresStore) ListSubscriptions(ctx context.Context, q Query, status s
 		return nil, 0, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []AdminSubscription
+	out := []AdminSubscription{}
 	for rows.Next() {
 		var s AdminSubscription
 		var end sql.NullTime
@@ -274,7 +274,7 @@ func (p *PostgresStore) UsageSeriesAll(ctx context.Context, since time.Time, buc
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []UsageBucket
+	out := []UsageBucket{}
 	for rows.Next() {
 		var b UsageBucket
 		if err := rows.Scan(&b.Start, &b.BytesIn, &b.BytesOut, &b.Requests); err != nil {
@@ -298,7 +298,7 @@ func (p *PostgresStore) TopOrgsByUsage(ctx context.Context, since time.Time, lim
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []OrgUsage
+	out := []OrgUsage{}
 	for rows.Next() {
 		var u OrgUsage
 		if err := rows.Scan(&u.OrgID, &u.OrgName, &u.BytesIn, &u.BytesOut, &u.Requests); err != nil {
@@ -344,7 +344,7 @@ func (p *PostgresStore) ListAudit(ctx context.Context, q AuditQuery) ([]AuditEnt
 		return nil, 0, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []AuditEntry
+	out := []AuditEntry{}
 	for rows.Next() {
 		var e AuditEntry
 		var detail []byte

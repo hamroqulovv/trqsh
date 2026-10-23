@@ -150,6 +150,31 @@ func TestReservedSubdomainLimit(t *testing.T) {
 	}
 }
 
+// A new org has none of these yet. Each must come back as [], not null: the
+// dashboard reads a null body as a failed request and shows "couldn't load".
+func TestEmptyListsAreArrays(t *testing.T) {
+	ts := testServer(t)
+	var signup struct {
+		Tokens struct {
+			Access string `json:"access_token"`
+		} `json:"tokens"`
+	}
+	postJSON(t, ts.URL+"/v1/auth/signup", "", map[string]string{"email": "empty@example.com", "name": "Empty"}, &signup)
+	for _, path := range []string{"/v1/subdomains", "/v1/domains", "/v1/tunnels", "/v1/api-keys"} {
+		req, _ := http.NewRequest("GET", ts.URL+path, nil)
+		req.Header.Set("Authorization", "Bearer "+signup.Tokens.Access)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if got := strings.TrimSpace(string(b)); resp.StatusCode != http.StatusOK || got != "[]" {
+			t.Errorf("GET %s = %d %s, want 200 []", path, resp.StatusCode, got)
+		}
+	}
+}
+
 func TestMeWithAPIKey(t *testing.T) {
 	ts := testServer(t)
 	_, apiKey := signupAndKey(t, ts, "me@example.com")
